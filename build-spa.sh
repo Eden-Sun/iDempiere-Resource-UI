@@ -1,6 +1,8 @@
 #!/bin/bash
 # Script to build and deploy the SPA Static Plugin
 
+set -euo pipefail
+
 # Get the directory of the script
 PLUGIN_DIR="$(dirname "$(readlink -f "$0")")"
 # Assume workspace root is two levels up from plugins/tw.mxp.emui
@@ -19,11 +21,37 @@ echo "Building SPA Plugin..."
 echo "Plugin Dir: $PLUGIN_DIR"
 echo "Workspace Dir: $WORKSPACE_DIR"
 
+# Prefer native toolchain when available
+has_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+use_native_toolchain() {
+  # User requested: if native environment has java + mvn, don't use Docker.
+  # Also require javac/jar (JDK) because we compile and package.
+  has_cmd java && has_cmd mvn && has_cmd javac && has_cmd jar
+}
+
+run_in_jdk() {
+  # Usage: run_in_jdk <cmd...>
+  if use_native_toolchain; then
+    "$@"
+  else
+    docker run --rm -v "$WORKSPACE_DIR/plugins:/workspace" -w "/workspace/$PLUGIN_NAME" \
+      eclipse-temurin:17-jdk \
+      "$@"
+  fi
+}
+
 # Clean build output to avoid stale classes (e.g. old package names)
-# NOTE: build/ is often created by Docker (root), so we clean via Docker to avoid permission issues.
-docker run --rm -v "$WORKSPACE_DIR/plugins:/workspace" \
-  eclipse-temurin:17-jdk \
-  rm -rf "/workspace/$PLUGIN_NAME/build"
+if use_native_toolchain; then
+  echo "Toolchain: native (java + mvn detected)"
+  rm -rf "$BUILD_DIR"
+else
+  echo "Toolchain: docker (native java+mvn not detected)"
+  # NOTE: build/ is often created by Docker (root), so we clean via Docker to avoid permission issues.
+  docker run --rm -v "$WORKSPACE_DIR/plugins:/workspace" \
+    eclipse-temurin:17-jdk \
+    rm -rf "/workspace/$PLUGIN_NAME/build"
+fi
 
 # Ensure directories exist
 mkdir -p "$PLUGIN_DIR/lib"
@@ -52,11 +80,15 @@ ensure_servlet_api_jar
 
 # 1. Compile Java Source
 echo "Compiling Java sources..."
-docker run --rm -v "$WORKSPACE_DIR/plugins:/workspace" -w /workspace/tw.mxp.emui \
-  eclipse-temurin:17-jdk \
-  javac -cp lib/servlet-api.jar -d build/classes \
+if use_native_toolchain; then
+  javac -cp "$SERVLET_API_JAR" -d "$BUILD_CLASSES_DIR" \
+    "$PLUGIN_DIR/src/tw/mxp/emui/SpaFilter.java" \
+    "$PLUGIN_DIR/src/tw/mxp/emui/SpaServlet.java"
+else
+  run_in_jdk javac -cp lib/servlet-api.jar -d build/classes \
     src/tw/mxp/emui/SpaFilter.java \
     src/tw/mxp/emui/SpaServlet.java
+fi
 
 # 2. Prepare Config
 echo "Preparing configuration..."
@@ -75,9 +107,14 @@ echo "Using web content from: $WEB_CONTENT_SOURCE"
 # -C build/classes .  -> Puts com/... at root
 # -C build WEB-INF    -> Puts WEB-INF/web.xml at WEB-INF/web.xml
 # -C web-content/...  -> Puts index.html etc at root
-docker run --rm -v "$WORKSPACE_DIR/plugins:/workspace" -w /workspace/tw.mxp.emui \
-  eclipse-temurin:17-jdk \
-  jar cvfm "../$JAR_NAME" META-INF/MANIFEST.MF -C build/classes . -C build WEB-INF -C "$WEB_CONTENT_SOURCE" .
+if use_native_toolchain; then
+  jar cvfm "$WORKSPACE_DIR/plugins/$JAR_NAME" "$PLUGIN_DIR/META-INF/MANIFEST.MF" \
+    -C "$BUILD_CLASSES_DIR" . \
+    -C "$BUILD_DIR" WEB-INF \
+    -C "$PLUGIN_DIR/$WEB_CONTENT_SOURCE" .
+else
+  run_in_jdk jar cvfm "../$JAR_NAME" META-INF/MANIFEST.MF -C build/classes . -C build WEB-INF -C "$WEB_CONTENT_SOURCE" .
+fi
 
 # 4. Deploy
 echo "Deploying to iDempiere..."
