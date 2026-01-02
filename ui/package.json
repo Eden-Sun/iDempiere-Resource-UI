@@ -1,0 +1,25 @@
+{
+  "name": "idempiere-resource-ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SPA UI for iDempiere Resource scheduling (served at /emui).",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --port 5173"
+  },
+  "dependencies": {
+    "ky": "^1.14.2",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^6.1.0"
+  }
+}
