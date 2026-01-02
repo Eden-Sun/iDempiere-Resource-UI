@@ -6,7 +6,8 @@ export default defineConfig({
   base: '/emui/',
   plugins: [vue()],
   build: {
-    outDir: '../web-content/dist',
+    // Output directly to plugin's web root (no extra dist layer)
+    outDir: '../web-content',
     assetsDir: 'assets',
     emptyOutDir: true,
   },

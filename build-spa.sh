@@ -16,6 +16,7 @@ SERVLET_API_JAR="$PLUGIN_DIR/lib/servlet-api.jar"
 BUILD_DIR="$PLUGIN_DIR/build"
 BUILD_CLASSES_DIR="$BUILD_DIR/classes"
 BUILD_WEBINF_DIR="$BUILD_DIR/WEB-INF"
+WEB_CONTENT_DIR="$PLUGIN_DIR/web-content"
 
 echo "Building SPA Plugin..."
 echo "Plugin Dir: $PLUGIN_DIR"
@@ -57,7 +58,25 @@ fi
 mkdir -p "$PLUGIN_DIR/lib"
 mkdir -p "$BUILD_CLASSES_DIR"
 mkdir -p "$BUILD_WEBINF_DIR"
-mkdir -p "$PLUGIN_DIR/web-content/dist"
+mkdir -p "$WEB_CONTENT_DIR"
+: > "$WEB_CONTENT_DIR/.gitkeep"
+
+build_ui_if_possible() {
+  # Build UI into $WEB_CONTENT_DIR when npm exists.
+  # This keeps the plugin packaging deterministic, and avoids needing committed build artifacts.
+  if ! has_cmd npm; then
+    echo "npm not found; skipping UI build"
+    return 0
+  fi
+
+  echo "Building UI..."
+  if [ ! -d "$PLUGIN_DIR/ui/node_modules" ]; then
+    (cd "$PLUGIN_DIR/ui" && npm ci)
+  fi
+  (cd "$PLUGIN_DIR/ui" && npm run build)
+  # Vite emptyOutDir may remove .gitkeep; restore it so the directory stays tracked.
+  : > "$WEB_CONTENT_DIR/.gitkeep"
+}
 
 ensure_servlet_api_jar() {
   if [ -f "$SERVLET_API_JAR" ]; then
@@ -78,6 +97,9 @@ ensure_servlet_api_jar() {
 
 ensure_servlet_api_jar
 
+# 0. Build UI (if available)
+build_ui_if_possible
+
 # 1. Compile Java Source
 echo "Compiling Java sources..."
 if use_native_toolchain; then
@@ -96,13 +118,31 @@ cp "$PLUGIN_DIR/WEB-INF/web.xml" "$BUILD_WEBINF_DIR/"
 
 # 3. Create JAR
 echo "Creating JAR..."
-# Prefer UI build output at web-content/dist if present; otherwise fallback to web-content root.
+# Prefer direct web root (web-content/). Keep legacy fallback to web-content/dist if present.
 WEB_CONTENT_SOURCE="web-content"
-if [ -f "$PLUGIN_DIR/web-content/dist/index.html" ]; then
+if [ -f "$WEB_CONTENT_DIR/index.html" ]; then
+  WEB_CONTENT_SOURCE="web-content"
+elif [ -f "$WEB_CONTENT_DIR/dist/index.html" ]; then
   WEB_CONTENT_SOURCE="web-content/dist"
+else
+  echo "ERROR: web content not found. Expected $WEB_CONTENT_DIR/index.html (or legacy $WEB_CONTENT_DIR/dist/index.html)."
+  echo "       Please run: (cd \"$PLUGIN_DIR/ui\" && npm ci && npm run build)"
+  exit 1
 fi
 
 echo "Using web content from: $WEB_CONTENT_SOURCE"
+
+# Build jar args for web content (exclude dotfiles like .gitkeep)
+WEB_CONTENT_HOST_DIR="$PLUGIN_DIR/$WEB_CONTENT_SOURCE"
+WEB_CONTENT_CONTAINER_DIR="$WEB_CONTENT_SOURCE"
+
+web_content_jar_args_host=(-C "$WEB_CONTENT_HOST_DIR" index.html)
+web_content_jar_args_container=(-C "$WEB_CONTENT_CONTAINER_DIR" index.html)
+
+if [ -d "$WEB_CONTENT_HOST_DIR/assets" ]; then
+  web_content_jar_args_host+=(-C "$WEB_CONTENT_HOST_DIR" assets)
+  web_content_jar_args_container+=(-C "$WEB_CONTENT_CONTAINER_DIR" assets)
+fi
 
 # -C build/classes .  -> Puts com/... at root
 # -C build WEB-INF    -> Puts WEB-INF/web.xml at WEB-INF/web.xml
@@ -111,9 +151,9 @@ if use_native_toolchain; then
   jar cvfm "$WORKSPACE_DIR/plugins/$JAR_NAME" "$PLUGIN_DIR/META-INF/MANIFEST.MF" \
     -C "$BUILD_CLASSES_DIR" . \
     -C "$BUILD_DIR" WEB-INF \
-    -C "$PLUGIN_DIR/$WEB_CONTENT_SOURCE" .
+    "${web_content_jar_args_host[@]}"
 else
-  run_in_jdk jar cvfm "../$JAR_NAME" META-INF/MANIFEST.MF -C build/classes . -C build WEB-INF -C "$WEB_CONTENT_SOURCE" .
+  run_in_jdk jar cvfm "../$JAR_NAME" META-INF/MANIFEST.MF -C build/classes . -C build WEB-INF "${web_content_jar_args_container[@]}"
 fi
 
 # 4. Deploy

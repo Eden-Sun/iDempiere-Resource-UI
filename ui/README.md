@@ -40,15 +40,16 @@ src/
 
 - **base**：必須是 `/emui/`
   - 否則 build 後的資源引用會是 `/assets/...`，在 iDempiere 下會 404。
-- **outDir**：建議輸出到 `../web-content/dist`
-  - 此目錄已在 `.gitignore` 內排除（不提交 build 產物）。
+- **outDir**：建議輸出到 `../web-content`
+  - 減少一層 `dist/`，`web-content/` 就是最終打包進 JAR 的 web root。
+  - 此目錄已在 `.gitignore` 內排除（不提交 build 產物），只保留 `.gitkeep`。
 
 ### 使用方式（範例）
 
 在您的 Vite 專案中套用本範本設定（或複製 `vite.config.js` 的設定片段）：
 
 - `base: '/emui/'`
-- `build.outDir: '../web-content/dist'`
+- `build.outDir: '../web-content'`
 
 完成 `npm run build` 後，再執行：
 
