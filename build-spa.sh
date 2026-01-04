@@ -25,15 +25,6 @@ echo "Workspace Dir: $WORKSPACE_DIR"
 # Prefer native toolchain when available
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
 
-has_docker_container() {
-  # Usage: has_docker_container <name>
-  # Returns 0 when Docker is available and container exists.
-  if ! has_cmd docker; then
-    return 1
-  fi
-  docker inspect "$1" >/dev/null 2>&1
-}
-
 use_native_toolchain() {
   # User requested: if native environment has java + mvn, don't use Docker.
   # Also require javac/jar (JDK) because we compile and package.
@@ -110,7 +101,7 @@ ensure_servlet_api_jar() {
   fi
 
   # 2) Docker iDempiere: fallback to container copy.
-  if has_docker_container idempiere-app; then
+  if ! use_native_toolchain; then
     echo "servlet-api.jar not found; copying from idempiere container..."
     local jar_path
     jar_path="$(docker exec idempiere-app sh -c 'for f in /opt/idempiere/plugins/org.eclipse.jetty.servlet-api_*.jar; do echo "$f"; break; done')"
@@ -124,7 +115,7 @@ ensure_servlet_api_jar() {
     return 0
   fi
 
-  echo "ERROR: servlet-api.jar not found and cannot use docker (idempiere-app not available)."
+  echo "ERROR: servlet-api.jar not found and docker toolchain is disabled."
   echo "       Please copy a servlet-api jar into: $SERVLET_API_JAR"
   echo "       Tip: look for *servlet-api*.jar under: $WORKSPACE_DIR/plugins/"
   exit 1
@@ -193,7 +184,7 @@ fi
 
 # 4. Deploy
 echo "Deploying to iDempiere..."
-if has_docker_container idempiere-app; then
+if ! use_native_toolchain; then
   docker cp "$WORKSPACE_DIR/plugins/$JAR_NAME" idempiere-app:/opt/idempiere/plugins/
 
   # 5. Restart
@@ -202,7 +193,6 @@ if has_docker_container idempiere-app; then
 
   echo "Done! Access at http://localhost:8080/emui/"
 else
-  echo "Docker container 'idempiere-app' not found; skipping docker deploy/restart."
   echo "Built JAR: $WORKSPACE_DIR/plugins/$JAR_NAME"
   echo "Please restart your iDempiere instance to load the plugin."
 fi
