@@ -151,13 +151,24 @@ export async function getTabFieldsWithMeta(
 ): Promise<TabField[]> {
   const fields = await getTabFields(token, windowSlug, tabSlug)
 
-  // Fetch column metadata in parallel
+  // Fetch column metadata in parallel, but handle individual failures gracefully
   const columnPromises = fields
     .filter((f) => f.columnId > 0)
-    .map((f) => getColumn(token, f.columnId).then((col) => ({ fieldId: f.id, col })))
+    .map((f) =>
+      getColumn(token, f.columnId)
+        .then((col) => ({ fieldId: f.id, col, error: null }))
+        .catch((err) => {
+          console.warn(`[getTabFieldsWithMeta] Failed to load column ${f.columnId} for field ${f.columnName}:`, err)
+          return { fieldId: f.id, col: null, error: err }
+        })
+    )
 
   const columnResults = await Promise.all(columnPromises)
-  const columnMap = new Map(columnResults.map((r) => [r.fieldId, r.col]))
+  const columnMap = new Map(
+    columnResults
+      .filter((r) => r.col !== null)
+      .map((r) => [r.fieldId, r.col!])
+  )
 
   return fields.map((f) => ({
     ...f,
@@ -320,9 +331,23 @@ export async function getLookupValues(
 // === Helpers ===
 
 /**
- * Extract column name from identifier like "TaxID_Tax ID"
+ * Extract column name from identifier like "C_BP_Group_ID_Business Partner Group"
+ * The column name ends with _ID, so we find the last _ID and include it
  */
 function extractColumnName(identifier: string): string {
+  // Find the position of "_ID_" which separates column name from label
+  // e.g. "C_BP_Group_ID_Business Partner Group" -> "C_BP_Group_ID"
+  const idSeparator = identifier.indexOf('_ID_')
+  if (idSeparator > 0) {
+    return identifier.substring(0, idSeparator + 3) // +3 to include "_ID"
+  }
+  // Fallback: find first underscore followed by space or uppercase (label start)
+  // e.g. "TaxID_Tax ID" -> "TaxID"
+  const match = identifier.match(/^([A-Za-z0-9_]+?)_[A-Z\s]/)
+  if (match) {
+    return match[1]
+  }
+  // Last resort: return as-is or up to first underscore
   const idx = identifier.indexOf('_')
   return idx > 0 ? identifier.substring(0, idx) : identifier
 }

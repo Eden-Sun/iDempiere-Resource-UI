@@ -155,33 +155,49 @@ async function loadLookupOptions() {
   lookupError.value = null
   lookupOptions.value = []
 
-  if (inputType.value !== 'select') return
-  if (!props.field.column) return
+  const colName = props.field.columnName
+
+  if (inputType.value !== 'select') {
+    return
+  }
+  if (!props.field.column) {
+    console.log(`[DynamicField] ${colName}: no column metadata available`)
+    lookupError.value = '欄位元資料載入失敗'
+    return
+  }
   if (!auth.token.value) {
+    console.log(`[DynamicField] ${colName}: no token`)
     lookupError.value = '未登入，無法載入選項'
     return
   }
 
   const refId = props.field.column.referenceId
   const refValueId = props.field.column.referenceValueId
-  const colName = props.field.columnName
+
+  console.log(`[DynamicField] ${colName}: refId=${refId}, refValueId=${refValueId}`)
 
   lookupLoading.value = true
   try {
     // 1) List/Table validation (最可靠)：走 Reference API
     if ((refId === ReferenceType.List || refId === ReferenceType.Table || refId === ReferenceType.Search) && refValueId) {
+      console.log(`[DynamicField] ${colName}: trying Reference API`)
       lookupOptions.value = await getReferenceLookupOptions(auth.token.value, refValueId)
-      if (lookupOptions.value.length) return
+      if (lookupOptions.value.length) {
+        console.log(`[DynamicField] ${colName}: got ${lookupOptions.value.length} from Reference API`)
+        return
+      }
     }
 
     // 2) TableDirect / fallback：用欄位名推表名
     if (colName.endsWith('_ID')) {
       const tableName = colName.slice(0, -3)
+      console.log(`[DynamicField] ${colName}: trying table ${tableName}`)
       lookupOptions.value = await getTableLookupOptions(auth.token.value, tableName, {
         select: `${tableName}_ID,Name`,
         orderby: 'Name',
         top: 200,
       })
+      console.log(`[DynamicField] ${colName}: got ${lookupOptions.value.length} from table`)
     }
   } catch (e: any) {
     const status = e?.status

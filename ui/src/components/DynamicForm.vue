@@ -101,9 +101,9 @@ const submitting = ref(false)
 const formError = ref<string | null>(null)
 
 // System fields to exclude by default
+// Note: AD_Org_ID is NOT excluded - users should be able to select organization
 const systemFields = [
   'AD_Client_ID',
-  'AD_Org_ID',
   'Created',
   'CreatedBy',
   'Updated',
