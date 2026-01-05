@@ -21,7 +21,7 @@
     <form v-else @submit.prevent="handleSubmit">
       <div
         v-if="formError"
-        class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+        class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 whitespace-pre-line"
       >
         {{ formError }}
       </div>
@@ -64,6 +64,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import DynamicField from './DynamicField.vue'
 import { type TabField, getTabFieldsWithMeta, ReferenceType } from '../features/window/api'
 import { useAuth } from '../features/auth/store'
+import { getColumnLabel } from '../shared/labels/columnLabels'
 
 const props = withDefaults(
   defineProps<{
@@ -203,6 +204,7 @@ function handleSubmit() {
 
 /**
  * 找出可能缺少的必填欄位（用於後端報錯時輔助提示）
+ * 回傳格式：「標籤 (欄位名)」
  */
 function getMissingMandatoryFields(): string[] {
   const missing: string[] = []
@@ -212,7 +214,8 @@ function getMissingMandatoryFields(): string[] {
     // YesNo: false 也是合法值
     if (f.column.referenceId === ReferenceType.YesNo) continue
     if (val === null || val === undefined || val === '') {
-      missing.push(f.columnName)
+      const label = getColumnLabel(f.columnName, f.name || f.columnName)
+      missing.push(`${label} (${f.columnName})`)
     }
   }
   return missing

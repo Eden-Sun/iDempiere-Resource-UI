@@ -11,7 +11,7 @@
     <!-- Error Message -->
     <div
       v-if="error"
-      class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+      class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 whitespace-pre-line"
     >
       {{ error }}
     </div>
@@ -220,16 +220,19 @@ function formatApiError(e: any, fallback: string, missingFields?: string[]): str
   const message = e?.message || ''
 
   let result = ''
+
+  // 如果有缺少的必填欄位，優先顯示清楚的欄位列表
+  if (missingFields && missingFields.length > 0) {
+    result = `請填寫以下必填欄位：\n• ${missingFields.join('\n• ')}`
+    return result
+  }
+
+  // 否則顯示 API 回傳的錯誤
   if (title) result += title
   if (detail && detail !== title) {
     result += result ? `: ${detail}` : detail
   }
   if (!result && message) result = message
-
-  // 如果是 mandatory fields 錯誤，附加可能缺少的欄位
-  if (missingFields && missingFields.length > 0 && detail.includes('mandatory')) {
-    result += `\n可能缺少的欄位: ${missingFields.join(', ')}`
-  }
 
   return result || fallback
 }
