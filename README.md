@@ -45,13 +45,37 @@ plugins/tw.mxp.emui/
 
 更多 UI 架構與說明請見：`ui/README.md`
 
-常用指令：
+### 開發模式
 
 ```bash
 cd ui
-npm ci
-npm run dev
+bun install      # 安裝依賴（首次）
+bun run dev      # 啟動 Vite dev server
 ```
+
+開發伺服器：http://localhost:5173/emui/
+
+API 請求會自動 proxy 到 http://localhost:8080（無需重新 build）
+
+## 功能說明
+
+### 動態表單欄位過濾
+
+**業務夥伴表單**（`/emui/#/bpartner`）支援「僅顯示必填欄位」功能：
+
+- **預設行為**：只顯示必填欄位（簡化填寫流程）
+- **使用者可切換**：勾選/取消勾選 checkbox 控制顯示所有欄位或僅必填欄位
+- **系統配置**：可透過 iDempiere `AD_SysConfig` 設定全系統預設值
+  - Name: `EMUI_SHOW_ONLY_MANDATORY`
+  - Value: `Y` 或 `true`（啟用）/ `N` 或 `false`（停用）
+
+**實作細節**：
+
+- `DynamicForm` 元件支援 `show-only-mandatory` prop
+- 根據欄位的 `isMandatory` 屬性動態過濾顯示欄位
+- 系統欄位、Key 欄位、Parent 欄位、Button 類型欄位會自動隱藏
+
+詳細技術文件請參考：`/home/r7/erp/CLAUDE.md` 的「動態表單欄位過濾功能」章節
 
 ## 版本控管備註
 

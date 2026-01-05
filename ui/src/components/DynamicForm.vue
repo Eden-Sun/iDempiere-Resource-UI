@@ -74,6 +74,7 @@ const props = withDefaults(
     submitLabel?: string
     showCancel?: boolean
     showHelp?: boolean
+    showOnlyMandatory?: boolean
   }>(),
   {
     excludeFields: () => [],
@@ -81,6 +82,7 @@ const props = withDefaults(
     submitLabel: '儲存',
     showCancel: false,
     showHelp: false,
+    showOnlyMandatory: false,
   },
 )
 
@@ -127,6 +129,8 @@ const visibleFields = computed(() => {
     if (f.column?.referenceId === ReferenceType.Button) return false
     // Exclude fields not displayed (IsDisplayed = false or SeqNo = 0)
     if (!f.isDisplayed || f.seqNo === 0) return false
+    // If showOnlyMandatory is enabled, exclude non-mandatory fields
+    if (props.showOnlyMandatory && !f.column?.isMandatory) return false
     return true
   })
 

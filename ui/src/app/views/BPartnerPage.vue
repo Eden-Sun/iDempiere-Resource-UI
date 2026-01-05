@@ -55,6 +55,18 @@
         </div>
       </div>
 
+      <!-- Field Filter Toggle -->
+      <div v-if="currentStep < 3" class="mb-4 flex items-center gap-2 text-sm">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input
+            v-model="showOnlyMandatory"
+            type="checkbox"
+            class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+          />
+          <span class="text-slate-700">僅顯示必填欄位</span>
+        </label>
+      </div>
+
       <!-- Step 1: Business Partner -->
       <div v-show="currentStep === 0">
         <h2 class="mb-4 text-base font-semibold text-slate-800">業務夥伴</h2>
@@ -63,6 +75,7 @@
           window-slug="business-partner"
           tab-slug="business-partner"
           :default-values="bpDefaults"
+          :show-only-mandatory="showOnlyMandatory"
           submit-label="下一步：聯絡人"
           @submit="handleBpSubmit"
         />
@@ -77,6 +90,7 @@
           tab-slug="contact-user"
           :exclude-fields="['C_BPartner_ID']"
           :default-values="contactDefaults"
+          :show-only-mandatory="showOnlyMandatory"
           submit-label="下一步：地址"
           @submit="handleContactSubmit"
         >
@@ -117,6 +131,7 @@
           tab-slug="location"
           :exclude-fields="['C_BPartner_ID', 'C_Location_ID']"
           :default-values="locationDefaults"
+          :show-only-mandatory="showOnlyMandatory"
           submit-label="完成"
           @submit="handleLocationSubmit"
         >
@@ -172,12 +187,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import DynamicForm from '../../components/DynamicForm.vue'
-import { createWindowRecord, createChildTabRecord, createModelRecord } from '../../features/window/api'
+import { createWindowRecord, createChildTabRecord, createModelRecord, getSysConfig } from '../../features/window/api'
 import { useAuth } from '../../features/auth/store'
 
 const auth = useAuth()
+
+// Filter control: show only mandatory fields (default: true)
+const showOnlyMandatory = ref(true)
 
 const steps = [
   { key: 'bp', label: '業務夥伴' },
@@ -361,4 +379,14 @@ function resetForm() {
   contactFormRef.value?.reload()
   locationFormRef.value?.reload()
 }
+
+// Load system preferences on mount
+onMounted(async () => {
+  if (auth.token.value) {
+    const sysConfigValue = await getSysConfig(auth.token.value, 'EMUI_SHOW_ONLY_MANDATORY')
+    if (sysConfigValue === 'Y' || sysConfigValue === 'true') {
+      showOnlyMandatory.value = true
+    }
+  }
+})
 </script>

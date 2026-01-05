@@ -5,6 +5,14 @@ export default defineConfig({
   // IMPORTANT: this plugin is served under /emui
   base: '/emui/',
   plugins: [vue()],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     // Output directly to plugin's web root (no extra dist layer)
     outDir: '../web-content',

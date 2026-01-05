@@ -466,3 +466,25 @@ export function isLookupField(referenceId: number): boolean {
     ReferenceType.Search,
   ].includes(referenceId)
 }
+
+/**
+ * Get system configuration value by name
+ * @param token - Auth token
+ * @param configName - System config name (e.g., 'EMUI_SHOW_ONLY_MANDATORY')
+ * @returns Configuration value or null if not found
+ */
+export async function getSysConfig(token: string, configName: string): Promise<string | null> {
+  try {
+    const res = await apiFetch<{ records: any[] }>(
+      `${API_V1}/models/AD_SysConfig?$filter=Name eq '${configName}'&$select=Value&$top=1`,
+      { token },
+    )
+    if (res.records && res.records.length > 0) {
+      return res.records[0].Value || null
+    }
+    return null
+  } catch (error) {
+    console.error(`Failed to get sysconfig ${configName}:`, error)
+    return null
+  }
+}
