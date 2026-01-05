@@ -132,6 +132,22 @@
             />
           </div>
 
+          <!-- 群組 -->
+          <div>
+            <label class="block text-sm font-medium text-slate-700">
+              群組 <span class="text-rose-500">*</span>
+            </label>
+            <select
+              v-model="bpForm.C_BP_Group_ID"
+              required
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            >
+              <option :value="103">標準客戶</option>
+              <option :value="104">供應商</option>
+              <option :value="105">員工</option>
+            </select>
+          </div>
+
           <!-- 類型 -->
           <div class="flex flex-wrap gap-4 sm:col-span-2">
             <label class="flex items-center gap-2">
@@ -294,6 +310,56 @@
             />
           </div>
 
+          <!-- 國家 -->
+          <div>
+            <label class="block text-sm font-medium text-slate-700">
+              國家 <span class="text-rose-500">*</span>
+            </label>
+            <select
+              v-model="locationForm.C_Country_ID"
+              required
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            >
+              <option :value="316">台灣</option>
+              <option :value="100">美國</option>
+              <option :value="153">中國</option>
+              <option :value="216">日本</option>
+            </select>
+          </div>
+
+          <!-- 地址1 -->
+          <div class="sm:col-span-2">
+            <label class="block text-sm font-medium text-slate-700">地址</label>
+            <input
+              v-model="locationForm.Address1"
+              type="text"
+              placeholder="街道地址"
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+
+          <!-- 城市 -->
+          <div>
+            <label class="block text-sm font-medium text-slate-700">城市</label>
+            <input
+              v-model="locationForm.City"
+              type="text"
+              placeholder="例如：台北市"
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+
+          <!-- 郵遞區號 -->
+          <div>
+            <label class="block text-sm font-medium text-slate-700">郵遞區號</label>
+            <input
+              v-model="locationForm.Postal"
+              type="text"
+              placeholder="例如：100"
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+
           <!-- 電話 -->
           <div>
             <label class="block text-sm font-medium text-slate-700">電話</label>
@@ -387,7 +453,7 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { createWindowRecord, createChildTabRecord } from '../../features/window/api'
+import { createWindowRecord, createChildTabRecord, createModelRecord } from '../../features/window/api'
 import { useAuth } from '../../features/auth/store'
 
 const auth = useAuth()
@@ -414,6 +480,7 @@ const bpForm = reactive({
   TaxID: '',
   Description: '',
   URL: '',
+  C_BP_Group_ID: 103, // 預設：標準客戶
   IsCustomer: true,
   IsVendor: false,
   IsEmployee: false,
@@ -432,6 +499,10 @@ const contactForm = reactive({
 
 const locationForm = reactive({
   Name: '',
+  C_Country_ID: 316, // 預設：台灣
+  Address1: '',
+  City: '',
+  Postal: '',
   Phone: '',
   Fax: '',
   IsShipTo: true,
@@ -453,6 +524,7 @@ async function handleBpSubmit() {
     const data: Record<string, unknown> = {
       Value: bpForm.Value,
       Name: bpForm.Name,
+      C_BP_Group_ID: bpForm.C_BP_Group_ID,
       IsCustomer: bpForm.IsCustomer,
       IsVendor: bpForm.IsVendor,
       IsEmployee: bpForm.IsEmployee,
@@ -520,8 +592,21 @@ async function handleLocationSubmit() {
   error.value = null
 
   try {
+    // Step 1: 建立 C_Location（地址明細）
+    const locationData: Record<string, unknown> = {
+      C_Country_ID: locationForm.C_Country_ID,
+    }
+    if (locationForm.Address1) locationData.Address1 = locationForm.Address1
+    if (locationForm.City) locationData.City = locationForm.City
+    if (locationForm.Postal) locationData.Postal = locationForm.Postal
+
+    const locationResult = await createModelRecord(auth.token.value, 'C_Location', locationData)
+    const locationId = locationResult.id
+
+    // Step 2: 建立 C_BPartner_Location
     const data: Record<string, unknown> = {
       Name: locationForm.Name,
+      C_Location_ID: locationId,
       IsShipTo: locationForm.IsShipTo,
       IsBillTo: locationForm.IsBillTo,
       IsPayFrom: locationForm.IsPayFrom,
@@ -571,6 +656,7 @@ function resetForm() {
     TaxID: '',
     Description: '',
     URL: '',
+    C_BP_Group_ID: 103,
     IsCustomer: true,
     IsVendor: false,
     IsEmployee: false,
@@ -587,6 +673,10 @@ function resetForm() {
   })
   Object.assign(locationForm, {
     Name: '',
+    C_Country_ID: 316,
+    Address1: '',
+    City: '',
+    Postal: '',
     Phone: '',
     Fax: '',
     IsShipTo: true,

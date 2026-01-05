@@ -197,6 +197,21 @@ export async function createChildTabRecord(
 }
 
 /**
+ * Create a record via Model API (direct table access)
+ */
+export async function createModelRecord(
+  token: string,
+  tableName: string,
+  data: Record<string, unknown>,
+): Promise<any> {
+  return await apiFetch<any>(`${API_V1}/models/${tableName}`, {
+    method: 'POST',
+    token,
+    json: data,
+  })
+}
+
+/**
  * Get lookup values for a reference (Table/TableDirect/List)
  */
 export async function getLookupValues(
