@@ -39,10 +39,21 @@ export async function apiFetch<T>(
   } = {},
 ): Promise<T> {
   const { token, method, searchParams, json } = options
+  
+  // Filter out undefined values from searchParams
+  const cleanSearchParams: Record<string, string | number | boolean> = {}
+  if (searchParams) {
+    for (const [k, v] of Object.entries(searchParams)) {
+      if (v !== undefined) {
+        cleanSearchParams[k] = v
+      }
+    }
+  }
+  
   try {
     return await ky(path, {
       method,
-      searchParams,
+      searchParams: Object.keys(cleanSearchParams).length > 0 ? cleanSearchParams : undefined,
       json,
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     }).json<T>()

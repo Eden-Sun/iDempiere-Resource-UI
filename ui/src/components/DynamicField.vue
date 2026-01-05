@@ -184,7 +184,15 @@ async function loadLookupOptions() {
       })
     }
   } catch (e: any) {
-    lookupError.value = e?.detail || e?.title || e?.message || '下拉選單載入失敗'
+    const status = e?.status
+    if (status === 401) {
+      lookupError.value = 'Token 已過期，請重新登入'
+    } else if (status === 403) {
+      lookupError.value = '無權限存取此資料'
+    } else {
+      lookupError.value = e?.detail || e?.title || e?.message || `下拉選單載入失敗 (${status || 'unknown'})`
+    }
+    console.error(`[DynamicField] loadLookupOptions failed for ${colName}:`, e)
   } finally {
     lookupLoading.value = false
   }
