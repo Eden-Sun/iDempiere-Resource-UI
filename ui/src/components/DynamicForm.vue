@@ -70,12 +70,14 @@ const props = withDefaults(
     windowSlug: string
     tabSlug: string
     excludeFields?: string[]
+    defaultValues?: Record<string, unknown>
     submitLabel?: string
     showCancel?: boolean
     showHelp?: boolean
   }>(),
   {
     excludeFields: () => [],
+    defaultValues: () => ({}),
     submitLabel: '儲存',
     showCancel: false,
     showHelp: false,
@@ -155,7 +157,12 @@ async function loadFields() {
     // Initialize form data with defaults
     for (const field of visibleFields.value) {
       if (!(field.columnName in formData)) {
-        formData[field.columnName] = getDefaultValue(field)
+        // Check if a default value is provided via props
+        if (field.columnName in props.defaultValues) {
+          formData[field.columnName] = props.defaultValues[field.columnName]
+        } else {
+          formData[field.columnName] = getDefaultValue(field)
+        }
       }
     }
 

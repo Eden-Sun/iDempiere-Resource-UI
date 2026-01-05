@@ -62,6 +62,7 @@
           ref="bpFormRef"
           window-slug="business-partner"
           tab-slug="business-partner"
+          :default-values="bpDefaults"
           submit-label="下一步：聯絡人"
           @submit="handleBpSubmit"
         />
@@ -75,6 +76,7 @@
           window-slug="business-partner"
           tab-slug="contact-user"
           :exclude-fields="['C_BPartner_ID']"
+          :default-values="contactDefaults"
           submit-label="下一步：地址"
           @submit="handleContactSubmit"
         >
@@ -114,6 +116,7 @@
           window-slug="business-partner"
           tab-slug="location"
           :exclude-fields="['C_BPartner_ID', 'C_Location_ID']"
+          :default-values="locationDefaults"
           submit-label="完成"
           @submit="handleLocationSubmit"
         >
@@ -169,7 +172,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import DynamicForm from '../../components/DynamicForm.vue'
 import { createWindowRecord, createChildTabRecord, createModelRecord } from '../../features/window/api'
 import { useAuth } from '../../features/auth/store'
@@ -181,6 +184,23 @@ const steps = [
   { key: 'contact', label: '聯絡人' },
   { key: 'location', label: '地址' },
 ]
+
+// Default values to prevent creation failures
+// C_BP_Group_ID: 104 = Standard (GardenWorld default BP Group)
+const bpDefaults = computed(() => ({
+  C_BP_Group_ID: 104,
+}))
+
+// Contact defaults - Name will be auto-filled from BP name if needed
+const contactDefaults = computed(() => ({
+  // No special defaults needed, Name is usually required
+}))
+
+// Location defaults
+// C_Country_ID: 100 = USA (iDempiere default), 316 = Taiwan
+const locationDefaults = computed(() => ({
+  C_Country_ID: 100,
+}))
 
 const currentStep = ref(0)
 const submitting = ref(false)
@@ -291,7 +311,7 @@ async function handleLocationSubmit(data: Record<string, unknown>) {
 
     // Ensure C_Country_ID is set (required)
     if (!locationData.C_Country_ID) {
-      locationData.C_Country_ID = 316 // Default: Taiwan
+      locationData.C_Country_ID = locationDefaults.value.C_Country_ID || 100 // Default: USA
     }
 
     const locationResult = await createModelRecord(auth.token.value, 'C_Location', locationData)
