@@ -271,19 +271,27 @@ if [ "$DO_DEPLOY" -eq 1 ] && [ "$DO_RESTART" -eq 1 ]; then
   ELAPSED=0
   HEALTH_URL="http://localhost:8080/api/v1/auth"
 
-  while [ $ELAPSED -lt $MAX_WAIT ]; do
-    # Use curl with short timeout; check for HTTP 2xx or 4xx (server is up)
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 5 "$HEALTH_URL" 2>/dev/null || echo "000")
+  # Initial wait for container to start
+  sleep $WAIT_INTERVAL
+  ELAPSED=$WAIT_INTERVAL
+
+  while [ $ELAPSED -le $MAX_WAIT ]; do
+    echo "  checking... (${ELAPSED}s / ${MAX_WAIT}s)"
     
-    if [ "$HTTP_CODE" != "000" ] && [ "$HTTP_CODE" != "502" ] && [ "$HTTP_CODE" != "503" ]; then
+    # Use curl with short timeout; capture HTTP code only
+    HTTP_CODE=""
+    HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 3 --max-time 5 "$HEALTH_URL" 2>/dev/null) || true
+    
+    # Check if we got a valid HTTP response (3 digits, not 000/502/503)
+    if [ -n "$HTTP_CODE" ] && [ "$HTTP_CODE" != "000" ] && [ "$HTTP_CODE" != "502" ] && [ "$HTTP_CODE" != "503" ]; then
       echo "✓ iDempiere is ready! (HTTP $HTTP_CODE after ${ELAPSED}s)"
+      echo ""
       echo "Access at http://localhost:8080/emui/"
       exit 0
     fi
 
     sleep $WAIT_INTERVAL
     ELAPSED=$((ELAPSED + WAIT_INTERVAL))
-    echo "  waiting... (${ELAPSED}s / ${MAX_WAIT}s)"
   done
 
   echo "⚠ Timeout: iDempiere did not respond within ${MAX_WAIT}s"
