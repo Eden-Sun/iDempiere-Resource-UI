@@ -5,6 +5,14 @@ export type ApiError = {
   title?: string
   detail?: string
   raw?: unknown
+  isTokenExpired?: boolean
+}
+
+// Callback for token expiration - set by app initialization
+let onTokenExpired: (() => void) | null = null
+
+export function setTokenExpiredHandler(handler: () => void) {
+  onTokenExpired = handler
 }
 
 async function safeReadBody(res: Response): Promise<unknown> {
@@ -47,6 +55,15 @@ export async function apiFetch<T>(
         err.title = b.title
         err.detail = b.detail
       }
+
+      // Check for token expiration
+      if (err.status === 401 && err.title?.toLowerCase().includes('expired')) {
+        err.isTokenExpired = true
+        if (onTokenExpired) {
+          onTokenExpired()
+        }
+      }
+
       throw err
     }
     throw e

@@ -20,6 +20,12 @@
           </RouterLink>
           <RouterLink
             class="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            to="/bpartner"
+          >
+            業務夥伴
+          </RouterLink>
+          <RouterLink
+            class="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             to="/admin/calendar"
           >
             管理行事曆
@@ -47,9 +53,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../features/auth/store'
+import { setTokenExpiredHandler } from '../shared/api/http'
 
 const router = useRouter()
 const auth = useAuth()
@@ -60,5 +67,15 @@ function logout() {
   auth.clear()
   router.push('/login')
 }
+
+function handleTokenExpired() {
+  auth.clear()
+  alert('登入已過期，請重新登入')
+  router.push('/login')
+}
+
+onMounted(() => {
+  setTokenExpiredHandler(handleTokenExpired)
+})
 </script>
 
