@@ -145,7 +145,7 @@ async function loadFields() {
   formError.value = null
 
   try {
-    fields.value = await getTabFieldsWithMeta(auth.token.value, props.windowSlug, props.tabSlug)
+    fields.value = await getTabFieldsWithMeta(auth.token.value, props.windowSlug, props.tabSlug, auth.language.value)
 
     // Initialize form data with defaults
     for (const field of visibleFields.value) {

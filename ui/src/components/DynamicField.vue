@@ -177,20 +177,19 @@ async function loadLookupOptions() {
 
   lookupLoading.value = true
   try {
-    // 1) List/Table validation (最可靠)：走 Reference API
+    // 1) List/Table/Search with Reference: use Reference API
     if ((refId === ReferenceType.List || refId === ReferenceType.Table || refId === ReferenceType.Search) && refValueId) {
-      console.log(`[DynamicField] ${colName}: trying Reference API`)
+      console.log(`[DynamicField] ${colName}: trying Reference API (refValueId=${refValueId})`)
       lookupOptions.value = await getReferenceLookupOptions(auth.token.value, refValueId)
-      if (lookupOptions.value.length) {
-        console.log(`[DynamicField] ${colName}: got ${lookupOptions.value.length} from Reference API`)
-        return
-      }
+      console.log(`[DynamicField] ${colName}: got ${lookupOptions.value.length} from Reference API`)
+      // Don't fallback for Table/List/Search types - they MUST use Reference API
+      return
     }
 
-    // 2) TableDirect / fallback：用欄位名推表名
-    if (colName.endsWith('_ID')) {
+    // 2) TableDirect only: derive table name from column name
+    if (refId === ReferenceType.TableDirect && colName.endsWith('_ID')) {
       const tableName = colName.slice(0, -3)
-      console.log(`[DynamicField] ${colName}: trying table ${tableName}`)
+      console.log(`[DynamicField] ${colName}: trying TableDirect, table=${tableName}`)
       lookupOptions.value = await getTableLookupOptions(auth.token.value, tableName, {
         select: `${tableName}_ID,Name`,
         orderby: 'Name',

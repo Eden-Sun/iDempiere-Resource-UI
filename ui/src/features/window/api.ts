@@ -106,11 +106,13 @@ export async function getWindow(token: string, windowSlug: string): Promise<Wind
 /**
  * Get fields for a tab
  * Note: Window API doesn't return SeqNo, so we need to fetch from AD_Field model
+ * @param language - Language code (e.g. 'zh_TW') for translated field names
  */
 export async function getTabFields(
   token: string,
   windowSlug: string,
   tabSlug: string,
+  language?: string,
 ): Promise<TabField[]> {
   // First get basic field info from Window API
   const res = await apiFetch<{ fields: any[], tabId?: number }>(
@@ -124,8 +126,8 @@ export async function getTabFields(
   // Get field IDs to fetch SeqNo from AD_Field
   const fieldIds = fields.map((f) => f.id).filter((id) => id > 0)
   
-  // Fetch SeqNo and IsDisplayed from AD_Field model
-  let seqNoMap = new Map<number, { seqNo: number; isDisplayed: boolean }>()
+  // Fetch SeqNo, IsDisplayed and optionally translations from AD_Field
+  let fieldMetaMap = new Map<number, { seqNo: number; isDisplayed: boolean; trlName?: string }>()
   if (fieldIds.length > 0) {
     try {
       // Fetch in batches if needed (use filter with IN-like syntax)
@@ -141,10 +143,36 @@ export async function getTabFields(
         },
       )
       for (const af of adFields.records ?? []) {
-        seqNoMap.set(af.id, {
+        fieldMetaMap.set(af.id, {
           seqNo: af.SeqNo ?? 9999,
           isDisplayed: af.IsDisplayed !== false,
         })
+      }
+      
+      // Fetch translations if language is specified and not English
+      if (language && language !== 'en_US') {
+        try {
+          const trlFilter = `(${fieldIds.map((id) => `AD_Field_ID eq ${id}`).join(' or ')}) and AD_Language eq '${language}'`
+          const trlFields = await apiFetch<{ records: any[] }>(
+            `${API_V1}/models/AD_Field_Trl`,
+            {
+              token,
+              searchParams: {
+                $filter: trlFilter,
+                $select: 'AD_Field_ID,Name',
+              },
+            },
+          )
+          for (const trl of trlFields.records ?? []) {
+            const fieldId = trl.AD_Field_ID?.id ?? trl.id
+            const meta = fieldMetaMap.get(fieldId)
+            if (meta && trl.Name) {
+              meta.trlName = trl.Name
+            }
+          }
+        } catch (e) {
+          console.warn('[getTabFields] Failed to fetch translations:', e)
+        }
       }
     } catch (e) {
       console.warn('[getTabFields] Failed to fetch SeqNo from AD_Field:', e)
@@ -152,17 +180,17 @@ export async function getTabFields(
   }
   
   return fields.map((f) => {
-    const seqInfo = seqNoMap.get(f.id)
+    const meta = fieldMetaMap.get(f.id)
     return {
       id: f.id,
       uid: f.uid,
-      name: f.Name,
+      name: meta?.trlName || f.Name, // Use translation if available
       description: f.Description,
       help: f.Help,
       columnId: f.AD_Column_ID?.id ?? 0,
       columnName: extractColumnName(f.AD_Column_ID?.identifier ?? ''),
-      seqNo: seqInfo?.seqNo ?? 9999,
-      isDisplayed: seqInfo?.isDisplayed ?? true,
+      seqNo: meta?.seqNo ?? 9999,
+      isDisplayed: meta?.isDisplayed ?? true,
     }
   })
 }
@@ -186,13 +214,15 @@ export async function getColumn(token: string, columnId: number): Promise<FieldC
 
 /**
  * Get fields with column metadata for a tab
+ * @param language - Language code (e.g. 'zh_TW') for translated field names
  */
 export async function getTabFieldsWithMeta(
   token: string,
   windowSlug: string,
   tabSlug: string,
+  language?: string,
 ): Promise<TabField[]> {
-  const fields = await getTabFields(token, windowSlug, tabSlug)
+  const fields = await getTabFields(token, windowSlug, tabSlug, language)
 
   // Fetch column metadata in parallel, but handle individual failures gracefully
   const columnPromises = fields
