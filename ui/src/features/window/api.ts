@@ -49,6 +49,8 @@ export type TabField = {
   help?: string
   columnId: number
   columnName: string
+  seqNo: number
+  isDisplayed: boolean
   column?: FieldColumn
 }
 
@@ -103,25 +105,66 @@ export async function getWindow(token: string, windowSlug: string): Promise<Wind
 
 /**
  * Get fields for a tab
+ * Note: Window API doesn't return SeqNo, so we need to fetch from AD_Field model
  */
 export async function getTabFields(
   token: string,
   windowSlug: string,
   tabSlug: string,
 ): Promise<TabField[]> {
-  const res = await apiFetch<{ fields: any[] }>(
+  // First get basic field info from Window API
+  const res = await apiFetch<{ fields: any[], tabId?: number }>(
     `${API_V1}/windows/${windowSlug}/tabs/${tabSlug}/fields`,
     { token },
   )
-  return (res.fields ?? []).map((f) => ({
-    id: f.id,
-    uid: f.uid,
-    name: f.Name,
-    description: f.Description,
-    help: f.Help,
-    columnId: f.AD_Column_ID?.id ?? 0,
-    columnName: extractColumnName(f.AD_Column_ID?.identifier ?? ''),
-  }))
+  
+  const fields = res.fields ?? []
+  if (fields.length === 0) return []
+  
+  // Get field IDs to fetch SeqNo from AD_Field
+  const fieldIds = fields.map((f) => f.id).filter((id) => id > 0)
+  
+  // Fetch SeqNo and IsDisplayed from AD_Field model
+  let seqNoMap = new Map<number, { seqNo: number; isDisplayed: boolean }>()
+  if (fieldIds.length > 0) {
+    try {
+      // Fetch in batches if needed (use filter with IN-like syntax)
+      const fieldFilter = fieldIds.map((id) => `AD_Field_ID eq ${id}`).join(' or ')
+      const adFields = await apiFetch<{ records: any[] }>(
+        `${API_V1}/models/AD_Field`,
+        { 
+          token,
+          searchParams: {
+            $filter: fieldFilter,
+            $select: 'AD_Field_ID,SeqNo,IsDisplayed',
+          },
+        },
+      )
+      for (const af of adFields.records ?? []) {
+        seqNoMap.set(af.id, {
+          seqNo: af.SeqNo ?? 9999,
+          isDisplayed: af.IsDisplayed !== false,
+        })
+      }
+    } catch (e) {
+      console.warn('[getTabFields] Failed to fetch SeqNo from AD_Field:', e)
+    }
+  }
+  
+  return fields.map((f) => {
+    const seqInfo = seqNoMap.get(f.id)
+    return {
+      id: f.id,
+      uid: f.uid,
+      name: f.Name,
+      description: f.Description,
+      help: f.Help,
+      columnId: f.AD_Column_ID?.id ?? 0,
+      columnName: extractColumnName(f.AD_Column_ID?.identifier ?? ''),
+      seqNo: seqInfo?.seqNo ?? 9999,
+      isDisplayed: seqInfo?.isDisplayed ?? true,
+    }
+  })
 }
 
 /**

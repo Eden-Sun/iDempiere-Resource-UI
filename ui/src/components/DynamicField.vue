@@ -100,7 +100,6 @@
 import { computed, ref, watch, onMounted } from 'vue'
 import { type TabField, getInputType, ReferenceType, getReferenceLookupOptions, getTableLookupOptions, type LookupOption } from '../features/window/api'
 import { useAuth } from '../features/auth/store'
-import { getColumnLabel } from '../shared/labels/columnLabels'
 
 const props = defineProps<{
   field: TabField
@@ -122,8 +121,8 @@ const lookupError = ref<string | null>(null)
 const fieldId = computed(() => `field-${props.field.id}`)
 
 const labelText = computed(() => {
-  const col = props.field.columnName
-  return getColumnLabel(col, props.field.description)
+  // Use field name from API directly (no translation)
+  return props.field.name || props.field.columnName
 })
 
 const inputType = computed(() => {

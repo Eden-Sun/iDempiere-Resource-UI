@@ -64,7 +64,6 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import DynamicField from './DynamicField.vue'
 import { type TabField, getTabFieldsWithMeta, ReferenceType } from '../features/window/api'
 import { useAuth } from '../features/auth/store'
-import { getColumnLabel } from '../shared/labels/columnLabels'
 
 const props = withDefaults(
   defineProps<{
@@ -126,20 +125,13 @@ const visibleFields = computed(() => {
     if (colName.endsWith('_UU')) return false
     // Exclude button types
     if (f.column?.referenceId === ReferenceType.Button) return false
+    // Exclude fields not displayed (IsDisplayed = false or SeqNo = 0)
+    if (!f.isDisplayed || f.seqNo === 0) return false
     return true
   })
 
-  // Sort by mandatory (descending) to show required fields first
-  return filtered.sort((a, b) => {
-    const aMandatory = a.column?.isMandatory ? 1 : 0
-    const bMandatory = b.column?.isMandatory ? 1 : 0
-    // If one is mandatory and the other is not, mandatory comes first
-    if (aMandatory !== bMandatory) {
-      return bMandatory - aMandatory
-    }
-    // Otherwise keep original order (stable sort)
-    return 0
-  })
+  // Sort by SeqNo (window tab field sequence)
+  return filtered.sort((a, b) => a.seqNo - b.seqNo)
 })
 
 async function loadFields() {
@@ -224,7 +216,7 @@ function getMissingMandatoryFields(): string[] {
     // YesNo: false 也是合法值
     if (f.column.referenceId === ReferenceType.YesNo) continue
     if (val === null || val === undefined || val === '') {
-      const label = getColumnLabel(f.columnName, f.name || f.columnName)
+      const label = f.name || f.columnName
       missing.push(`${label} (${f.columnName})`)
     }
   }
