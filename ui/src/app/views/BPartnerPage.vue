@@ -2,9 +2,9 @@
   <div class="space-y-6">
     <!-- Header -->
     <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h1 class="text-lg font-semibold">Business Partner</h1>
+      <h1 class="text-lg font-semibold">業務夥伴</h1>
       <p class="mt-1 text-sm text-slate-600">
-        Create Business Partner with Contact and Location.
+        建立業務夥伴（可選擇建立聯絡人與地址）。
       </p>
     </div>
 
@@ -57,25 +57,25 @@
 
       <!-- Step 1: Business Partner -->
       <div v-show="currentStep === 0">
-        <h2 class="mb-4 text-base font-semibold text-slate-800">Business Partner</h2>
+        <h2 class="mb-4 text-base font-semibold text-slate-800">業務夥伴</h2>
         <DynamicForm
           ref="bpFormRef"
           window-slug="business-partner"
           tab-slug="business-partner"
-          submit-label="Next: Contact"
+          submit-label="下一步：聯絡人"
           @submit="handleBpSubmit"
         />
       </div>
 
       <!-- Step 2: Contact -->
       <div v-show="currentStep === 1">
-        <h2 class="mb-4 text-base font-semibold text-slate-800">Contact (User)</h2>
+        <h2 class="mb-4 text-base font-semibold text-slate-800">聯絡人</h2>
         <DynamicForm
           ref="contactFormRef"
           window-slug="business-partner"
           tab-slug="contact-user"
           :exclude-fields="['C_BPartner_ID']"
-          submit-label="Next: Location"
+          submit-label="下一步：地址"
           @submit="handleContactSubmit"
         >
           <template #actions>
@@ -85,21 +85,21 @@
                 class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 @click="currentStep = 0"
               >
-                Back
+                返回
               </button>
               <button
                 type="submit"
                 :disabled="submitting"
                 class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
               >
-                {{ submitting ? 'Saving...' : 'Next: Location' }}
+                {{ submitting ? '儲存中…' : '下一步：地址' }}
               </button>
               <button
                 type="button"
                 class="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
                 @click="skipContact"
               >
-                Skip
+                略過
               </button>
             </div>
           </template>
@@ -108,13 +108,13 @@
 
       <!-- Step 3: Location -->
       <div v-show="currentStep === 2">
-        <h2 class="mb-4 text-base font-semibold text-slate-800">Location</h2>
+        <h2 class="mb-4 text-base font-semibold text-slate-800">地址</h2>
         <DynamicForm
           ref="locationFormRef"
           window-slug="business-partner"
           tab-slug="location"
           :exclude-fields="['C_BPartner_ID', 'C_Location_ID']"
-          submit-label="Complete"
+          submit-label="完成"
           @submit="handleLocationSubmit"
         >
           <template #actions>
@@ -124,21 +124,21 @@
                 class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 @click="currentStep = 1"
               >
-                Back
+                返回
               </button>
               <button
                 type="submit"
                 :disabled="submitting"
                 class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
               >
-                {{ submitting ? 'Saving...' : 'Complete' }}
+                {{ submitting ? '儲存中…' : '完成' }}
               </button>
               <button
                 type="button"
                 class="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
                 @click="skipLocation"
               >
-                Skip
+                略過
               </button>
             </div>
           </template>
@@ -150,9 +150,9 @@
         <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
           <span class="text-3xl">✓</span>
         </div>
-        <h2 class="text-lg font-semibold text-slate-900">Business Partner Created!</h2>
+        <h2 class="text-lg font-semibold text-slate-900">業務夥伴已建立！</h2>
         <p class="mt-2 text-sm text-slate-600">
-          Successfully created <strong>{{ createdBpName }}</strong>
+          已成功建立 <strong>{{ createdBpName }}</strong>
         </p>
         <div class="mt-6 flex justify-center gap-3">
           <button
@@ -160,7 +160,7 @@
             class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
             @click="resetForm"
           >
-            Create Another
+            再建立一筆
           </button>
         </div>
       </div>
@@ -177,9 +177,9 @@ import { useAuth } from '../../features/auth/store'
 const auth = useAuth()
 
 const steps = [
-  { key: 'bp', label: 'Business Partner' },
-  { key: 'contact', label: 'Contact' },
-  { key: 'location', label: 'Location' },
+  { key: 'bp', label: '業務夥伴' },
+  { key: 'contact', label: '聯絡人' },
+  { key: 'location', label: '地址' },
 ]
 
 const currentStep = ref(0)
@@ -194,7 +194,7 @@ const bpFormRef = ref<InstanceType<typeof DynamicForm> | null>(null)
 const contactFormRef = ref<InstanceType<typeof DynamicForm> | null>(null)
 const locationFormRef = ref<InstanceType<typeof DynamicForm> | null>(null)
 
-function formatApiError(e: any, fallback: string): string {
+function formatApiError(e: any, fallback: string, missingFields?: string[]): string {
   const detail = e?.detail || ''
   const title = e?.title || ''
   const message = e?.message || ''
@@ -206,12 +206,17 @@ function formatApiError(e: any, fallback: string): string {
   }
   if (!result && message) result = message
 
+  // 如果是 mandatory fields 錯誤，附加可能缺少的欄位
+  if (missingFields && missingFields.length > 0 && detail.includes('mandatory')) {
+    result += `\n可能缺少的欄位: ${missingFields.join(', ')}`
+  }
+
   return result || fallback
 }
 
 async function handleBpSubmit(data: Record<string, unknown>) {
   if (!auth.token.value) {
-    error.value = 'Not logged in'
+    error.value = '尚未登入'
     return
   }
 
@@ -225,7 +230,8 @@ async function handleBpSubmit(data: Record<string, unknown>) {
     createdBpName.value = String(data.Name || result.id)
     currentStep.value = 1
   } catch (e: any) {
-    error.value = formatApiError(e, 'Failed to create Business Partner')
+    const missing = bpFormRef.value?.getMissingMandatoryFields() || []
+    error.value = formatApiError(e, '建立業務夥伴失敗', missing)
   } finally {
     submitting.value = false
     bpFormRef.value?.setSubmitting(false)
@@ -234,7 +240,7 @@ async function handleBpSubmit(data: Record<string, unknown>) {
 
 async function handleContactSubmit(data: Record<string, unknown>) {
   if (!auth.token.value || !createdBpId.value) {
-    error.value = 'Please complete Business Partner first'
+    error.value = '請先完成「業務夥伴」步驟'
     return
   }
 
@@ -253,7 +259,8 @@ async function handleContactSubmit(data: Record<string, unknown>) {
     )
     currentStep.value = 2
   } catch (e: any) {
-    error.value = formatApiError(e, 'Failed to create Contact')
+    const missing = contactFormRef.value?.getMissingMandatoryFields() || []
+    error.value = formatApiError(e, '建立聯絡人失敗', missing)
   } finally {
     submitting.value = false
     contactFormRef.value?.setSubmitting(false)
@@ -262,7 +269,7 @@ async function handleContactSubmit(data: Record<string, unknown>) {
 
 async function handleLocationSubmit(data: Record<string, unknown>) {
   if (!auth.token.value || !createdBpId.value) {
-    error.value = 'Please complete Business Partner first'
+    error.value = '請先完成「業務夥伴」步驟'
     return
   }
 
@@ -301,9 +308,10 @@ async function handleLocationSubmit(data: Record<string, unknown>) {
       data,
     )
     currentStep.value = 3
-    successMessage.value = `Business Partner "${createdBpName.value}" created successfully!`
+    successMessage.value = `已成功建立業務夥伴「${createdBpName.value}」！`
   } catch (e: any) {
-    error.value = formatApiError(e, 'Failed to create Location')
+    const missing = locationFormRef.value?.getMissingMandatoryFields() || []
+    error.value = formatApiError(e, '建立地址失敗', missing)
   } finally {
     submitting.value = false
     locationFormRef.value?.setSubmitting(false)
@@ -316,7 +324,7 @@ function skipContact() {
 
 function skipLocation() {
   currentStep.value = 3
-  successMessage.value = `Business Partner "${createdBpName.value}" created successfully!`
+  successMessage.value = `已成功建立業務夥伴「${createdBpName.value}」！`
 }
 
 function resetForm() {

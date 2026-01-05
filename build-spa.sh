@@ -1,7 +1,53 @@
 #!/bin/bash
 # Script to build and deploy the SPA Static Plugin
 
+# IMPORTANT:
+# Do NOT "source" this script.
+# If sourced, the `set -u` option would leak into your current shell and can break
+# prompt integrations (e.g. Warp) and even terminate SSH sessions.
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  echo "ERROR: 請不要用 source 執行 build-spa.sh，請改用：./build-spa.sh"
+  return 2
+fi
+
 set -euo pipefail
+
+# Options (defaults):
+# - Default: build + deploy + restart (what you normally want in development).
+# - Use --no-deploy / --no-restart to disable.
+DO_DEPLOY=1
+DO_RESTART=1
+
+usage() {
+  cat <<'EOF'
+Usage: ./build-spa.sh [options]
+
+Options:
+  --deploy         Copy plugin JAR into idempiere-app (default)
+  --no-deploy      Only build JAR, do not docker cp
+  --restart        Restart idempiere-app after deploy (default)
+  --no-restart     Do not restart idempiere-app after deploy
+
+Notes:
+  - If you're on SSH and worry about disconnects, run with: --no-restart
+EOF
+}
+
+while [ "${1:-}" != "" ]; do
+  case "$1" in
+    --deploy) DO_DEPLOY=1 ;;
+    --no-deploy) DO_DEPLOY=0 ;;
+    --restart) DO_RESTART=1 ;;
+    --no-restart) DO_RESTART=0 ;;
+    -h|--help) usage; exit 0 ;;
+    *)
+      echo "Unknown option: $1"
+      usage
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 # Get the directory of the script
 PLUGIN_DIR="$(dirname "$(readlink -f "$0")")"
@@ -100,11 +146,28 @@ ensure_servlet_api_jar() {
     return 0
   fi
 
-  # 2) Docker iDempiere: fallback to container copy.
+  # 2) Prefer downloading a stable javax.servlet API JAR (does not touch running containers).
+  # iDempiere plugin code uses javax.servlet.*, so we use javax.servlet-api.
+  echo "servlet-api.jar not found; downloading javax.servlet-api via Docker..."
+  mkdir -p "$PLUGIN_DIR/lib"
+
+  # Use a Maven container without needing a local JDK/Maven.
+  # Store the jar as lib/servlet-api.jar (strip version for stable classpath).
+  docker run --rm \
+    -v "$PLUGIN_DIR/lib:/out" \
+    maven:3.9-eclipse-temurin-17 \
+    bash -lc "mvn -q -Dmaven.repo.local=/tmp/.m2 -Dtransitive=false dependency:get -Dartifact=javax.servlet:javax.servlet-api:3.1.0 && cp /tmp/.m2/repository/javax/servlet/javax.servlet-api/3.1.0/javax.servlet-api-3.1.0.jar /out/servlet-api.jar"
+
+  if [ -f "$SERVLET_API_JAR" ]; then
+    echo "Downloaded: $SERVLET_API_JAR"
+    return 0
+  fi
+
+  # 3) Last resort: copy from running container
   if ! use_native_toolchain; then
-    echo "servlet-api.jar not found; copying from idempiere container..."
+    echo "servlet-api.jar download failed; copying from running idempiere-app container..."
     local jar_path
-    jar_path="$(docker exec idempiere-app sh -c 'for f in /opt/idempiere/plugins/org.eclipse.jetty.servlet-api_*.jar; do echo "$f"; break; done')"
+    jar_path="$(docker exec idempiere-app sh -c 'for f in /opt/idempiere/plugins/org.eclipse.jetty.servlet-api_*.jar; do echo \"$f\"; break; done')"
 
     if [ -z "$jar_path" ]; then
       echo "ERROR: Could not locate org.eclipse.jetty.servlet-api_*.jar in idempiere-app"
@@ -115,9 +178,8 @@ ensure_servlet_api_jar() {
     return 0
   fi
 
-  echo "ERROR: servlet-api.jar not found and docker toolchain is disabled."
-  echo "       Please copy a servlet-api jar into: $SERVLET_API_JAR"
-  echo "       Tip: look for *servlet-api*.jar under: $WORKSPACE_DIR/plugins/"
+  echo "ERROR: servlet-api.jar not found."
+  echo "       Put a servlet-api jar into: $SERVLET_API_JAR"
   exit 1
 }
 
@@ -184,15 +246,29 @@ fi
 
 # 4. Deploy
 echo "Deploying to iDempiere..."
-if ! use_native_toolchain; then
-  docker cp "$WORKSPACE_DIR/plugins/$JAR_NAME" idempiere-app:/opt/idempiere/plugins/
-
-  # 5. Restart
-  echo "Restarting iDempiere..."
-  docker restart idempiere-app
-
-  echo "Done! Access at http://localhost:8080/emui/"
-else
+if use_native_toolchain; then
   echo "Built JAR: $WORKSPACE_DIR/plugins/$JAR_NAME"
   echo "Please restart your iDempiere instance to load the plugin."
+  exit 0
+fi
+
+# Docker toolchain path
+if [ "$DO_DEPLOY" -eq 1 ]; then
+  docker cp "$WORKSPACE_DIR/plugins/$JAR_NAME" idempiere-app:/opt/idempiere/plugins/
+  echo "Deployed: $JAR_NAME -> idempiere-app:/opt/idempiere/plugins/"
+else
+  echo "Skipping deploy (--no-deploy). Built JAR: $WORKSPACE_DIR/plugins/$JAR_NAME"
+fi
+
+if [ "$DO_DEPLOY" -eq 1 ] && [ "$DO_RESTART" -eq 1 ]; then
+  echo "Restarting iDempiere..."
+  docker restart idempiere-app
+  echo "Done! Access at http://localhost:8080/emui/"
+else
+  if [ "$DO_RESTART" -eq 0 ]; then
+    echo "Skipping restart (SSH detected or --no-restart)."
+  else
+    echo "Skipping restart (deploy disabled)."
+  fi
+  echo "If needed, restart manually: docker restart idempiere-app"
 fi

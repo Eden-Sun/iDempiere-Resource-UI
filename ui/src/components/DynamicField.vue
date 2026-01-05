@@ -1,7 +1,7 @@
 <template>
   <div class="dynamic-field">
     <label :for="fieldId" class="block text-sm font-medium text-slate-700">
-      {{ field.name }}
+      {{ labelText }}
       <span v-if="isRequired" class="text-rose-500">*</span>
     </label>
 
@@ -14,7 +14,7 @@
       :maxlength="maxLength"
       :required="isRequired"
       :placeholder="field.description"
-      class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+      :class="inputClass"
     />
 
     <!-- Number Input -->
@@ -25,7 +25,7 @@
       type="number"
       :required="isRequired"
       :placeholder="field.description"
-      class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+      :class="inputClass"
     />
 
     <!-- Checkbox (Yes/No) -->
@@ -46,7 +46,7 @@
       v-model="localValue"
       type="date"
       :required="isRequired"
-      class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+      :class="inputClass"
     />
 
     <!-- DateTime Input -->
@@ -56,7 +56,7 @@
       v-model="localValue"
       type="datetime-local"
       :required="isRequired"
-      class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+      :class="inputClass"
     />
 
     <!-- Textarea -->
@@ -67,7 +67,7 @@
       :required="isRequired"
       :placeholder="field.description"
       rows="3"
-      class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+      :class="inputClass"
     />
 
     <!-- Select (Lookup) -->
@@ -76,13 +76,17 @@
       :id="fieldId"
       v-model="localValue"
       :required="isRequired"
-      class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+      :class="inputClass"
     >
       <option :value="null">-- 請選擇 --</option>
-      <option v-for="opt in lookupOptions" :key="opt.id" :value="opt.id">
-        {{ opt.identifier }}
+      <option v-for="opt in lookupOptions" :key="String(opt.value)" :value="opt.value">
+        {{ opt.label }}
       </option>
     </select>
+
+    <p v-if="lookupError && inputType === 'select'" class="mt-1 text-xs text-rose-600">
+      {{ lookupError }}
+    </p>
 
     <!-- Help text -->
     <p v-if="field.help && showHelp" class="mt-1 text-xs text-slate-500">
@@ -93,8 +97,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, onMounted } from 'vue'
-import { type TabField, getInputType, ReferenceType, getLookupValues } from '../features/window/api'
+import { type TabField, getInputType, ReferenceType, getReferenceLookupOptions, getTableLookupOptions, type LookupOption } from '../features/window/api'
 import { useAuth } from '../features/auth/store'
+import { getColumnLabel } from '../shared/labels/columnLabels'
 
 const props = defineProps<{
   field: TabField
@@ -109,9 +114,15 @@ const emit = defineEmits<{
 const auth = useAuth()
 
 const localValue = ref(props.modelValue)
-const lookupOptions = ref<{ id: number; identifier: string }[]>([])
+const lookupOptions = ref<LookupOption[]>([])
+const lookupError = ref<string | null>(null)
 
 const fieldId = computed(() => `field-${props.field.id}`)
+
+const labelText = computed(() => {
+  const col = props.field.columnName
+  return getColumnLabel(col, props.field.description)
+})
 
 const inputType = computed(() => {
   if (!props.field.column) return 'text'
@@ -121,6 +132,8 @@ const inputType = computed(() => {
 const isRequired = computed(() => props.field.column?.isMandatory ?? false)
 
 const maxLength = computed(() => props.field.column?.fieldLength || undefined)
+
+const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500'
 
 // Sync local value with prop
 watch(
@@ -136,24 +149,47 @@ watch(localValue, (val) => {
 })
 
 // Load lookup options for select fields
-onMounted(async () => {
-  if (inputType.value === 'select' && props.field.column && auth.token.value) {
-    const refId = props.field.column.referenceId
-    const colName = props.field.columnName
+async function loadLookupOptions() {
+  lookupError.value = null
+  lookupOptions.value = []
 
-    // Determine table name from column name (e.g., C_Greeting_ID -> C_Greeting)
-    if (refId === ReferenceType.TableDirect && colName.endsWith('_ID')) {
-      const tableName = colName.slice(0, -3)
-      try {
-        lookupOptions.value = await getLookupValues(auth.token.value, tableName, {
-          select: `${tableName}_ID,Name`,
-          orderby: 'Name',
-          top: 100,
-        })
-      } catch {
-        // Ignore lookup errors for now
-      }
+  if (inputType.value !== 'select') return
+  if (!props.field.column) return
+  if (!auth.token.value) return
+
+  const refId = props.field.column.referenceId
+  const refValueId = props.field.column.referenceValueId
+  const colName = props.field.columnName
+
+  try {
+    // 1) List/Table validation (最可靠)：走 Reference API
+    if ((refId === ReferenceType.List || refId === ReferenceType.Table || refId === ReferenceType.Search) && refValueId) {
+      lookupOptions.value = await getReferenceLookupOptions(auth.token.value, refValueId)
+      if (lookupOptions.value.length) return
     }
+
+    // 2) TableDirect / fallback：用欄位名推表名
+    if (colName.endsWith('_ID')) {
+      const tableName = colName.slice(0, -3)
+      lookupOptions.value = await getTableLookupOptions(auth.token.value, tableName, {
+        select: `${tableName}_ID,Name`,
+        orderby: 'Name',
+        top: 200,
+      })
+    }
+  } catch (e: any) {
+    lookupError.value = e?.detail || e?.title || e?.message || '下拉選單載入失敗'
   }
+
+  // 必填但沒有選項：要提示，否則使用者會卡住卻不知道原因
+  if (isRequired.value && lookupOptions.value.length === 0) {
+    lookupError.value = lookupError.value || '此欄位為必填，但目前沒有可選項（可能是參照設定或權限/資料問題）'
+  }
+}
+
+onMounted(loadLookupOptions)
+
+watch([() => auth.token.value, () => props.field.id], () => {
+  loadLookupOptions()
 })
 </script>

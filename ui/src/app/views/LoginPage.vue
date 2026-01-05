@@ -17,7 +17,7 @@
             class="inline-flex h-6 items-center rounded-full px-3"
             :class="step === 2 ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'"
           >
-            2. Tenant/Role
+            2. 租戶/角色
           </div>
         </div>
 
@@ -57,7 +57,7 @@
           </div>
 
           <div>
-            <label class="text-sm font-medium text-slate-700">Tenant</label>
+            <label class="text-sm font-medium text-slate-700">租戶</label>
             <select v-model="clientId" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
               <option :value="null" disabled>請選擇</option>
               <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }} (#{{ c.id }})</option>

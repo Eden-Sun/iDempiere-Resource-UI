@@ -4,6 +4,11 @@ const API_V1 = '/api/v1'
 
 // === Types ===
 
+export type LookupOption = {
+  value: string | number
+  label: string
+}
+
 export type WindowTab = {
   id: number
   uid: string
@@ -212,28 +217,104 @@ export async function createModelRecord(
 }
 
 /**
- * Get lookup values for a reference (Table/TableDirect/List)
+ * Get lookup options for a table (Model API).
+ *
+ * 注意：有些表沒有 Name 欄位，$select/$orderby 可能會失敗，所以這裡會降級重試。
+ */
+export async function getTableLookupOptions(
+  token: string,
+  tableName: string,
+  options?: { filter?: string; select?: string; orderby?: string; top?: number },
+): Promise<LookupOption[]> {
+  const searchParams: Record<string, string | number> = {}
+  if (options?.filter) searchParams.$filter = options.filter
+  if (options?.select) searchParams.$select = options.select
+  if (options?.orderby) searchParams.$orderby = options.orderby
+  if (options?.top) searchParams.$top = options.top
+
+  const fetchTable = async (sp: Record<string, string | number>) => {
+    return await apiFetch<{ records: any[] }>(`${API_V1}/models/${tableName}`, { token, searchParams: sp })
+  }
+
+  let res: { records: any[] }
+  try {
+    res = await fetchTable(searchParams)
+  } catch {
+    const sp2: Record<string, string | number> = {}
+    if (options?.filter) sp2.$filter = options.filter
+    if (options?.top) sp2.$top = options.top
+    res = await fetchTable(sp2)
+  }
+
+  return (res.records ?? []).map((r) => ({
+    value: Number(r.id),
+    label: String(r.identifier ?? r.Name ?? r.Value ?? r.id),
+  }))
+}
+
+/**
+ * Get lookup options from Reference API (List/Table validation)
+ * Endpoint: GET /api/v1/reference/{AD_Reference_ID}
+ */
+export async function getReferenceLookupOptions(token: string, referenceId: number): Promise<LookupOption[]> {
+  const res = await apiFetch<any>(`${API_V1}/reference/${referenceId}`, { token })
+
+  // List validation: { reflist: [{ value, name }, ...] }
+  if (Array.isArray(res?.reflist)) {
+    return res.reflist
+      .map((x: any) => ({
+        value: String(x?.value ?? ''),
+        label: String(x?.name ?? x?.value ?? ''),
+      }))
+      .filter((x: LookupOption) => x.value !== '')
+  }
+
+  // Table validation: { reftable: [{ <KeyColumn>: 123, <DisplayColumn>: 'xx', ...}, ...] }
+  if (Array.isArray(res?.reftable)) {
+    return res.reftable
+      .map((row: any) => {
+        if (!row || typeof row !== 'object') return null
+
+        // best-effort: key = first *_ID numeric, else row.id
+        let key: number | string | null = null
+        if (row.id != null) key = row.id
+        if (key == null) {
+          for (const [k, v] of Object.entries(row)) {
+            if (!k.endsWith('_ID')) continue
+            if (typeof v === 'number') {
+              key = v
+              break
+            }
+            if (typeof v === 'string' && v.trim() !== '') {
+              const n = Number(v)
+              if (!Number.isNaN(n)) {
+                key = n
+                break
+              }
+            }
+          }
+        }
+        if (key == null) return null
+
+        const label = String(row.Name ?? row.Value ?? row.identifier ?? key)
+        return { value: typeof key === 'number' ? key : String(key), label } satisfies LookupOption
+      })
+      .filter(Boolean) as LookupOption[]
+  }
+
+  return []
+}
+
+/**
+ * Backward-compat (舊版): return {id, identifier}
  */
 export async function getLookupValues(
   token: string,
   tableName: string,
   options?: { filter?: string; select?: string; orderby?: string; top?: number },
 ): Promise<{ id: number; identifier: string }[]> {
-  const searchParams: Record<string, string | number> = {}
-  if (options?.filter) searchParams['$filter'] = options.filter
-  if (options?.select) searchParams['$select'] = options.select
-  if (options?.orderby) searchParams['$orderby'] = options.orderby
-  if (options?.top) searchParams['$top'] = options.top
-
-  const res = await apiFetch<{ records: any[] }>(`${API_V1}/models/${tableName}`, {
-    token,
-    searchParams,
-  })
-
-  return (res.records ?? []).map((r) => ({
-    id: Number(r.id),
-    identifier: String(r.identifier ?? r.Name ?? r.id),
-  }))
+  const opts = await getTableLookupOptions(token, tableName, options)
+  return opts.map((o) => ({ id: Number(o.value), identifier: String(o.label) }))
 }
 
 // === Helpers ===

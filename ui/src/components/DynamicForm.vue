@@ -19,6 +19,13 @@
 
     <!-- Form -->
     <form v-else @submit.prevent="handleSubmit">
+      <div
+        v-if="formError"
+        class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+      >
+        {{ formError }}
+      </div>
+
       <div class="grid gap-4 sm:grid-cols-2">
         <DynamicField
           v-for="field in visibleFields"
@@ -88,6 +95,7 @@ const formData = reactive<Record<string, unknown>>({})
 const loading = ref(false)
 const error = ref<string | null>(null)
 const submitting = ref(false)
+const formError = ref<string | null>(null)
 
 // System fields to exclude by default
 const systemFields = [
@@ -100,11 +108,8 @@ const systemFields = [
   'IsActive',
 ]
 
-// Fields that are read-only (key fields, calculated)
-const readOnlyPatterns = ['_ID', '_UU']
-
 const visibleFields = computed(() => {
-  return fields.value.filter((f) => {
+  const filtered = fields.value.filter((f) => {
     const colName = f.columnName
     // Exclude system fields
     if (systemFields.includes(colName)) return false
@@ -120,6 +125,18 @@ const visibleFields = computed(() => {
     if (f.column?.referenceId === ReferenceType.Button) return false
     return true
   })
+
+  // Sort by mandatory (descending) to show required fields first
+  return filtered.sort((a, b) => {
+    const aMandatory = a.column?.isMandatory ? 1 : 0
+    const bMandatory = b.column?.isMandatory ? 1 : 0
+    // If one is mandatory and the other is not, mandatory comes first
+    if (aMandatory !== bMandatory) {
+      return bMandatory - aMandatory
+    }
+    // Otherwise keep original order (stable sort)
+    return 0
+  })
 })
 
 async function loadFields() {
@@ -130,6 +147,7 @@ async function loadFields() {
 
   loading.value = true
   error.value = null
+  formError.value = null
 
   try {
     fields.value = await getTabFieldsWithMeta(auth.token.value, props.windowSlug, props.tabSlug)
@@ -164,18 +182,33 @@ function getDefaultValue(field: TabField): unknown {
 }
 
 function handleSubmit() {
-  // Build clean data object (remove nulls/undefined for optional fields)
+  formError.value = null
+  // Build data object, include all non-empty values
   const data: Record<string, unknown> = {}
   for (const field of visibleFields.value) {
     const val = formData[field.columnName]
     if (val !== null && val !== undefined && val !== '') {
       data[field.columnName] = val
-    } else if (field.column?.isMandatory) {
-      // Include mandatory fields even if empty (will trigger validation)
-      data[field.columnName] = val
     }
   }
   emit('submit', data)
+}
+
+/**
+ * 找出可能缺少的必填欄位（用於後端報錯時輔助提示）
+ */
+function getMissingMandatoryFields(): string[] {
+  const missing: string[] = []
+  for (const f of visibleFields.value) {
+    if (!f.column?.isMandatory) continue
+    const val = formData[f.columnName]
+    // YesNo: false 也是合法值
+    if (f.column.referenceId === ReferenceType.YesNo) continue
+    if (val === null || val === undefined || val === '') {
+      missing.push(f.columnName)
+    }
+  }
+  return missing
 }
 
 // Expose methods for parent components
@@ -186,6 +219,10 @@ defineExpose({
   setSubmitting: (val: boolean) => {
     submitting.value = val
   },
+  setFormError: (msg: string | null) => {
+    formError.value = msg
+  },
+  getMissingMandatoryFields,
 })
 
 // Watch for tab changes
