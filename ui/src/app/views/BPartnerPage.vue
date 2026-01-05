@@ -187,7 +187,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import DynamicForm from '../../components/DynamicForm.vue'
 import { createWindowRecord, createChildTabRecord, createModelRecord, getSysConfig } from '../../features/window/api'
 import { useAuth } from '../../features/auth/store'
@@ -404,14 +404,29 @@ function resetForm() {
   locationFormRef.value?.reload()
 }
 
-// Load system preferences on mount
+// Load preferences: localStorage > AD_SysConfig > default (true)
 onMounted(async () => {
+  // Priority 1: Check localStorage (user preference)
+  const localPref = localStorage.getItem('EMUI_SHOW_ONLY_ESSENTIAL')
+  if (localPref !== null) {
+    showOnlyEssential.value = localPref === 'Y' || localPref === 'true'
+    return
+  }
+
+  // Priority 2: Check AD_SysConfig (system-wide default, admin only)
   if (auth.token.value) {
     const sysConfigValue = await getSysConfig(auth.token.value, 'EMUI_SHOW_ONLY_ESSENTIAL')
-    // Default is true, only set to false if explicitly disabled
     if (sysConfigValue === 'N' || sysConfigValue === 'false') {
       showOnlyEssential.value = false
+      return
     }
   }
+
+  // Priority 3: Default is true (already set)
+})
+
+// Watch for changes and save to localStorage (no admin required)
+watch(showOnlyEssential, (newValue) => {
+  localStorage.setItem('EMUI_SHOW_ONLY_ESSENTIAL', newValue ? 'Y' : 'N')
 })
 </script>

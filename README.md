@@ -64,11 +64,11 @@ API 請求會自動 proxy 到 http://localhost:8080（無需重新 build）
 **業務夥伴表單**（`/emui/#/bpartner`）支援「僅顯示核心欄位」功能：
 
 - **預設行為**：只顯示核心欄位（根據業務邏輯，非技術性必填欄位）
-- **使用者可切換**：勾選/取消勾選 checkbox 控制顯示所有欄位或僅核心欄位
-- **系統配置**：可透過 iDempiere `AD_SysConfig` 設定全系統預設值
+- **使用者可切換**：勾選/取消勾選 checkbox，設定自動存入瀏覽器 localStorage
+- **系統配置**（可選）：管理員可透過 iDempiere `AD_SysConfig` 設定全公司預設值
   - Name: `EMUI_SHOW_ONLY_ESSENTIAL`
-  - Value: `N` 或 `false`（停用，顯示所有欄位）
-  - 預設為啟用（不需配置）
+  - Value: `N`（全公司預設顯示所有欄位）或 `Y`（顯示核心欄位）
+  - **優先順序**：localStorage（個人）> AD_SysConfig（全公司）> 預設值（true）
 
 **核心欄位定義**（BPartnerPage 範例）：
 

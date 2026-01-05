@@ -470,7 +470,7 @@ export function isLookupField(referenceId: number): boolean {
 /**
  * Get system configuration value by name
  * @param token - Auth token
- * @param configName - System config name (e.g., 'EMUI_SHOW_ONLY_MANDATORY')
+ * @param configName - System config name (e.g., 'EMUI_SHOW_ONLY_ESSENTIAL')
  * @returns Configuration value or null if not found
  */
 export async function getSysConfig(token: string, configName: string): Promise<string | null> {
@@ -486,5 +486,66 @@ export async function getSysConfig(token: string, configName: string): Promise<s
   } catch (error) {
     console.error(`Failed to get sysconfig ${configName}:`, error)
     return null
+  }
+}
+
+/**
+ * Create or update system configuration
+ * @param token - Auth token
+ * @param configName - System config name
+ * @param value - Configuration value
+ * @param description - Optional description
+ * @returns true if successful, false otherwise
+ *
+ * Note: Requires System Administrator role
+ */
+export async function setSysConfig(
+  token: string,
+  configName: string,
+  value: string,
+  description?: string,
+): Promise<boolean> {
+  try {
+    // Check if config already exists
+    // Note: Don't use $select - API returns 'id' field which is not a table column
+    const existing = await apiFetch<{ records: any[] }>(
+      `${API_V1}/models/AD_SysConfig?$filter=Name eq '${configName}'&$top=1`,
+      { token },
+    )
+
+    if (existing.records && existing.records.length > 0) {
+      // Update existing - API returns 'id' field (not AD_SysConfig_ID)
+      const record = existing.records[0]
+      const id = record.id
+
+      if (!id) {
+        console.error('Cannot update sysconfig: id not found in record', record)
+        return false
+      }
+
+      await apiFetch(`${API_V1}/models/AD_SysConfig/${id}`, {
+        method: 'PUT',
+        token,
+        json: { Value: value },
+      })
+      console.log(`Updated AD_SysConfig: ${configName} = ${value}`)
+    } else {
+      // Create new
+      await apiFetch(`${API_V1}/models/AD_SysConfig`, {
+        method: 'POST',
+        token,
+        json: {
+          Name: configName,
+          Value: value,
+          ConfigurationLevel: 'S', // System level
+          Description: description || configName,
+        },
+      })
+      console.log(`Created AD_SysConfig: ${configName} = ${value}`)
+    }
+    return true
+  } catch (error) {
+    console.error(`Failed to set sysconfig ${configName}:`, error)
+    return false
   }
 }
