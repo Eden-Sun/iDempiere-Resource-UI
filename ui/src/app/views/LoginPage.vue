@@ -200,8 +200,16 @@ async function onSubmitCredentials() {
     if (!res.token) throw new Error('未取得 token')
 
     // If already has full session, store and go.
+    // Note: This case is rare; usually requires client/role/org selection.
     if (res.userId) {
-      auth.set({ token: res.token, refreshToken: res.refresh_token, userId: res.userId, language: res.language })
+      auth.set({
+        token: res.token,
+        refreshToken: res.refresh_token,
+        userId: res.userId,
+        clientId: 0,  // Will be set from token context
+        organizationId: 0,
+        language: res.language,
+      })
       await router.push('/book')
       return
     }
@@ -283,7 +291,16 @@ async function onSubmitParameters() {
       pendingToken.value,
     )
     if (!res.token || !res.userId) throw new Error('登入參數設定後未取得完整 token/userId')
-    auth.set({ token: res.token, refreshToken: res.refresh_token, userId: res.userId, language: res.language })
+    auth.set({
+      token: res.token,
+      refreshToken: res.refresh_token,
+      userId: res.userId,
+      clientId: clientId.value,
+      organizationId: organizationId.value,
+      roleId: roleId.value ?? undefined,
+      warehouseId: warehouseId.value ?? undefined,
+      language: res.language,
+    })
     await router.push('/book')
   } catch (e: any) {
     error.value = e?.detail || e?.title || e?.message || '登入參數設定失敗'

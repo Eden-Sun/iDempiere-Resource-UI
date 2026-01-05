@@ -28,6 +28,10 @@ export type Session = {
   token: string
   refreshToken?: string
   userId: number
+  clientId: number
+  organizationId: number
+  roleId?: number
+  warehouseId?: number
   language?: string
 }
 

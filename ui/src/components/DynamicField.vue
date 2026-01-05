@@ -76,9 +76,10 @@
       :id="fieldId"
       v-model="localValue"
       :required="isRequired"
+      :disabled="lookupLoading"
       :class="inputClass"
     >
-      <option :value="null">-- 請選擇 --</option>
+      <option :value="null">{{ lookupLoading ? '載入中...' : '-- 請選擇 --' }}</option>
       <option v-for="opt in lookupOptions" :key="String(opt.value)" :value="opt.value">
         {{ opt.label }}
       </option>
@@ -115,6 +116,7 @@ const auth = useAuth()
 
 const localValue = ref(props.modelValue)
 const lookupOptions = ref<LookupOption[]>([])
+const lookupLoading = ref(false)
 const lookupError = ref<string | null>(null)
 
 const fieldId = computed(() => `field-${props.field.id}`)
@@ -155,12 +157,16 @@ async function loadLookupOptions() {
 
   if (inputType.value !== 'select') return
   if (!props.field.column) return
-  if (!auth.token.value) return
+  if (!auth.token.value) {
+    lookupError.value = '未登入，無法載入選項'
+    return
+  }
 
   const refId = props.field.column.referenceId
   const refValueId = props.field.column.referenceValueId
   const colName = props.field.columnName
 
+  lookupLoading.value = true
   try {
     // 1) List/Table validation (最可靠)：走 Reference API
     if ((refId === ReferenceType.List || refId === ReferenceType.Table || refId === ReferenceType.Search) && refValueId) {
@@ -179,6 +185,8 @@ async function loadLookupOptions() {
     }
   } catch (e: any) {
     lookupError.value = e?.detail || e?.title || e?.message || '下拉選單載入失敗'
+  } finally {
+    lookupLoading.value = false
   }
 
   // 必填但沒有選項：要提示，否則使用者會卡住卻不知道原因

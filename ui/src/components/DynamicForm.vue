@@ -208,8 +208,18 @@ function handleSubmit() {
  */
 function getMissingMandatoryFields(): string[] {
   const missing: string[] = []
-  for (const f of visibleFields.value) {
+  // 從 fields.value 檢查所有欄位（包含被隱藏的）
+  for (const f of fields.value) {
     if (!f.column?.isMandatory) continue
+    // 跳過系統自動處理的欄位
+    if (systemFields.includes(f.columnName)) continue
+    // 跳過 key/parent 欄位
+    if (f.column.isKey || f.column.isParent) continue
+    // 跳過 UU 欄位
+    if (f.columnName.endsWith('_UU')) continue
+    // 跳過被明確排除的欄位
+    if (props.excludeFields.includes(f.columnName)) continue
+    
     const val = formData[f.columnName]
     // YesNo: false 也是合法值
     if (f.column.referenceId === ReferenceType.YesNo) continue
