@@ -55,18 +55,6 @@
         </div>
       </div>
 
-      <!-- Field Filter Toggle -->
-      <div v-if="currentStep < 3" class="mb-4 flex items-center gap-2 text-sm">
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input
-            v-model="showOnlyEssential"
-            type="checkbox"
-            class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-          />
-          <span class="text-slate-700">僅顯示核心欄位</span>
-        </label>
-      </div>
-
       <!-- Step 1: Business Partner -->
       <div v-show="currentStep === 0">
         <h2 class="mb-4 text-base font-semibold text-slate-800">業務夥伴</h2>
@@ -75,7 +63,6 @@
           window-slug="business-partner"
           tab-slug="business-partner"
           :default-values="bpDefaults"
-          :essential-fields="showOnlyEssential ? bpEssentialFields : []"
           submit-label="下一步：聯絡人"
           @submit="handleBpSubmit"
         />
@@ -90,7 +77,6 @@
           tab-slug="contact-user"
           :exclude-fields="['C_BPartner_ID']"
           :default-values="contactDefaults"
-          :essential-fields="showOnlyEssential ? contactEssentialFields : []"
           submit-label="下一步：地址"
           @submit="handleContactSubmit"
         >
@@ -131,7 +117,6 @@
           tab-slug="location"
           :exclude-fields="['C_BPartner_ID', 'C_Location_ID']"
           :default-values="locationDefaults"
-          :essential-fields="showOnlyEssential ? locationEssentialFields : []"
           submit-label="完成"
           @submit="handleLocationSubmit"
         >
@@ -187,39 +172,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed } from 'vue'
 import DynamicForm from '../../components/DynamicForm.vue'
-import { createWindowRecord, createChildTabRecord, createModelRecord, getSysConfig } from '../../features/window/api'
+import { createWindowRecord, createChildTabRecord, createModelRecord } from '../../features/window/api'
 import { useAuth } from '../../features/auth/store'
 
 const auth = useAuth()
-
-// Filter control: show only essential fields (default: true)
-const showOnlyEssential = ref(true)
-
-// Essential fields for Business Partner (business logic, not just isMandatory)
-const bpEssentialFields = [
-  'Value',           // Search Key - unique identifier
-  'Name',            // Name - display name
-  'Name2',           // Name 2 - additional name (common in Asian markets)
-  'C_BP_Group_ID',   // BP Group - classification
-  'TaxID',           // Tax ID - for B2B customers
-  'M_PriceList_ID',  // Price List - for sales
-  'C_PaymentTerm_ID',// Payment Term - for credit terms
-]
-
-const contactEssentialFields = [
-  'Name',            // Contact name
-  'Phone',           // Phone number
-  'EMail',           // Email address
-]
-
-const locationEssentialFields = [
-  'C_Country_ID',    // Country - required
-  'City',            // City
-  'Address1',        // Address line 1
-  'Postal',          // Postal code
-]
 
 const steps = [
   { key: 'bp', label: '業務夥伴' },
@@ -403,30 +361,4 @@ function resetForm() {
   contactFormRef.value?.reload()
   locationFormRef.value?.reload()
 }
-
-// Load preferences: localStorage > AD_SysConfig > default (true)
-onMounted(async () => {
-  // Priority 1: Check localStorage (user preference)
-  const localPref = localStorage.getItem('EMUI_SHOW_ONLY_ESSENTIAL')
-  if (localPref !== null) {
-    showOnlyEssential.value = localPref === 'Y' || localPref === 'true'
-    return
-  }
-
-  // Priority 2: Check AD_SysConfig (system-wide default, admin only)
-  if (auth.token.value) {
-    const sysConfigValue = await getSysConfig(auth.token.value, 'EMUI_SHOW_ONLY_ESSENTIAL')
-    if (sysConfigValue === 'N' || sysConfigValue === 'false') {
-      showOnlyEssential.value = false
-      return
-    }
-  }
-
-  // Priority 3: Default is true (already set)
-})
-
-// Watch for changes and save to localStorage (no admin required)
-watch(showOnlyEssential, (newValue) => {
-  localStorage.setItem('EMUI_SHOW_ONLY_ESSENTIAL', newValue ? 'Y' : 'N')
-})
 </script>

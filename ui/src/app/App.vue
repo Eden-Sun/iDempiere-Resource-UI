@@ -31,14 +31,20 @@
             管理行事曆
           </RouterLink>
 
-          <button
-            v-if="isAuthenticated"
-            class="rounded-md border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 hover:bg-slate-50"
-            type="button"
-            @click="logout"
-          >
-            登出
-          </button>
+          <!-- User info (when authenticated) -->
+          <div v-if="isAuthenticated" class="ml-2 flex items-center gap-3 border-l border-slate-200 pl-3">
+            <div class="text-right">
+              <div class="text-sm font-medium text-slate-900">{{ userDisplayName }}</div>
+              <div class="text-xs text-slate-500">{{ userRole }}</div>
+            </div>
+            <button
+              class="rounded-md border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 hover:bg-slate-50"
+              type="button"
+              @click="logout"
+            >
+              登出
+            </button>
+          </div>
           <RouterLink v-else class="rounded-md bg-brand-600 px-3 py-2 font-medium text-white hover:bg-brand-700" to="/login">
             登入
           </RouterLink>
@@ -62,13 +68,20 @@ const router = useRouter()
 const auth = useAuth()
 
 const isAuthenticated = computed(() => auth.isAuthenticated.value)
+const userDisplayName = computed(() => auth.userName.value || `User #${auth.userId.value}`)
+const userRole = computed(() => {
+  const parts: string[] = []
+  if (auth.roleId.value) parts.push(`Role: ${auth.roleId.value}`)
+  if (auth.clientId.value) parts.push(`Client: ${auth.clientId.value}`)
+  return parts.length > 0 ? parts.join(' • ') : 'User'
+})
 
-function logout() {
+function logout(): void {
   auth.clear()
   router.push('/login')
 }
 
-function handleTokenExpired() {
+function handleTokenExpired(): void {
   auth.clear()
   alert('登入已過期，請重新登入')
   router.push('/login')

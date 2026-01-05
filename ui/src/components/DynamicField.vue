@@ -1,9 +1,22 @@
 <template>
   <div class="dynamic-field">
-    <label :for="fieldId" class="block text-sm font-medium text-slate-700">
-      {{ labelText }}
-      <span v-if="isRequired" class="text-rose-500">*</span>
-    </label>
+    <div class="flex items-center justify-between gap-2">
+      <label :for="fieldId" class="block text-sm font-medium text-slate-700">
+        {{ labelText }}
+        <span v-if="isRequired" class="text-rose-500">*</span>
+      </label>
+
+      <!-- Admin mode: checkbox to mark field as hidden -->
+      <label v-if="adminMode" class="flex items-center gap-1 text-xs text-slate-500 cursor-pointer">
+        <input
+          type="checkbox"
+          :checked="markedHidden"
+          @change="emit('update:markedHidden', !markedHidden)"
+          class="h-3 w-3 rounded border-slate-300 text-slate-600"
+        />
+        <span>隱藏</span>
+      </label>
+    </div>
 
     <!-- Text Input -->
     <input
@@ -105,10 +118,13 @@ const props = defineProps<{
   field: TabField
   modelValue: unknown
   showHelp?: boolean
+  adminMode?: boolean
+  markedHidden?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: unknown): void
+  (e: 'update:markedHidden', value: boolean): void
 }>()
 
 const auth = useAuth()

@@ -5,12 +5,34 @@ const STORAGE_KEY = 'idempiere.resource.session.v1'
 
 const session = ref<Session | null>(null)
 
+/**
+ * Decode JWT token payload (without verification - for display only)
+ */
+function decodeJWT(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const payload = parts[1]
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(decoded) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
 export function useAuth() {
   const isAuthenticated = computed(() => !!session.value?.token)
   const token = computed(() => session.value?.token ?? null)
   const userId = computed(() => session.value?.userId ?? null)
+  const userName = computed(() => {
+    if (session.value?.userName) return session.value.userName
+    if (!session.value?.token) return null
+    const payload = decodeJWT(session.value.token)
+    return (payload?.sub as string) ?? null
+  })
   const clientId = computed(() => session.value?.clientId ?? null)
   const organizationId = computed(() => session.value?.organizationId ?? null)
+  const roleId = computed(() => session.value?.roleId ?? null)
   const language = computed(() => session.value?.language ?? 'en_US')
 
   function load() {
@@ -39,8 +61,10 @@ export function useAuth() {
     isAuthenticated,
     token,
     userId,
+    userName,
     clientId,
     organizationId,
+    roleId,
     language,
     load,
     set,

@@ -26,13 +26,61 @@
         {{ formError }}
       </div>
 
+      <!-- Admin mode toggle -->
+      <div v-if="canConfigureFields" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+        <div class="flex items-center justify-between">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input
+              v-model="adminMode"
+              type="checkbox"
+              class="h-4 w-4 rounded border-slate-300 text-brand-600"
+            />
+            <span class="text-sm font-medium text-amber-800">欄位配置模式（勾選欄位的「隱藏」來設定哪些欄位預設不顯示）</span>
+          </label>
+          <div v-if="adminMode" class="flex gap-2">
+            <button
+              type="button"
+              @click="hideAllFields"
+              class="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-50"
+            >
+              全部隱藏
+            </button>
+            <button
+              type="button"
+              @click="showAllFields"
+              class="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-50"
+            >
+              全部顯示
+            </button>
+            <button
+              type="button"
+              @click="saveFieldConfiguration"
+              :disabled="savingConfig"
+              class="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+            >
+              {{ savingConfig ? '儲存中...' : '儲存配置' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="configSuccess"
+        class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+      >
+        {{ configSuccess }}
+      </div>
+
       <div class="grid gap-4 sm:grid-cols-2">
         <DynamicField
-          v-for="field in visibleFields"
+          v-for="field in displayFields"
           :key="field.id"
           v-model="formData[field.columnName]"
           :field="field"
           :show-help="showHelp"
+          :admin-mode="adminMode"
+          :marked-hidden="tempHiddenFields.includes(field.columnName)"
+          @update:marked-hidden="(val) => toggleTempHidden(field.columnName, val)"
         />
       </div>
 
@@ -62,7 +110,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import DynamicField from './DynamicField.vue'
-import { type TabField, getTabFieldsWithMeta, getFieldVisibility, ReferenceType } from '../features/window/api'
+import { type TabField, getTabFieldsWithMeta, getFieldVisibility, setFieldVisibility, ReferenceType } from '../features/window/api'
 import { useAuth } from '../features/auth/store'
 
 const props = withDefaults(
@@ -74,8 +122,6 @@ const props = withDefaults(
     submitLabel?: string
     showCancel?: boolean
     showHelp?: boolean
-    showOnlyMandatory?: boolean
-    essentialFields?: string[]  // Whitelist of essential fields to show
   }>(),
   {
     excludeFields: () => [],
@@ -83,8 +129,6 @@ const props = withDefaults(
     submitLabel: '儲存',
     showCancel: false,
     showHelp: false,
-    showOnlyMandatory: false,
-    essentialFields: () => [],
   },
 )
 
@@ -104,57 +148,70 @@ const submitting = ref(false)
 const formError = ref<string | null>(null)
 const adminHiddenFields = ref<string[]>([])  // Admin-configured hidden fields
 
+// Admin field configuration mode
+const adminMode = ref(false)
+const tempHiddenFields = ref<string[]>([])  // Temporary hidden fields (for admin editing)
+const savingConfig = ref(false)
+const configSuccess = ref<string | null>(null)
+const canConfigureFields = ref(false)  // Whether user can configure fields (admin only)
+
 // System fields to exclude by default
 // Note: AD_Org_ID is NOT excluded - users should be able to select organization
-const systemFields = [
+const systemFields: readonly string[] = [
   'AD_Client_ID',
   'Created',
   'CreatedBy',
   'Updated',
   'UpdatedBy',
   'IsActive',
-]
+] as const
 
+/**
+ * Check if a field should be excluded based on basic criteria
+ * (system fields, keys, buttons, etc.)
+ */
+function shouldExcludeField(f: TabField): boolean {
+  const colName = f.columnName
+  // Exclude system fields
+  if (systemFields.includes(colName)) return true
+  // Exclude explicitly excluded fields
+  if (props.excludeFields.includes(colName)) return true
+  // Exclude key fields (auto-generated IDs)
+  if (f.column?.isKey) return true
+  // Exclude parent link fields
+  if (f.column?.isParent) return true
+  // Exclude UU fields
+  if (colName.endsWith('_UU')) return true
+  // Exclude button types
+  if (f.column?.referenceId === ReferenceType.Button) return true
+  // Exclude fields not displayed (IsDisplayed = false or SeqNo = 0)
+  if (!f.isDisplayed || f.seqNo === 0) return true
+  return false
+}
+
+// Fields to display based on filters (used for normal form operation)
 const visibleFields = computed(() => {
   const filtered = fields.value.filter((f) => {
-    const colName = f.columnName
-    // Exclude system fields
-    if (systemFields.includes(colName)) return false
-    // Exclude explicitly excluded fields
-    if (props.excludeFields.includes(colName)) return false
-    // Exclude key fields (auto-generated IDs)
-    if (f.column?.isKey) return false
-    // Exclude parent link fields
-    if (f.column?.isParent) return false
-    // Exclude UU fields
-    if (colName.endsWith('_UU')) return false
-    // Exclude button types
-    if (f.column?.referenceId === ReferenceType.Button) return false
-    // Exclude fields not displayed (IsDisplayed = false or SeqNo = 0)
-    if (!f.isDisplayed || f.seqNo === 0) return false
-
+    if (shouldExcludeField(f)) return false
     // Exclude admin-configured hidden fields
-    if (adminHiddenFields.value.includes(colName)) return false
-
-    // If essentialFields whitelist is provided, only show those fields
-    if (props.essentialFields.length > 0) {
-      // Show field if it's in the whitelist OR if it's mandatory
-      if (!props.essentialFields.includes(colName) && !f.column?.isMandatory) {
-        return false
-      }
-    } else if (props.showOnlyMandatory) {
-      // Fallback: If showOnlyMandatory is enabled, exclude non-mandatory fields
-      if (!f.column?.isMandatory) return false
-    }
-
+    if (adminHiddenFields.value.includes(f.columnName)) return false
     return true
   })
-
-  // Sort by SeqNo (window tab field sequence)
   return filtered.sort((a, b) => a.seqNo - b.seqNo)
 })
 
-async function loadFields() {
+// Fields to display in the UI (admin mode shows ALL fields for configuration)
+const displayFields = computed(() => {
+  if (adminMode.value) {
+    // In admin mode: show ALL fields (except basic exclusions)
+    return fields.value.filter((f) => !shouldExcludeField(f)).sort((a, b) => a.seqNo - b.seqNo)
+  } else {
+    // Normal mode: use visibleFields with all filters applied
+    return visibleFields.value
+  }
+})
+
+async function loadFields(): Promise<void> {
   if (!auth.token.value) {
     error.value = '未登入'
     return
@@ -171,6 +228,11 @@ async function loadFields() {
     // Load admin-configured field visibility
     const fieldVisibility = await getFieldVisibility(auth.token.value, props.windowSlug, props.tabSlug)
     adminHiddenFields.value = fieldVisibility?.hiddenFields || []
+    tempHiddenFields.value = [...adminHiddenFields.value]  // Initialize temp with current config
+
+    // Check if user can configure fields (try to write - if 403, user is not admin)
+    // Simple heuristic: if we can read SysConfig, likely we can configure fields
+    canConfigureFields.value = true  // Optimistic; will fail on save if not admin
 
     // Initialize form data with defaults
     for (const field of visibleFields.value) {
@@ -185,8 +247,9 @@ async function loadFields() {
     }
 
     emit('loaded', fields.value)
-  } catch (e: any) {
-    error.value = e?.detail || e?.title || e?.message || '載入表單失敗'
+  } catch (e: unknown) {
+    const err = e as { detail?: string; title?: string; message?: string }
+    error.value = err?.detail || err?.title || err?.message || '載入表單失敗'
   } finally {
     loading.value = false
   }
@@ -206,7 +269,7 @@ function getDefaultValue(field: TabField): unknown {
   }
 }
 
-function handleSubmit() {
+function handleSubmit(): void {
   formError.value = null
   // Build data object, include all non-empty values
   const data: Record<string, unknown> = {}
@@ -246,6 +309,80 @@ function getMissingMandatoryFields(): string[] {
     }
   }
   return missing
+}
+
+/**
+ * Toggle a field in the temporary hidden fields list (admin mode)
+ */
+function toggleTempHidden(columnName: string, hidden: boolean): void {
+  if (hidden) {
+    if (!tempHiddenFields.value.includes(columnName)) {
+      tempHiddenFields.value.push(columnName)
+    }
+  } else {
+    const index = tempHiddenFields.value.indexOf(columnName)
+    if (index > -1) {
+      tempHiddenFields.value.splice(index, 1)
+    }
+  }
+}
+
+/**
+ * Hide all fields in admin mode
+ */
+function hideAllFields(): void {
+  tempHiddenFields.value = displayFields.value.map((f) => f.columnName)
+}
+
+/**
+ * Show all fields in admin mode
+ */
+function showAllFields(): void {
+  tempHiddenFields.value = []
+}
+
+/**
+ * Save field configuration to AD_SysConfig (admin only)
+ */
+async function saveFieldConfiguration(): Promise<void> {
+  if (!auth.token.value) {
+    formError.value = '未登入'
+    return
+  }
+
+  savingConfig.value = true
+  formError.value = null
+  configSuccess.value = null
+
+  try {
+    const success = await setFieldVisibility(
+      auth.token.value,
+      props.windowSlug,
+      props.tabSlug,
+      tempHiddenFields.value
+    )
+
+    if (success) {
+      adminHiddenFields.value = [...tempHiddenFields.value]  // Update the actual config
+      configSuccess.value = '欄位配置已儲存'
+      setTimeout(() => {
+        configSuccess.value = null
+      }, 3000)
+    } else {
+      formError.value = '儲存失敗（可能需要 Admin 權限）'
+    }
+  } catch (e: unknown) {
+    const err = e as { status?: number; detail?: string; title?: string; message?: string }
+    const status = err?.status
+    if (status === 403) {
+      formError.value = '儲存失敗：需要 Admin 權限才能配置欄位'
+      canConfigureFields.value = false  // Disable admin mode if not admin
+    } else {
+      formError.value = err?.detail || err?.title || err?.message || '儲存欄位配置失敗'
+    }
+  } finally {
+    savingConfig.value = false
+  }
 }
 
 // Expose methods for parent components

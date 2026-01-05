@@ -523,25 +523,46 @@ export async function setSysConfig(
         return false
       }
 
-      await apiFetch(`${API_V1}/models/AD_SysConfig/${id}`, {
+      // PUT may return empty/non-JSON response on success - use fetch directly
+      const response = await fetch(`${API_V1}/models/AD_SysConfig/${id}`, {
         method: 'PUT',
-        token,
-        json: { Value: value },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ Value: value }),
       })
-      console.log(`Updated AD_SysConfig: ${configName} = ${value}`)
+
+      if (!response.ok) {
+        const errText = await response.text()
+        console.error(`PUT AD_SysConfig failed: ${response.status} ${errText}`)
+        throw new Error(`PUT failed: ${response.status} ${errText}`)
+      }
+
+      console.log(`✓ Updated AD_SysConfig: ${configName} = ${value}`)
     } else {
-      // Create new
-      await apiFetch(`${API_V1}/models/AD_SysConfig`, {
+      // Create new - POST may return empty/non-JSON response on success
+      const response = await fetch(`${API_V1}/models/AD_SysConfig`, {
         method: 'POST',
-        token,
-        json: {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
           Name: configName,
           Value: value,
           ConfigurationLevel: 'S', // System level
           Description: description || configName,
-        },
+        }),
       })
-      console.log(`Created AD_SysConfig: ${configName} = ${value}`)
+
+      if (!response.ok) {
+        const errText = await response.text()
+        console.error(`POST AD_SysConfig failed: ${response.status} ${errText}`)
+        throw new Error(`POST failed: ${response.status} ${errText}`)
+      }
+
+      console.log(`✓ Created AD_SysConfig: ${configName} = ${value}`)
     }
     return true
   } catch (error) {

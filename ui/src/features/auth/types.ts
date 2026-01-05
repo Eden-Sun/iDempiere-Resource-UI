@@ -28,6 +28,7 @@ export type Session = {
   token: string
   refreshToken?: string
   userId: number
+  userName?: string  // Decoded from JWT token
   clientId: number
   organizationId: number
   roleId?: number

@@ -108,18 +108,36 @@ mkdir -p "$WEB_CONTENT_DIR"
 : > "$WEB_CONTENT_DIR/.gitkeep"
 
 build_ui_if_possible() {
-  # Build UI into $WEB_CONTENT_DIR when npm exists.
+  # Build UI into $WEB_CONTENT_DIR when npm/bun exists.
   # This keeps the plugin packaging deterministic, and avoids needing committed build artifacts.
-  if ! has_cmd npm; then
-    echo "npm not found; skipping UI build"
+
+  # Prefer bun over npm
+  local pkg_manager=""
+  local install_cmd=""
+  local build_cmd=""
+
+  if has_cmd bun; then
+    pkg_manager="bun"
+    install_cmd="bun install"
+    build_cmd="bun run build"
+  elif has_cmd npm; then
+    pkg_manager="npm"
+    install_cmd="npm ci"
+    build_cmd="npm run build"
+  else
+    echo "Neither bun nor npm found; skipping UI build"
     return 0
   fi
 
-  echo "Building UI..."
-  if [ ! -d "$PLUGIN_DIR/ui/node_modules" ]; then
-    (cd "$PLUGIN_DIR/ui" && npm ci)
-  fi
-  (cd "$PLUGIN_DIR/ui" && npm run build)
+  echo "Building UI (using $pkg_manager)..."
+
+  # Always install dependencies to ensure new packages are installed
+  echo "Installing dependencies..."
+  (cd "$PLUGIN_DIR/ui" && $install_cmd)
+
+  echo "Building..."
+  (cd "$PLUGIN_DIR/ui" && $build_cmd)
+
   # Vite emptyOutDir may remove .gitkeep; restore it so the directory stays tracked.
   : > "$WEB_CONTENT_DIR/.gitkeep"
 }
