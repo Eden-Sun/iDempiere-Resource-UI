@@ -549,3 +549,59 @@ export async function setSysConfig(
     return false
   }
 }
+
+/**
+ * Field visibility configuration structure
+ */
+export type FieldVisibilityConfig = {
+  hiddenFields: string[]  // Array of column names to hide
+}
+
+/**
+ * Get field visibility configuration for a window tab
+ * @param token - Auth token
+ * @param windowSlug - Window slug (e.g., 'business-partner')
+ * @param tabSlug - Tab slug (e.g., 'business-partner', 'contact-user')
+ * @returns Field visibility config or null if not found
+ */
+export async function getFieldVisibility(
+  token: string,
+  windowSlug: string,
+  tabSlug: string,
+): Promise<FieldVisibilityConfig | null> {
+  const configName = `EMUI_FIELD_VISIBILITY_${windowSlug}_${tabSlug}`
+  const value = await getSysConfig(token, configName)
+
+  if (!value) return null
+
+  try {
+    return JSON.parse(value) as FieldVisibilityConfig
+  } catch (error) {
+    console.error(`Failed to parse field visibility config for ${configName}:`, error)
+    return null
+  }
+}
+
+/**
+ * Set field visibility configuration for a window tab
+ * @param token - Auth token
+ * @param windowSlug - Window slug
+ * @param tabSlug - Tab slug
+ * @param hiddenFields - Array of column names to hide
+ * @returns true if successful
+ *
+ * Note: Requires System Administrator role
+ */
+export async function setFieldVisibility(
+  token: string,
+  windowSlug: string,
+  tabSlug: string,
+  hiddenFields: string[],
+): Promise<boolean> {
+  const configName = `EMUI_FIELD_VISIBILITY_${windowSlug}_${tabSlug}`
+  const config: FieldVisibilityConfig = { hiddenFields }
+  const value = JSON.stringify(config)
+  const description = `EMUI field visibility for ${windowSlug}/${tabSlug}`
+
+  return setSysConfig(token, configName, value, description)
+}

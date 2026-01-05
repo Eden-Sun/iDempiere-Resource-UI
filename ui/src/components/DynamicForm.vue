@@ -62,7 +62,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import DynamicField from './DynamicField.vue'
-import { type TabField, getTabFieldsWithMeta, ReferenceType } from '../features/window/api'
+import { type TabField, getTabFieldsWithMeta, getFieldVisibility, ReferenceType } from '../features/window/api'
 import { useAuth } from '../features/auth/store'
 
 const props = withDefaults(
@@ -102,6 +102,7 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const submitting = ref(false)
 const formError = ref<string | null>(null)
+const adminHiddenFields = ref<string[]>([])  // Admin-configured hidden fields
 
 // System fields to exclude by default
 // Note: AD_Org_ID is NOT excluded - users should be able to select organization
@@ -132,6 +133,9 @@ const visibleFields = computed(() => {
     // Exclude fields not displayed (IsDisplayed = false or SeqNo = 0)
     if (!f.isDisplayed || f.seqNo === 0) return false
 
+    // Exclude admin-configured hidden fields
+    if (adminHiddenFields.value.includes(colName)) return false
+
     // If essentialFields whitelist is provided, only show those fields
     if (props.essentialFields.length > 0) {
       // Show field if it's in the whitelist OR if it's mandatory
@@ -161,7 +165,12 @@ async function loadFields() {
   formError.value = null
 
   try {
+    // Load fields metadata
     fields.value = await getTabFieldsWithMeta(auth.token.value, props.windowSlug, props.tabSlug, auth.language.value)
+
+    // Load admin-configured field visibility
+    const fieldVisibility = await getFieldVisibility(auth.token.value, props.windowSlug, props.tabSlug)
+    adminHiddenFields.value = fieldVisibility?.hiddenFields || []
 
     // Initialize form data with defaults
     for (const field of visibleFields.value) {
