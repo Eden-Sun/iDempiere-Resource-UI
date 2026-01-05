@@ -263,7 +263,33 @@ fi
 if [ "$DO_DEPLOY" -eq 1 ] && [ "$DO_RESTART" -eq 1 ]; then
   echo "Restarting iDempiere..."
   docker restart idempiere-app
-  echo "Done! Access at http://localhost:8080/emui/"
+
+  # Wait for iDempiere to be ready (max 30 seconds)
+  echo "Waiting for iDempiere to start..."
+  MAX_WAIT=30
+  WAIT_INTERVAL=2
+  ELAPSED=0
+  HEALTH_URL="http://localhost:8080/api/v1/auth"
+
+  while [ $ELAPSED -lt $MAX_WAIT ]; do
+    # Use curl with short timeout; check for HTTP 2xx or 4xx (server is up)
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 5 "$HEALTH_URL" 2>/dev/null || echo "000")
+    
+    if [ "$HTTP_CODE" != "000" ] && [ "$HTTP_CODE" != "502" ] && [ "$HTTP_CODE" != "503" ]; then
+      echo "✓ iDempiere is ready! (HTTP $HTTP_CODE after ${ELAPSED}s)"
+      echo "Access at http://localhost:8080/emui/"
+      exit 0
+    fi
+
+    sleep $WAIT_INTERVAL
+    ELAPSED=$((ELAPSED + WAIT_INTERVAL))
+    echo "  waiting... (${ELAPSED}s / ${MAX_WAIT}s)"
+  done
+
+  echo "⚠ Timeout: iDempiere did not respond within ${MAX_WAIT}s"
+  echo "  Check logs: docker logs -f idempiere-app"
+  echo "  URL: http://localhost:8080/emui/"
+  exit 1
 else
   if [ "$DO_RESTART" -eq 0 ]; then
     echo "Skipping restart (SSH detected or --no-restart)."
