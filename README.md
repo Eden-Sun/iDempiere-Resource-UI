@@ -61,18 +61,36 @@ API 請求會自動 proxy 到 http://localhost:8080（無需重新 build）
 
 ### 動態表單欄位過濾
 
-**業務夥伴表單**（`/emui/#/bpartner`）支援「僅顯示必填欄位」功能：
+**業務夥伴表單**（`/emui/#/bpartner`）支援「僅顯示核心欄位」功能：
 
-- **預設行為**：只顯示必填欄位（簡化填寫流程）
-- **使用者可切換**：勾選/取消勾選 checkbox 控制顯示所有欄位或僅必填欄位
+- **預設行為**：只顯示核心欄位（根據業務邏輯，非技術性必填欄位）
+- **使用者可切換**：勾選/取消勾選 checkbox 控制顯示所有欄位或僅核心欄位
 - **系統配置**：可透過 iDempiere `AD_SysConfig` 設定全系統預設值
-  - Name: `EMUI_SHOW_ONLY_MANDATORY`
-  - Value: `Y` 或 `true`（啟用）/ `N` 或 `false`（停用）
+  - Name: `EMUI_SHOW_ONLY_ESSENTIAL`
+  - Value: `N` 或 `false`（停用，顯示所有欄位）
+  - 預設為啟用（不需配置）
+
+**核心欄位定義**（BPartnerPage 範例）：
+
+```typescript
+// Business Partner: 客戶基本資訊 + 貿易條件
+const bpEssentialFields = [
+  'Value', 'Name', 'Name2', 'C_BP_Group_ID',
+  'TaxID', 'M_PriceList_ID', 'C_PaymentTerm_ID'
+]
+
+// Contact: 聯絡人基本資訊
+const contactEssentialFields = ['Name', 'Phone', 'EMail']
+
+// Location: 地址核心資訊
+const locationEssentialFields = ['C_Country_ID', 'City', 'Address1', 'Postal']
+```
 
 **實作細節**：
 
-- `DynamicForm` 元件支援 `show-only-mandatory` prop
-- 根據欄位的 `isMandatory` 屬性動態過濾顯示欄位
+- `DynamicForm` 元件支援 `essential-fields` prop（白名單）
+- `essential-fields` 優先於 `show-only-mandatory`
+- 技術性必填欄位（如 AD_Org_ID）即使不在白名單也會顯示
 - 系統欄位、Key 欄位、Parent 欄位、Button 類型欄位會自動隱藏
 
 詳細技術文件請參考：`/home/r7/erp/CLAUDE.md` 的「動態表單欄位過濾功能」章節

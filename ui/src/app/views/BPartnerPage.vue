@@ -59,11 +59,11 @@
       <div v-if="currentStep < 3" class="mb-4 flex items-center gap-2 text-sm">
         <label class="flex items-center gap-2 cursor-pointer">
           <input
-            v-model="showOnlyMandatory"
+            v-model="showOnlyEssential"
             type="checkbox"
             class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
           />
-          <span class="text-slate-700">僅顯示必填欄位</span>
+          <span class="text-slate-700">僅顯示核心欄位</span>
         </label>
       </div>
 
@@ -75,7 +75,7 @@
           window-slug="business-partner"
           tab-slug="business-partner"
           :default-values="bpDefaults"
-          :show-only-mandatory="showOnlyMandatory"
+          :essential-fields="showOnlyEssential ? bpEssentialFields : []"
           submit-label="下一步：聯絡人"
           @submit="handleBpSubmit"
         />
@@ -90,7 +90,7 @@
           tab-slug="contact-user"
           :exclude-fields="['C_BPartner_ID']"
           :default-values="contactDefaults"
-          :show-only-mandatory="showOnlyMandatory"
+          :essential-fields="showOnlyEssential ? contactEssentialFields : []"
           submit-label="下一步：地址"
           @submit="handleContactSubmit"
         >
@@ -131,7 +131,7 @@
           tab-slug="location"
           :exclude-fields="['C_BPartner_ID', 'C_Location_ID']"
           :default-values="locationDefaults"
-          :show-only-mandatory="showOnlyMandatory"
+          :essential-fields="showOnlyEssential ? locationEssentialFields : []"
           submit-label="完成"
           @submit="handleLocationSubmit"
         >
@@ -194,8 +194,32 @@ import { useAuth } from '../../features/auth/store'
 
 const auth = useAuth()
 
-// Filter control: show only mandatory fields (default: true)
-const showOnlyMandatory = ref(true)
+// Filter control: show only essential fields (default: true)
+const showOnlyEssential = ref(true)
+
+// Essential fields for Business Partner (business logic, not just isMandatory)
+const bpEssentialFields = [
+  'Value',           // Search Key - unique identifier
+  'Name',            // Name - display name
+  'Name2',           // Name 2 - additional name (common in Asian markets)
+  'C_BP_Group_ID',   // BP Group - classification
+  'TaxID',           // Tax ID - for B2B customers
+  'M_PriceList_ID',  // Price List - for sales
+  'C_PaymentTerm_ID',// Payment Term - for credit terms
+]
+
+const contactEssentialFields = [
+  'Name',            // Contact name
+  'Phone',           // Phone number
+  'EMail',           // Email address
+]
+
+const locationEssentialFields = [
+  'C_Country_ID',    // Country - required
+  'City',            // City
+  'Address1',        // Address line 1
+  'Postal',          // Postal code
+]
 
 const steps = [
   { key: 'bp', label: '業務夥伴' },
@@ -383,9 +407,10 @@ function resetForm() {
 // Load system preferences on mount
 onMounted(async () => {
   if (auth.token.value) {
-    const sysConfigValue = await getSysConfig(auth.token.value, 'EMUI_SHOW_ONLY_MANDATORY')
-    if (sysConfigValue === 'Y' || sysConfigValue === 'true') {
-      showOnlyMandatory.value = true
+    const sysConfigValue = await getSysConfig(auth.token.value, 'EMUI_SHOW_ONLY_ESSENTIAL')
+    // Default is true, only set to false if explicitly disabled
+    if (sysConfigValue === 'N' || sysConfigValue === 'false') {
+      showOnlyEssential.value = false
     }
   }
 })

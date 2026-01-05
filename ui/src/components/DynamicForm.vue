@@ -75,6 +75,7 @@ const props = withDefaults(
     showCancel?: boolean
     showHelp?: boolean
     showOnlyMandatory?: boolean
+    essentialFields?: string[]  // Whitelist of essential fields to show
   }>(),
   {
     excludeFields: () => [],
@@ -83,6 +84,7 @@ const props = withDefaults(
     showCancel: false,
     showHelp: false,
     showOnlyMandatory: false,
+    essentialFields: () => [],
   },
 )
 
@@ -129,8 +131,18 @@ const visibleFields = computed(() => {
     if (f.column?.referenceId === ReferenceType.Button) return false
     // Exclude fields not displayed (IsDisplayed = false or SeqNo = 0)
     if (!f.isDisplayed || f.seqNo === 0) return false
-    // If showOnlyMandatory is enabled, exclude non-mandatory fields
-    if (props.showOnlyMandatory && !f.column?.isMandatory) return false
+
+    // If essentialFields whitelist is provided, only show those fields
+    if (props.essentialFields.length > 0) {
+      // Show field if it's in the whitelist OR if it's mandatory
+      if (!props.essentialFields.includes(colName) && !f.column?.isMandatory) {
+        return false
+      }
+    } else if (props.showOnlyMandatory) {
+      // Fallback: If showOnlyMandatory is enabled, exclude non-mandatory fields
+      if (!f.column?.isMandatory) return false
+    }
+
     return true
   })
 
