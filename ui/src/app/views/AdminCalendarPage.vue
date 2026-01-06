@@ -27,58 +27,47 @@
         {{ error }}
       </p>
 
-      <!-- 時段網格 -->
+      <!-- Google Calendar Style Grid -->
       <div class="mt-4 overflow-x-auto">
-        <table class="w-full border-collapse text-xs">
-          <thead>
-            <tr>
-              <th class="border border-slate-200 bg-slate-50 px-2 py-1 text-left w-16">時間</th>
-              <th v-for="day in weekDays" :key="day.key" class="border border-slate-200 bg-slate-50 px-2 py-1 text-center min-w-[140px]">
-                {{ day.label }}<br /><span class="text-slate-400">{{ day.date }}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="hour in hours" :key="hour">
-              <td class="border border-slate-200 bg-slate-50 px-2 py-1 font-medium whitespace-nowrap align-top">
-                {{ hour }}:00
-              </td>
-              <td
-                v-for="day in weekDays"
-                :key="day.key + hour"
-                class="border border-slate-200 p-0 align-top h-12 relative"
+        <div class="calendar-container">
+          <!-- Time column -->
+          <div class="time-column">
+            <div class="day-header-cell"></div>
+            <div class="time-grid">
+              <div v-for="hour in hours" :key="hour" class="time-label">
+                <span>{{ hour }}:00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Day columns -->
+          <div v-for="day in weekDays" :key="day.key" class="day-column">
+            <div class="day-header-cell" :class="{ 'is-today': isToday(day.dateObj) }">
+              <div class="day-name">{{ day.label }}</div>
+              <div class="day-date" :class="{ 'today-badge': isToday(day.dateObj) }">{{ day.dateObj.getDate() }}</div>
+            </div>
+            <div class="day-grid">
+              <!-- Hour slots background -->
+              <div v-for="hour in hours" :key="hour" class="hour-slot">
+                <div class="half-hour-line"></div>
+              </div>
+              <!-- Events -->
+              <div
+                v-for="event in getDayEvents(day)"
+                :key="event.id"
+                class="event-card"
+                :style="getEventStyle(event)"
+                @click="showPopout($event, event)"
+                @mouseenter="showPopout($event, event)"
+                @mouseleave="hidePopout"
               >
-                <!-- 30分鐘分隔線 -->
-                <div class="absolute inset-0 pointer-events-none">
-                  <div class="absolute left-1/2 top-0 bottom-0 border-l border-dashed border-slate-200"></div>
-                </div>
-                <!-- 預約條 -->
-                <div class="relative h-full">
-                  <div
-                    v-for="a in getHourAssignments(day, hour)"
-                    :key="a.id"
-                    class="absolute flex items-center gap-1 rounded text-xs px-1 overflow-hidden cursor-pointer hover:brightness-95 transition-all"
-                    :style="{
-                      left: `${a.leftPercent}%`,
-                      width: `${a.widthPercent}%`,
-                      top: `${a.column * 24}px`,
-                      height: '22px',
-                      backgroundColor: getAssignmentColor(a.id, a.resourceId) + '40',
-                      color: getAssignmentColor(a.id, a.resourceId),
-                      borderLeft: `3px solid ${getAssignmentColor(a.id, a.resourceId)}`,
-                      zIndex: activePopout && activePopout.assignment.id === a.id ? 20 : 10,
-                    }"
-                    @click="showPopout($event, a)"
-                    @mouseenter="showPopout($event, a)"
-                    @mouseleave="hidePopout"
-                  >
-                    <span class="truncate font-medium">{{ a.resourceName }}: {{ a.name || '—' }}</span>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <div class="event-time">{{ formatEventTime(event.from) }}</div>
+                <div class="event-title">{{ event.name || '—' }}</div>
+                <div class="event-resource">{{ event.resourceName }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- 新增預約 -->
@@ -168,13 +157,15 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../../features/auth/store'
 import { listResources, listAssignmentsForRange, createAssignment, deleteAssignment, getAssignmentColors, type Resource, type ResourceAssignment } from '../../features/resource/api'
 
-// 預約在小時格內的顯示資訊
-type HourAssignment = ResourceAssignment & {
+// 事件顯示資訊（Google Calendar style）
+type CalendarEvent = ResourceAssignment & {
   resourceId: number
   resourceName: string
-  leftPercent: number
-  widthPercent: number
+  startDate: Date
+  endDate: Date
+  // 佈局計算結果
   column: number
+  totalColumns: number
 }
 
 const auth = useAuth()
@@ -196,12 +187,11 @@ const submitting = ref(false)
 const deleteTarget = ref<(ResourceAssignment & { resourceId: number }) | null>(null)
 
 // Popout
-const activePopout = ref<{ assignment: HourAssignment; x: number; y: number } | null>(null)
+const activePopout = ref<{ assignment: CalendarEvent; x: number; y: number } | null>(null)
 let hidePopoutTimer: ReturnType<typeof setTimeout> | null = null
 
-function showPopout(e: MouseEvent | TouchEvent, assignment: HourAssignment) {
+function showPopout(e: MouseEvent | TouchEvent, assignment: CalendarEvent) {
   e.stopPropagation()
-  // 取消隱藏計時器
   if (hidePopoutTimer) {
     clearTimeout(hidePopoutTimer)
     hidePopoutTimer = null
@@ -209,20 +199,18 @@ function showPopout(e: MouseEvent | TouchEvent, assignment: HourAssignment) {
   const rect = (e.target as HTMLElement).getBoundingClientRect()
   activePopout.value = {
     assignment,
-    x: rect.left + rect.width / 2,
-    y: rect.bottom + 4,
+    x: rect.right + 8,
+    y: rect.top,
   }
 }
 
 function hidePopout() {
-  // 延遲隱藏，讓滑鼠有時間移到 popout
   hidePopoutTimer = setTimeout(() => {
     activePopout.value = null
   }, 150)
 }
 
 function keepPopout() {
-  // 滑鼠進入 popout 時，取消隱藏計時器
   if (hidePopoutTimer) {
     clearTimeout(hidePopoutTimer)
     hidePopoutTimer = null
@@ -232,10 +220,10 @@ function keepPopout() {
 const popoutStyle = computed(() => {
   if (!activePopout.value) return {}
   const maxX = typeof window !== 'undefined' ? window.innerWidth - 300 : 1000
+  const maxY = typeof window !== 'undefined' ? window.innerHeight - 200 : 600
   return {
     left: `${Math.min(activePopout.value.x, maxX)}px`,
-    top: `${activePopout.value.y}px`,
-    transform: 'translateX(-50%)',
+    top: `${Math.min(activePopout.value.y, maxY)}px`,
   }
 })
 
@@ -249,6 +237,11 @@ function confirmDeleteFromPopout() {
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr)
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function formatEventTime(dateStr: string): string {
+  const d = new Date(dateStr)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 // 顏色配置
@@ -280,12 +273,16 @@ weekStart.setHours(0, 0, 0, 0)
 const weekEnd = new Date(weekStart)
 weekEnd.setDate(weekStart.getDate() + 7)
 
-const hours = [9, 10, 11, 12, 13, 14, 15, 16, 17]
+// 日曆時間範圍：9:00 - 18:00
+const HOUR_START = 9
+const HOUR_END = 18
+const hours = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
+const HOUR_HEIGHT = 60 // 每小時高度 (px)
 
 // 30分鐘時段選項（用於新增預約）
 type TimeSlot = { key: string; label: string; hour: number; minute: number }
 const timeSlots: TimeSlot[] = []
-for (let h = 9; h < 18; h++) {
+for (let h = HOUR_START; h < HOUR_END; h++) {
   timeSlots.push({ key: `${h}00`, label: `${h}:00`, hour: h, minute: 0 })
   timeSlots.push({ key: `${h}30`, label: `${h}:30`, hour: h, minute: 30 })
 }
@@ -299,78 +296,114 @@ const weekDays = computed(() => {
   })
 })
 
-function getHourAssignments(day: { dateObj: Date }, hour: number): HourAssignment[] {
-  const hourStart = new Date(day.dateObj)
-  hourStart.setHours(hour, 0, 0, 0)
-  const hourEnd = new Date(hourStart)
-  hourEnd.setHours(hour + 1)
+function isToday(date: Date): boolean {
+  const today = new Date()
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear()
+}
 
-  const rawAssignments: Array<ResourceAssignment & { resourceId: number; resourceName: string; from: Date; to: Date }> = []
+// 獲取某天的所有事件，並計算佈局
+function getDayEvents(day: { dateObj: Date }): CalendarEvent[] {
+  const dayStart = new Date(day.dateObj)
+  dayStart.setHours(HOUR_START, 0, 0, 0)
+  const dayEnd = new Date(day.dateObj)
+  dayEnd.setHours(HOUR_END, 0, 0, 0)
 
+  // 收集當天所有事件
+  const events: CalendarEvent[] = []
   for (const r of resources.value) {
     if (selectedResourceId.value && r.id !== selectedResourceId.value) continue
     const assignments = allAssignments.value.get(r.id) ?? []
     for (const a of assignments) {
-      const from = new Date(a.from)
-      const to = a.to ? new Date(a.to) : new Date(from.getTime() + 30 * 60 * 1000)
-      // 檢查預約與小時是否有重疊
-      if (from < hourEnd && to > hourStart) {
-        rawAssignments.push({ ...a, resourceId: r.id, resourceName: r.name, from, to })
+      const startDate = new Date(a.from)
+      const endDate = a.to ? new Date(a.to) : new Date(startDate.getTime() + 30 * 60 * 1000)
+
+      // 檢查是否在這一天
+      if (startDate < dayEnd && endDate > dayStart) {
+        events.push({
+          ...a,
+          resourceId: r.id,
+          resourceName: r.name,
+          startDate,
+          endDate,
+          column: 0,
+          totalColumns: 1,
+        })
       }
     }
   }
 
-  // 計算每個預約在格內的位置和寬度
-  const result: HourAssignment[] = []
+  // 計算重疊佈局（Google Calendar 風格）
+  events.sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
 
-  // 先按開始時間排序
-  rawAssignments.sort((a, b) => a.from.getTime() - b.from.getTime())
+  // 使用貪婪算法分配欄位
+  const columns: CalendarEvent[][] = []
 
-  // 分配欄位（處理重疊的預約）
-  const columns: Array<{ endTime: number }> = []
-
-  for (const a of rawAssignments) {
-    // 計算在這個小時內的起止時間
-    const effectiveStart = Math.max(a.from.getTime(), hourStart.getTime())
-    const effectiveEnd = Math.min(a.to.getTime(), hourEnd.getTime())
-
-    // 轉換成百分比 (0-100%)
-    const leftPercent = ((effectiveStart - hourStart.getTime()) / (60 * 60 * 1000)) * 100
-    const widthPercent = ((effectiveEnd - effectiveStart) / (60 * 60 * 1000)) * 100
-
-    // 找一個可用的欄位
-    let column = 0
-    for (let i = 0; i < columns.length; i++) {
-      if (columns[i].endTime <= effectiveStart) {
-        column = i
-        columns[i].endTime = effectiveEnd
+  for (const event of events) {
+    let placed = false
+    for (let col = 0; col < columns.length; col++) {
+      const columnEvents = columns[col]
+      const lastEvent = columnEvents[columnEvents.length - 1]
+      // 檢查是否與該欄位的最後一個事件重疊
+      if (lastEvent.endDate <= event.startDate) {
+        columnEvents.push(event)
+        event.column = col
+        placed = true
         break
       }
-      column = i + 1
     }
-    if (column >= columns.length) {
-      columns.push({ endTime: effectiveEnd })
-    } else {
-      columns[column].endTime = effectiveEnd
+    if (!placed) {
+      event.column = columns.length
+      columns.push([event])
     }
-
-    result.push({
-      ...a,
-      from: a.from.toISOString(),
-      to: a.to.toISOString(),
-      leftPercent,
-      widthPercent,
-      column,
-    })
   }
 
-  return result
+  // 計算每個事件需要的總欄位數（處理重疊群組）
+  for (const event of events) {
+    // 找出所有與此事件重疊的事件
+    const overlapping = events.filter(e =>
+      e.startDate < event.endDate && e.endDate > event.startDate
+    )
+    const maxColumn = Math.max(...overlapping.map(e => e.column)) + 1
+    event.totalColumns = maxColumn
+  }
+
+  return events
 }
 
-function getMaxColumns(day: { dateObj: Date }, hour: number): number {
-  const assignments = getHourAssignments(day, hour)
-  if (assignments.length === 0) return 1
-  return Math.max(...assignments.map(a => a.column)) + 1
+function getEventStyle(event: CalendarEvent): Record<string, string> {
+  const dayStart = new Date(event.startDate)
+  dayStart.setHours(HOUR_START, 0, 0, 0)
+  const dayEnd = new Date(event.startDate)
+  dayEnd.setHours(HOUR_END, 0, 0, 0)
+
+  // 限制事件在顯示範圍內
+  const effectiveStart = Math.max(event.startDate.getTime(), dayStart.getTime())
+  const effectiveEnd = Math.min(event.endDate.getTime(), dayEnd.getTime())
+
+  // 計算位置
+  const startMinutes = (effectiveStart - dayStart.getTime()) / (60 * 1000)
+  const durationMinutes = (effectiveEnd - effectiveStart) / (60 * 1000)
+
+  const top = (startMinutes / 60) * HOUR_HEIGHT
+  const height = Math.max((durationMinutes / 60) * HOUR_HEIGHT - 2, 20) // 最小高度 20px
+
+  // 計算水平位置
+  const width = (1 / event.totalColumns) * 100
+  const left = event.column * width
+
+  const color = getAssignmentColor(event.id, event.resourceId)
+
+  return {
+    top: `${top}px`,
+    height: `${height}px`,
+    left: `${left}%`,
+    width: `calc(${width}% - 4px)`,
+    backgroundColor: color + '20',
+    borderLeftColor: color,
+    color: color,
+  }
 }
 
 async function loadAll() {
@@ -410,10 +443,6 @@ async function reload() {
   }
 }
 
-function confirmDelete(a: ResourceAssignment & { resourceId: number }) {
-  deleteTarget.value = a
-}
-
 async function doDelete() {
   if (!auth.token.value || !deleteTarget.value) return
   try {
@@ -451,3 +480,144 @@ watch(selectedResourceId, () => {})
 onMounted(reload)
 </script>
 
+<style scoped>
+.calendar-container {
+  display: flex;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 800px;
+}
+
+.time-column {
+  flex-shrink: 0;
+  width: 60px;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.day-header-cell {
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.day-header-cell.is-today {
+  background: #eff6ff;
+}
+
+.day-name {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.day-date {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-top: 2px;
+}
+
+.day-date.today-badge {
+  background: #3b82f6;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.time-grid {
+  position: relative;
+}
+
+.time-label {
+  height: 60px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 10px;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.time-label span {
+  transform: translateY(-6px);
+}
+
+.day-column {
+  flex: 1;
+  min-width: 100px;
+  border-right: 1px solid #e2e8f0;
+}
+
+.day-column:last-child {
+  border-right: none;
+}
+
+.day-grid {
+  position: relative;
+  height: calc(60px * 9); /* 9 hours */
+}
+
+.hour-slot {
+  height: 60px;
+  border-bottom: 1px solid #e2e8f0;
+  position: relative;
+}
+
+.half-hour-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.event-card {
+  position: absolute;
+  border-left: 3px solid;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+
+.event-card:hover {
+  z-index: 20;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transform: scale(1.02);
+}
+
+.event-time {
+  font-weight: 600;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.event-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-resource {
+  font-size: 10px;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>

@@ -25,7 +25,7 @@
                 class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
                 @change="onResourceToggle(r.id)"
               />
-              <span>{{ r.name }} (#{{ r.id }})</span>
+              <span>{{ r.name }}</span>
             </label>
           </div>
           <div v-if="selectedResourceIds.length > 0" class="mt-2 text-xs text-slate-600">
@@ -71,12 +71,12 @@
           <span class="font-semibold">步驟 1/2：</span> 請點選<span class="font-semibold">開始時段</span>
         </template>
         <template v-else-if="selectionMode === 'end'">
-          <span class="font-semibold">步驟 2/2：</span> 已選開始 {{ selectedStart?.day.label }} {{ selectedStart?.slot.label.split(' - ')[0] }}，請點選<span class="font-semibold">結束時段</span>
+          <span class="font-semibold">步驟 2/2：</span> 已選開始 {{ selectedStart?.day.label }} {{ formatSlotTime(selectedStart?.slot) }}，請點選<span class="font-semibold">結束時段</span>
           <button class="ml-2 text-xs underline" @click="resetSelection">重新選擇</button>
         </template>
       </div>
 
-      <!-- 時段網格 -->
+      <!-- Google Calendar Style Grid -->
       <div v-if="selectedResources.length > 0 && commonResourceType" class="mt-6">
         <div class="mb-3 flex items-center justify-between">
           <div class="text-sm font-semibold text-slate-900">本週時段</div>
@@ -100,54 +100,53 @@
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full border-collapse text-xs">
-            <thead>
-              <tr>
-                <th class="border border-slate-200 bg-slate-50 px-2 py-1 text-left">時間</th>
-                <th 
-                  v-for="day in weekDays" 
-                  :key="day.key" 
-                  class="border border-slate-200 px-2 py-1 text-center min-w-[80px]"
-                  :class="isDayAvailable(day.dayOfWeek) ? 'bg-slate-50' : 'bg-slate-200 text-slate-400'"
+          <div class="calendar-container">
+            <!-- Time column -->
+            <div class="time-column">
+              <div class="day-header-cell"></div>
+              <div class="time-grid">
+                <div v-for="hour in displayHours" :key="hour" class="time-label">
+                  <span>{{ hour }}:00</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Day columns -->
+            <div v-for="day in weekDays" :key="day.key" class="day-column" :class="{ 'day-unavailable': !isAnyDayAvailable(day.dayOfWeek) }">
+              <div class="day-header-cell" :class="{ 'is-today': isToday(day.dateObj) }">
+                <div class="day-name">{{ day.label }}</div>
+                <div class="day-date" :class="{ 'today-badge': isToday(day.dateObj) }">{{ day.dateObj.getDate() }}</div>
+              </div>
+              <div class="day-grid" @click="onDayGridClick($event, day)">
+                <!-- Hour slots background -->
+                <div v-for="hour in displayHours" :key="hour" class="hour-slot">
+                  <div class="half-hour-line"></div>
+                </div>
+
+                <!-- Selection overlay -->
+                <div
+                  v-if="isSelectionInDay(day)"
+                  class="selection-overlay"
+                  :style="getSelectionStyle(day)"
+                ></div>
+
+                <!-- Events -->
+                <div
+                  v-for="event in getDayEvents(day)"
+                  :key="event.id"
+                  class="event-card"
+                  :style="getEventStyle(event)"
+                  @click.stop="showPopout($event, event)"
+                  @mouseenter="showPopout($event, event)"
+                  @mouseleave="hidePopout"
                 >
-                  {{ day.label }}<br /><span class="text-slate-400">{{ day.date }}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="slot in timeSlots" :key="slot.key">
-                <td class="border border-slate-200 bg-slate-50 px-2 py-1 font-medium whitespace-nowrap">
-                  {{ slot.label }}
-                </td>
-                <td
-                  v-for="day in weekDays"
-                  :key="day.key + slot.key"
-                  class="border border-slate-200 px-1 py-1 text-center transition-colors relative"
-                  :class="getSlotClass(day, slot)"
-                  @click="onSlotClick(day, slot)"
-                >
-                  <div v-if="getSlotAssignments(day, slot).length > 0" class="space-y-0.5">
-                    <div
-                      v-for="(assignment, idx) in getSlotAssignments(day, slot)"
-                      :key="idx"
-                      class="text-xs rounded px-1 py-0.5 truncate"
-                      :style="{
-                        backgroundColor: getAssignmentColor(assignment.id) + '40',
-                        color: getAssignmentColor(assignment.id),
-                        borderLeft: `3px solid ${getAssignmentColor(assignment.id)}`
-                      }"
-                      :title="`${assignment.resourceName}: ${assignment.name || '已預約'}`"
-                    >
-                      {{ assignment.resourceName }}: {{ assignment.name || '已預約' }}
-                    </div>
-                  </div>
-                  <span v-else-if="isSlotInSelection(day, slot)" class="text-brand-600 font-semibold">✓</span>
-                  <span v-else-if="!isAnyDayAvailable(day.dayOfWeek)" class="text-slate-300">—</span>
-                  <span v-else class="text-slate-400">—</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <div class="event-time">{{ formatEventTime(event.from) }}</div>
+                  <div class="event-title">{{ event.name || '—' }}</div>
+                  <div class="event-resource">{{ event.resourceName }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -156,7 +155,7 @@
         <div class="text-sm font-semibold text-slate-900">確認預約</div>
         <div class="mt-2 text-xs text-slate-600">
           <div><span class="font-medium">日期：</span>{{ selectedStart.day.label }} ({{ selectedStart.day.date }})</div>
-          <div><span class="font-medium">時段：</span>{{ selectedStart.slot.label.split(' - ')[0] }} - {{ selectedEnd.slot.label.split(' - ')[1] }}</div>
+          <div><span class="font-medium">時段：</span>{{ formatSlotTime(selectedStart.slot) }} - {{ formatSlotEndTime(selectedEnd.slot) }}</div>
           <div><span class="font-medium">時長：</span>{{ calculateDuration() }} 分鐘</div>
           <div v-if="selectedResourceIds.length > 1" class="mt-2">
             <span class="font-medium">將為以下資源建立預約：</span>
@@ -186,13 +185,12 @@
             />
           </div>
           <div>
-            <label class="text-sm font-medium text-slate-700">顏色標籤（用於疊加觀看）</label>
+            <label class="text-sm font-medium text-slate-700">顏色標籤</label>
             <div class="mt-1 flex items-center gap-3">
               <input
                 v-model="bookingColor"
                 type="color"
                 class="h-10 w-20 cursor-pointer rounded border border-slate-300"
-                title="選擇顏色標籤"
               />
               <div class="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" :style="{ backgroundColor: bookingColor + '20', color: bookingColor, borderColor: bookingColor }">
                 預覽：{{ bookingColor }}
@@ -205,7 +203,6 @@
                 重置
               </button>
             </div>
-            <p class="mt-1 text-xs text-slate-500">設定顏色標籤以便在疊加觀看時區分不同預約</p>
           </div>
           <div class="flex gap-2">
             <button
@@ -225,23 +222,65 @@
         </div>
       </div>
     </div>
+
+    <!-- Popout 資訊卡 -->
+    <Teleport to="body">
+      <div
+        v-if="activePopout"
+        class="fixed z-50 rounded-lg bg-white shadow-xl border border-slate-200 p-3 min-w-[200px] max-w-[280px]"
+        :style="popoutStyle"
+        @mouseenter="keepPopout"
+        @mouseleave="hidePopout"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <div
+            class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5"
+            :style="{ backgroundColor: getAssignmentColor(activePopout.assignment.id) }"
+          ></div>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-sm text-slate-900 truncate">{{ activePopout.assignment.name || '—' }}</div>
+            <div class="text-xs text-slate-500 mt-0.5">{{ activePopout.assignment.resourceName }}</div>
+          </div>
+        </div>
+        <div class="mt-2 text-xs text-slate-600 space-y-1">
+          <div class="flex items-center gap-1">
+            <span class="text-slate-400">開始:</span>
+            <span>{{ formatDateTime(activePopout.assignment.from) }}</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="text-slate-400">結束:</span>
+            <span>{{ formatDateTime(activePopout.assignment.to) }}</span>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../../features/auth/store'
-import { 
-  listResources, 
-  listAssignmentsForRange, 
-  createAssignment, 
+import {
+  listResources,
+  listAssignmentsForRange,
+  createAssignment,
   getResourceType,
   getAssignmentColors,
   setAssignmentColor,
-  type Resource, 
+  type Resource,
   type ResourceAssignment,
   type ResourceType,
 } from '../../features/resource/api'
+
+// 事件顯示資訊（Google Calendar style）
+type CalendarEvent = ResourceAssignment & {
+  resourceId: number
+  resourceName: string
+  startDate: Date
+  endDate: Date
+  column: number
+  totalColumns: number
+}
 
 const auth = useAuth()
 
@@ -270,9 +309,8 @@ function getResourceColor(resourceId: number): string {
 }
 
 function getAssignmentColor(assignmentId: number): string {
-  // 優先使用保存的顏色標籤，否則使用資源的預設顏色
   return assignmentColors.value.get(assignmentId) || getResourceColor(
-    selectedResourceIds.value.find(id => 
+    selectedResourceIds.value.find(id =>
       assignments.value.get(id)?.some(a => a.id === assignmentId)
     ) || selectedResourceIds.value[0] || 0
   )
@@ -284,14 +322,65 @@ const selectedStart = ref<{ day: WeekDay; slot: TimeSlot } | null>(null)
 const selectedEnd = ref<{ day: WeekDay; slot: TimeSlot } | null>(null)
 const showBookingForm = ref(false)
 const bookingName = ref('')
-const bookingColor = ref('#3b82f6') // 預設藍色
+const bookingColor = ref('#3b82f6')
 const submitting = ref(false)
-const assignmentColors = ref<Map<number, string>>(new Map()) // assignmentId -> color
+const assignmentColors = ref<Map<number, string>>(new Map())
+
+// Popout
+const activePopout = ref<{ assignment: CalendarEvent; x: number; y: number } | null>(null)
+let hidePopoutTimer: ReturnType<typeof setTimeout> | null = null
+
+function showPopout(e: MouseEvent | TouchEvent, assignment: CalendarEvent) {
+  e.stopPropagation()
+  if (hidePopoutTimer) {
+    clearTimeout(hidePopoutTimer)
+    hidePopoutTimer = null
+  }
+  const rect = (e.target as HTMLElement).getBoundingClientRect()
+  activePopout.value = {
+    assignment,
+    x: rect.right + 8,
+    y: rect.top,
+  }
+}
+
+function hidePopout() {
+  hidePopoutTimer = setTimeout(() => {
+    activePopout.value = null
+  }, 150)
+}
+
+function keepPopout() {
+  if (hidePopoutTimer) {
+    clearTimeout(hidePopoutTimer)
+    hidePopoutTimer = null
+  }
+}
+
+const popoutStyle = computed(() => {
+  if (!activePopout.value) return {}
+  const maxX = typeof window !== 'undefined' ? window.innerWidth - 300 : 1000
+  const maxY = typeof window !== 'undefined' ? window.innerHeight - 200 : 600
+  return {
+    left: `${Math.min(activePopout.value.x, maxX)}px`,
+    top: `${Math.min(activePopout.value.y, maxY)}px`,
+  }
+})
+
+function formatDateTime(dateStr: string): string {
+  const d = new Date(dateStr)
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function formatEventTime(dateStr: string): string {
+  const d = new Date(dateStr)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
 
 // 時間相關
 const now = new Date()
 const weekStart = new Date(now)
-weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7)) // Monday
+weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7))
 weekStart.setHours(0, 0, 0, 0)
 const weekEnd = new Date(weekStart)
 weekEnd.setDate(weekStart.getDate() + 7)
@@ -306,13 +395,31 @@ type WeekDay = {
 
 type TimeSlot = {
   key: string
-  label: string
   hour: number
   minute: number
   endHour: number
   endMinute: number
   index: number
 }
+
+// 日曆顯示時間範圍
+const HOUR_START = computed(() => {
+  if (!commonResourceType.value?.timeSlotStart) return 9
+  const match = commonResourceType.value.timeSlotStart.match(/^(\d{2})/)
+  return match ? parseInt(match[1], 10) : 9
+})
+
+const HOUR_END = computed(() => {
+  if (!commonResourceType.value?.timeSlotEnd) return 18
+  const match = commonResourceType.value.timeSlotEnd.match(/^(\d{2})/)
+  return match ? parseInt(match[1], 10) : 18
+})
+
+const displayHours = computed(() => {
+  return Array.from({ length: HOUR_END.value - HOUR_START.value }, (_, i) => HOUR_START.value + i)
+})
+
+const HOUR_HEIGHT = 60
 
 function parseTimeString(timeStr?: string): { hour: number; minute: number } | null {
   if (!timeStr) return null
@@ -327,53 +434,62 @@ function formatTime(timeStr?: string): string {
   return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`
 }
 
+function formatSlotTime(slot?: TimeSlot | null): string {
+  if (!slot) return '--:--'
+  return `${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')}`
+}
+
+function formatSlotEndTime(slot?: TimeSlot | null): string {
+  if (!slot) return '--:--'
+  return `${String(slot.endHour).padStart(2, '0')}:${String(slot.endMinute).padStart(2, '0')}`
+}
+
 const timeSlots = computed<TimeSlot[]>(() => {
   if (!commonResourceType.value) return []
-  
+
   const start = parseTimeString(commonResourceType.value.timeSlotStart)
   const end = parseTimeString(commonResourceType.value.timeSlotEnd)
-  
+
   if (!start || !end) return []
-  
+
   const slots: TimeSlot[] = []
   let hour = start.hour
   let minute = start.minute
   const slotMinutes = 30
   let index = 0
-  
+
   while (hour < end.hour || (hour === end.hour && minute < end.minute)) {
     const endMinute = minute + slotMinutes
     const endHour = hour + Math.floor(endMinute / 60)
     const actualEndMinute = endMinute % 60
-    
+
     if (endHour > end.hour || (endHour === end.hour && actualEndMinute > end.minute)) {
       break
     }
-    
+
     slots.push({
       key: `${hour}${String(minute).padStart(2, '0')}`,
-      label: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} - ${String(endHour).padStart(2, '0')}:${String(actualEndMinute).padStart(2, '0')}`,
       hour,
       minute,
       endHour,
       endMinute: actualEndMinute,
       index: index++,
     })
-    
+
     minute += slotMinutes
     if (minute >= 60) {
       hour += Math.floor(minute / 60)
       minute = minute % 60
     }
   }
-  
+
   return slots
 })
 
 const weekDays = computed<WeekDay[]>(() => {
   const dayLabels = ['日', '一', '二', '三', '四', '五', '六']
   const days: WeekDay[] = []
-  
+
   for (let i = 0; i < 7; i++) {
     const d = new Date(weekStart)
     d.setDate(weekStart.getDate() + i)
@@ -386,9 +502,16 @@ const weekDays = computed<WeekDay[]>(() => {
       dayOfWeek: dow,
     })
   }
-  
+
   return days
 })
+
+function isToday(date: Date): boolean {
+  const today = new Date()
+  return date.getDate() === today.getDate() &&
+         date.getMonth() === today.getMonth() &&
+         date.getFullYear() === today.getFullYear()
+}
 
 function isDayAvailable(dayOfWeek: number, resourceId?: number): boolean {
   const rt = resourceId ? resourceTypes.value.get(resourceId) : commonResourceType.value
@@ -406,7 +529,6 @@ function isDayAvailable(dayOfWeek: number, resourceId?: number): boolean {
 }
 
 function isAnyDayAvailable(dayOfWeek: number): boolean {
-  // 如果任何選中的資源在該天可用，則顯示為可用
   return selectedResourceIds.value.some(resId => isDayAvailable(dayOfWeek, resId))
 }
 
@@ -424,123 +546,193 @@ function getAvailableDaysText(resourceId: number): string {
   return days.length ? days.join('、') : '無'
 }
 
-const selectedResources = computed(() => 
+const selectedResources = computed(() =>
   resources.value.filter((r) => selectedResourceIds.value.includes(r.id))
 )
 
-// 使用第一個選中資源的類型作為通用類型（用於生成時段）
 const commonResourceType = computed(() => {
   if (selectedResourceIds.value.length === 0) return null
   const firstRes = selectedResources.value[0]
   return resourceTypes.value.get(firstRes?.id) ?? null
 })
 
-function getSlotAssignments(day: WeekDay, slot: TimeSlot): Array<ResourceAssignment & { resourceId: number; resourceName: string }> {
+// 獲取某天的所有事件
+function getDayEvents(day: WeekDay): CalendarEvent[] {
+  const dayStart = new Date(day.dateObj)
+  dayStart.setHours(HOUR_START.value, 0, 0, 0)
+  const dayEnd = new Date(day.dateObj)
+  dayEnd.setHours(HOUR_END.value, 0, 0, 0)
+
+  const events: CalendarEvent[] = []
+  for (const resId of selectedResourceIds.value) {
+    const resourceAssignments = assignments.value.get(resId) ?? []
+    const resource = resources.value.find(r => r.id === resId)
+
+    for (const a of resourceAssignments) {
+      const startDate = new Date(a.from)
+      const endDate = a.to ? new Date(a.to) : new Date(startDate.getTime() + 30 * 60 * 1000)
+
+      if (startDate < dayEnd && endDate > dayStart) {
+        events.push({
+          ...a,
+          resourceId: resId,
+          resourceName: resource?.name ?? `資源 #${resId}`,
+          startDate,
+          endDate,
+          column: 0,
+          totalColumns: 1,
+        })
+      }
+    }
+  }
+
+  // 計算重疊佈局
+  events.sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+  const columns: CalendarEvent[][] = []
+
+  for (const event of events) {
+    let placed = false
+    for (let col = 0; col < columns.length; col++) {
+      const lastEvent = columns[col][columns[col].length - 1]
+      if (lastEvent.endDate <= event.startDate) {
+        columns[col].push(event)
+        event.column = col
+        placed = true
+        break
+      }
+    }
+    if (!placed) {
+      event.column = columns.length
+      columns.push([event])
+    }
+  }
+
+  for (const event of events) {
+    const overlapping = events.filter(e =>
+      e.startDate < event.endDate && e.endDate > event.startDate
+    )
+    event.totalColumns = Math.max(...overlapping.map(e => e.column)) + 1
+  }
+
+  return events
+}
+
+function getEventStyle(event: CalendarEvent): Record<string, string> {
+  const dayStart = new Date(event.startDate)
+  dayStart.setHours(HOUR_START.value, 0, 0, 0)
+  const dayEnd = new Date(event.startDate)
+  dayEnd.setHours(HOUR_END.value, 0, 0, 0)
+
+  const effectiveStart = Math.max(event.startDate.getTime(), dayStart.getTime())
+  const effectiveEnd = Math.min(event.endDate.getTime(), dayEnd.getTime())
+
+  const startMinutes = (effectiveStart - dayStart.getTime()) / (60 * 1000)
+  const durationMinutes = (effectiveEnd - effectiveStart) / (60 * 1000)
+
+  const top = (startMinutes / 60) * HOUR_HEIGHT
+  const height = Math.max((durationMinutes / 60) * HOUR_HEIGHT - 2, 20)
+
+  const width = (1 / event.totalColumns) * 100
+  const left = event.column * width
+
+  const color = getAssignmentColor(event.id)
+
+  return {
+    top: `${top}px`,
+    height: `${height}px`,
+    left: `${left}%`,
+    width: `calc(${width}% - 4px)`,
+    backgroundColor: color + '20',
+    borderLeftColor: color,
+    color: color,
+  }
+}
+
+// Selection handling
+function isSelectionInDay(day: WeekDay): boolean {
+  return selectedStart.value?.day.key === day.key
+}
+
+function getSelectionStyle(day: WeekDay): Record<string, string> {
+  if (!selectedStart.value || selectedStart.value.day.key !== day.key) return {}
+
+  const startSlot = selectedStart.value.slot
+  const endSlot = selectedEnd.value?.slot || startSlot
+
+  const dayStart = new Date(day.dateObj)
+  dayStart.setHours(HOUR_START.value, 0, 0, 0)
+
+  const startTime = new Date(day.dateObj)
+  startTime.setHours(startSlot.hour, startSlot.minute, 0, 0)
+
+  const endTime = new Date(day.dateObj)
+  endTime.setHours(endSlot.endHour, endSlot.endMinute, 0, 0)
+
+  const startMinutes = (startTime.getTime() - dayStart.getTime()) / (60 * 1000)
+  const endMinutes = (endTime.getTime() - dayStart.getTime()) / (60 * 1000)
+
+  const top = (startMinutes / 60) * HOUR_HEIGHT
+  const height = ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT
+
+  return {
+    top: `${top}px`,
+    height: `${height}px`,
+  }
+}
+
+function onDayGridClick(e: MouseEvent, day: WeekDay) {
+  if (!selectionMode.value) return
+  if (!isAnyDayAvailable(day.dayOfWeek)) return
+
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const y = e.clientY - rect.top
+
+  // 計算點擊的時間
+  const totalMinutes = (y / HOUR_HEIGHT) * 60
+  const clickHour = HOUR_START.value + Math.floor(totalMinutes / 60)
+  const clickMinute = Math.floor((totalMinutes % 60) / 30) * 30
+
+  // 找到對應的 slot
+  const slot = timeSlots.value.find(s => s.hour === clickHour && s.minute === clickMinute)
+  if (!slot) return
+
+  // 檢查是否已被預約
   const slotStart = new Date(day.dateObj)
   slotStart.setHours(slot.hour, slot.minute, 0, 0)
   const slotEnd = new Date(day.dateObj)
   slotEnd.setHours(slot.endHour, slot.endMinute, 0, 0)
 
-  const result: Array<ResourceAssignment & { resourceId: number; resourceName: string }> = []
-  
-  for (const resId of selectedResourceIds.value) {
-    const resourceAssignments = assignments.value.get(resId) ?? []
-    const resource = resources.value.find(r => r.id === resId)
-    
-    for (const a of resourceAssignments) {
-      const from = new Date(a.from)
-      const to = a.to ? new Date(a.to) : new Date(from.getTime() + 30 * 60 * 1000)
-      if (from < slotEnd && to > slotStart) {
-        result.push({
-          ...a,
-          resourceId: resId,
-          resourceName: resource?.name ?? `資源 #${resId}`
-        })
-      }
-    }
-  }
-  
-  return result
-}
+  const events = getDayEvents(day)
+  const hasConflict = events.some(ev => ev.startDate < slotEnd && ev.endDate > slotStart)
+  if (hasConflict) return
 
-function isSlotInSelection(day: WeekDay, slot: TimeSlot): boolean {
-  if (!selectedStart.value) return false
-  if (day.key !== selectedStart.value.day.key) return false
-  
-  const startIdx = selectedStart.value.slot.index
-  const endIdx = selectedEnd.value?.slot.index ?? startIdx
-  
-  return slot.index >= startIdx && slot.index <= endIdx
-}
+  // 檢查是否過去時間
+  if (slotStart < now) return
 
-function isSlotAvailableForSelection(day: WeekDay, slot: TimeSlot): boolean {
-  // 檢查是否至少有一個選中的資源在該天可用
-  if (!isAnyDayAvailable(day.dayOfWeek)) return false
-  
-  // 檢查是否所有選中的資源在該時段都可用
-  const slotAssignments = getSlotAssignments(day, slot)
-  if (slotAssignments.length > 0) return false
-  
-  const slotDate = new Date(day.dateObj)
-  slotDate.setHours(slot.hour, slot.minute)
-  if (slotDate < now) return false
-  
-  return true
-}
-
-function canSelectAsEnd(day: WeekDay, slot: TimeSlot): boolean {
-  if (!selectedStart.value) return false
-  if (day.key !== selectedStart.value.day.key) return false
-  if (slot.index < selectedStart.value.slot.index) return false
-  
-  // 檢查中間所有時段是否可用（所有選中的資源都必須可用）
-  const startIdx = selectedStart.value.slot.index
-  for (let i = startIdx; i <= slot.index; i++) {
-    const checkSlot = timeSlots.value[i]
-    if (!checkSlot) return false
-    const slotAssignments = getSlotAssignments(day, checkSlot)
-    if (slotAssignments.length > 0) return false
-  }
-  
-  return true
-}
-
-function getSlotClass(day: WeekDay, slot: TimeSlot): string {
-  // 選中的時段
-  if (isSlotInSelection(day, slot)) {
-    return 'bg-brand-200 text-brand-700'
-  }
-  
-  // 非營業日（所有資源都不可用）
-  if (!isAnyDayAvailable(day.dayOfWeek)) {
-    return 'bg-slate-200 text-slate-400 cursor-not-allowed'
-  }
-  
-  // 已預約（至少有一個資源被預約）
-  const slotAssignments = getSlotAssignments(day, slot)
-  if (slotAssignments.length > 0) {
-    return 'cursor-not-allowed'
-  }
-
-  // 過去時間
-  const slotDate = new Date(day.dateObj)
-  slotDate.setHours(slot.hour, slot.minute)
-  if (slotDate < now) return 'bg-slate-100 text-slate-400 cursor-not-allowed'
-
-  // 選擇結束時段模式
-  if (selectionMode.value === 'end') {
-    if (canSelectAsEnd(day, slot)) {
-      return 'hover:bg-brand-100 cursor-pointer'
-    }
-    return 'bg-slate-100 text-slate-400 cursor-not-allowed'
-  }
-
-  // 選擇開始時段模式
   if (selectionMode.value === 'start') {
-    return 'hover:bg-brand-100 cursor-pointer'
-  }
+    selectedStart.value = { day, slot }
+    selectedEnd.value = { day, slot }
+    selectionMode.value = 'end'
+  } else if (selectionMode.value === 'end') {
+    if (day.key !== selectedStart.value?.day.key) return
+    if (slot.index < (selectedStart.value?.slot.index ?? 0)) return
 
-  return 'bg-white'
+    // 檢查中間是否有衝突
+    const startIdx = selectedStart.value?.slot.index ?? 0
+    for (let i = startIdx; i <= slot.index; i++) {
+      const checkSlot = timeSlots.value[i]
+      if (!checkSlot) return
+      const checkStart = new Date(day.dateObj)
+      checkStart.setHours(checkSlot.hour, checkSlot.minute, 0, 0)
+      const checkEnd = new Date(day.dateObj)
+      checkEnd.setHours(checkSlot.endHour, checkSlot.endMinute, 0, 0)
+      if (events.some(ev => ev.startDate < checkEnd && ev.endDate > checkStart)) return
+    }
+
+    selectedEnd.value = { day, slot }
+    selectionMode.value = null
+    showBookingForm.value = true
+  }
 }
 
 function startSelection() {
@@ -557,29 +749,11 @@ function resetSelection() {
   selectedEnd.value = null
   showBookingForm.value = false
   bookingName.value = ''
-  bookingColor.value = '#3b82f6' // 重置為預設顏色
+  bookingColor.value = '#3b82f6'
 }
 
 function resetColor() {
-  bookingColor.value = '#3b82f6' // 重置為預設藍色
-}
-
-function onSlotClick(day: WeekDay, slot: TimeSlot) {
-  if (!selectionMode.value) return
-  
-  if (!isSlotAvailableForSelection(day, slot)) return
-  
-  if (selectionMode.value === 'start') {
-    selectedStart.value = { day, slot }
-    selectedEnd.value = { day, slot } // 預設同一個時段
-    selectionMode.value = 'end'
-  } else if (selectionMode.value === 'end') {
-    if (!canSelectAsEnd(day, slot)) return
-    
-    selectedEnd.value = { day, slot }
-    selectionMode.value = null
-    showBookingForm.value = true
-  }
+  bookingColor.value = '#3b82f6'
 }
 
 function calculateDuration(): number {
@@ -601,7 +775,6 @@ async function submitBooking() {
     const to = new Date(selectedEnd.value.day.dateObj)
     to.setHours(selectedEnd.value.slot.endHour, selectedEnd.value.slot.endMinute, 0, 0)
 
-    // 為所有選中的資源創建預約
     const createdAssignments = await Promise.all(
       selectedResourceIds.value.map(resourceId =>
         createAssignment(auth.token.value!, {
@@ -613,7 +786,6 @@ async function submitBooking() {
       )
     )
 
-    // 為所有創建的預約保存顏色標籤
     if (bookingColor.value) {
       await Promise.all(
         createdAssignments.map(async (assignment: any) => {
@@ -641,7 +813,6 @@ async function submitBooking() {
 async function loadResources() {
   if (!auth.token.value) return
   resources.value = await listResources(auth.token.value)
-  // 預設選擇第一個資源
   if (selectedResourceIds.value.length === 0 && resources.value.length) {
     selectedResourceIds.value = [resources.value[0].id]
   }
@@ -668,7 +839,7 @@ async function loadAllAssignments() {
   if (!auth.token.value || selectedResourceIds.value.length === 0) return
   const map = new Map<number, ResourceAssignment[]>()
   const allAssignmentIds: number[] = []
-  
+
   await Promise.all(
     selectedResourceIds.value.map(async (resId) => {
       try {
@@ -683,7 +854,6 @@ async function loadAllAssignments() {
   )
   assignments.value = map
 
-  // 批量載入所有預約的顏色配置
   if (allAssignmentIds.length > 0) {
     try {
       const colors = await getAssignmentColors(auth.token.value!, allAssignmentIds)
@@ -704,7 +874,6 @@ function onResourceToggle(resourceId: number) {
   } else {
     selectedResourceIds.value.push(resourceId)
   }
-  // 當資源選擇改變時，重新載入相關數據
   reloadForSelectedResources()
 }
 
@@ -742,3 +911,165 @@ watch(selectedResourceIds, async () => {
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.calendar-container {
+  display: flex;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 800px;
+}
+
+.time-column {
+  flex-shrink: 0;
+  width: 60px;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.day-header-cell {
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.day-header-cell.is-today {
+  background: #eff6ff;
+}
+
+.day-name {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.day-date {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-top: 2px;
+}
+
+.day-date.today-badge {
+  background: #3b82f6;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.time-grid {
+  position: relative;
+}
+
+.time-label {
+  height: 60px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 10px;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.time-label span {
+  transform: translateY(-6px);
+}
+
+.day-column {
+  flex: 1;
+  min-width: 100px;
+  border-right: 1px solid #e2e8f0;
+}
+
+.day-column:last-child {
+  border-right: none;
+}
+
+.day-column.day-unavailable {
+  background: #f1f5f9;
+}
+
+.day-column.day-unavailable .day-header-cell {
+  background: #e2e8f0;
+}
+
+.day-grid {
+  position: relative;
+  height: calc(60px * v-bind('displayHours.length'));
+  cursor: pointer;
+}
+
+.hour-slot {
+  height: 60px;
+  border-bottom: 1px solid #e2e8f0;
+  position: relative;
+}
+
+.half-hour-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.selection-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(59, 130, 246, 0.2);
+  border: 2px dashed #3b82f6;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.event-card {
+  position: absolute;
+  border-left: 3px solid;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+
+.event-card:hover {
+  z-index: 20;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transform: scale(1.02);
+}
+
+.event-time {
+  font-weight: 600;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.event-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-resource {
+  font-size: 10px;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>
