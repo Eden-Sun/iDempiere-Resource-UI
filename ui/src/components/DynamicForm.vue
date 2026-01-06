@@ -2,72 +2,71 @@
   <div class="dynamic-form">
     <!-- Loading state -->
     <div v-if="loading" class="flex items-center justify-center py-8">
-      <div class="animate-pulse text-slate-500">載入表單中...</div>
+      <span class="loading loading-spinner loading-md"></span>
+      <span class="ml-2">載入表單中...</span>
     </div>
 
     <!-- Error state -->
-    <div v-else-if="error" class="rounded-lg border border-rose-200 bg-rose-50 p-4">
-      <p class="text-sm text-rose-700">{{ error }}</p>
-      <button
-        type="button"
-        class="mt-2 text-sm text-rose-600 underline hover:text-rose-700"
-        @click="loadFields"
-      >
-        重試
-      </button>
+    <div v-else-if="error" class="alert alert-error">
+      <div>
+        <p>{{ error }}</p>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm mt-2"
+          @click="loadFields"
+        >
+          重試
+        </button>
+      </div>
     </div>
 
     <!-- Form -->
     <form v-else @submit.prevent="handleSubmit">
-      <div
-        v-if="formError"
-        class="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 whitespace-pre-line"
-      >
+      <div v-if="formError" class="alert alert-error mb-4 whitespace-pre-line">
         {{ formError }}
       </div>
 
       <!-- Admin mode toggle -->
-      <div v-if="canConfigureFields" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-        <div class="flex items-center justify-between">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-              v-model="adminMode"
-              type="checkbox"
-              class="h-4 w-4 rounded border-slate-300 text-brand-600"
-            />
-            <span class="text-sm font-medium text-amber-800">欄位配置模式（勾選欄位的「隱藏」來設定哪些欄位預設不顯示）</span>
-          </label>
-          <div v-if="adminMode" class="flex gap-2">
-            <button
-              type="button"
-              @click="hideAllFields"
-              class="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-50"
-            >
-              全部隱藏
-            </button>
-            <button
-              type="button"
-              @click="showAllFields"
-              class="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-50"
-            >
-              全部顯示
-            </button>
-            <button
-              type="button"
-              @click="saveFieldConfiguration"
-              :disabled="savingConfig"
-              class="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-            >
-              {{ savingConfig ? '儲存中...' : '儲存配置' }}
-            </button>
+      <div v-if="canConfigureFields" class="alert alert-warning mb-4">
+        <div class="w-full">
+          <div class="flex items-center justify-between">
+            <label class="label cursor-pointer gap-2">
+              <input
+                v-model="adminMode"
+                type="checkbox"
+                class="checkbox checkbox-sm"
+              />
+              <span class="label-text">欄位配置模式（勾選欄位的「隱藏」來設定哪些欄位預設不顯示）</span>
+            </label>
+            <div v-if="adminMode" class="flex gap-2">
+              <button
+                type="button"
+                @click="hideAllFields"
+                class="btn btn-outline btn-sm"
+              >
+                全部隱藏
+              </button>
+              <button
+                type="button"
+                @click="showAllFields"
+                class="btn btn-outline btn-sm"
+              >
+                全部顯示
+              </button>
+              <button
+                type="button"
+                @click="saveFieldConfiguration"
+                :disabled="savingConfig"
+                class="btn btn-primary btn-sm"
+              >
+                {{ savingConfig ? '儲存中...' : '儲存配置' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div
-        v-if="configSuccess"
-        class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-      >
+      <div v-if="configSuccess" class="alert alert-success mb-4">
         {{ configSuccess }}
       </div>
 
@@ -89,14 +88,14 @@
           <button
             type="submit"
             :disabled="submitting"
-            class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+            class="btn btn-primary btn-sm"
           >
             {{ submitting ? '儲存中...' : submitLabel }}
           </button>
           <button
             v-if="showCancel"
             type="button"
-            class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            class="btn btn-outline btn-sm"
             @click="emit('cancel')"
           >
             取消

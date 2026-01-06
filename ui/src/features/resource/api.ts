@@ -138,3 +138,122 @@ export async function deleteAssignment(token: string, id: number): Promise<void>
   })
 }
 
+// === Resource Color ===
+
+export const RESOURCE_COLORS = ['blue', 'red', 'green', 'purple', 'orange', 'cyan', 'pink'] as const
+export type ResourceColor = typeof RESOURCE_COLORS[number]
+
+/**
+ * Get resource color from AD_SysConfig
+ */
+export async function getResourceColor(token: string, resourceId: number): Promise<ResourceColor | null> {
+  try {
+    const res = await apiFetch<{ records: any[] }>(
+      `${API_V1}/models/AD_SysConfig`,
+      {
+        token,
+        searchParams: {
+          $filter: `Name eq 'EMUI_RESOURCE_COLOR_${resourceId}'`,
+          $select: 'Value',
+          $top: '1',
+        },
+      },
+    )
+    if (res.records?.length > 0) {
+      const value = res.records[0].Value as string
+      if (RESOURCE_COLORS.includes(value as ResourceColor)) {
+        return value as ResourceColor
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Get colors for multiple resources (batch)
+ */
+export async function getResourceColors(token: string, resourceIds: number[]): Promise<Map<number, ResourceColor>> {
+  const colorMap = new Map<number, ResourceColor>()
+  if (resourceIds.length === 0) return colorMap
+
+  try {
+    const filter = resourceIds.map((id) => `Name eq 'EMUI_RESOURCE_COLOR_${id}'`).join(' or ')
+    const res = await apiFetch<{ records: any[] }>(
+      `${API_V1}/models/AD_SysConfig`,
+      {
+        token,
+        searchParams: {
+          $filter: filter,
+          $select: 'Name,Value',
+        },
+      },
+    )
+    for (const rec of res.records ?? []) {
+      const match = String(rec.Name).match(/^EMUI_RESOURCE_COLOR_(\d+)$/)
+      if (match) {
+        const id = parseInt(match[1], 10)
+        const value = rec.Value as string
+        if (RESOURCE_COLORS.includes(value as ResourceColor)) {
+          colorMap.set(id, value as ResourceColor)
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return colorMap
+}
+
+/**
+ * Set resource color in AD_SysConfig
+ */
+export async function setResourceColor(token: string, resourceId: number, color: ResourceColor): Promise<boolean> {
+  const configName = `EMUI_RESOURCE_COLOR_${resourceId}`
+  try {
+    // Check if exists
+    const existing = await apiFetch<{ records: any[] }>(
+      `${API_V1}/models/AD_SysConfig`,
+      {
+        token,
+        searchParams: {
+          $filter: `Name eq '${configName}'`,
+          $top: '1',
+        },
+      },
+    )
+
+    if (existing.records?.length > 0) {
+      // Update
+      const id = existing.records[0].id
+      await fetch(`${API_V1}/models/AD_SysConfig/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ Value: color }),
+      })
+    } else {
+      // Create
+      await fetch(`${API_V1}/models/AD_SysConfig`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          Name: configName,
+          Value: color,
+          ConfigurationLevel: 'S',
+          Description: `EMUI Resource Color for S_Resource_ID=${resourceId}`,
+        }),
+      })
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+

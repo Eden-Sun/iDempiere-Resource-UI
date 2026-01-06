@@ -1,59 +1,37 @@
 <template>
   <div class="space-y-6">
     <!-- Header -->
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h1 class="text-lg font-semibold">業務夥伴</h1>
-      <p class="mt-1 text-sm text-slate-600">
-        建立業務夥伴（可選擇建立聯絡人與地址）。
-      </p>
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body">
+        <h1 class="card-title">業務夥伴</h1>
+        <p>建立業務夥伴（可選擇建立聯絡人與地址）。</p>
+      </div>
     </div>
 
     <!-- Error Message -->
-    <div
-      v-if="error"
-      class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 whitespace-pre-line"
-    >
+    <div v-if="error" class="alert alert-error whitespace-pre-line">
       {{ error }}
     </div>
 
     <!-- Success Message -->
-    <div
-      v-if="successMessage"
-      class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-    >
+    <div v-if="successMessage" class="alert alert-success">
       {{ successMessage }}
     </div>
 
     <!-- Main Form -->
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body">
       <!-- Step Indicator -->
-      <div class="mb-6 flex items-center gap-2">
-        <div
+      <ul class="steps mb-6 w-full">
+        <li
           v-for="(step, idx) in steps"
           :key="step.key"
-          class="flex items-center"
+          class="step"
+          :class="{ 'step-primary': currentStep >= idx }"
         >
-          <div
-            class="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold"
-            :class="
-              currentStep === idx
-                ? 'bg-brand-600 text-white'
-                : currentStep > idx
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-slate-200 text-slate-600'
-            "
-          >
-            {{ currentStep > idx ? '✓' : idx + 1 }}
-          </div>
-          <span
-            class="ml-2 text-sm font-medium"
-            :class="currentStep === idx ? 'text-slate-900' : 'text-slate-500'"
-          >
-            {{ step.label }}
-          </span>
-          <div v-if="idx < steps.length - 1" class="mx-3 h-px w-8 bg-slate-300" />
-        </div>
-      </div>
+          {{ step.label }}
+        </li>
+      </ul>
 
       <!-- Step 1: Business Partner -->
       <div v-show="currentStep === 0">
@@ -84,7 +62,7 @@
             <div class="mt-6 flex gap-3">
               <button
                 type="button"
-                class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                class="btn btn-outline btn-sm"
                 @click="currentStep = 0"
               >
                 返回
@@ -92,13 +70,13 @@
               <button
                 type="submit"
                 :disabled="submitting"
-                class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                class="btn btn-primary btn-sm"
               >
                 {{ submitting ? '儲存中…' : '下一步：地址' }}
               </button>
               <button
                 type="button"
-                class="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                class="btn btn-ghost btn-sm"
                 @click="skipContact"
               >
                 略過
@@ -124,7 +102,7 @@
             <div class="mt-6 flex gap-3">
               <button
                 type="button"
-                class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                class="btn btn-outline btn-sm"
                 @click="currentStep = 1"
               >
                 返回
@@ -132,13 +110,13 @@
               <button
                 type="submit"
                 :disabled="submitting"
-                class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                class="btn btn-success btn-sm"
               >
                 {{ submitting ? '儲存中…' : '完成' }}
               </button>
               <button
                 type="button"
-                class="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                class="btn btn-ghost btn-sm"
                 @click="skipLocation"
               >
                 略過
@@ -150,22 +128,23 @@
 
       <!-- Step 4: Done -->
       <div v-if="currentStep === 3" class="py-8 text-center">
-        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-          <span class="text-3xl">✓</span>
+        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/20">
+          <span class="text-3xl text-success">✓</span>
         </div>
-        <h2 class="text-lg font-semibold text-slate-900">業務夥伴已建立！</h2>
-        <p class="mt-2 text-sm text-slate-600">
+        <h2 class="text-lg font-semibold">業務夥伴已建立！</h2>
+        <p class="mt-2">
           已成功建立 <strong>{{ createdBpName }}</strong>
         </p>
         <div class="mt-6 flex justify-center gap-3">
           <button
             type="button"
-            class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+            class="btn btn-primary btn-sm"
             @click="resetForm"
           >
             再建立一筆
           </button>
         </div>
+      </div>
       </div>
     </div>
   </div>

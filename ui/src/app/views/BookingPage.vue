@@ -1,25 +1,61 @@
 <template>
   <div class="space-y-6">
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h1 class="text-lg font-semibold">使用者：預約</h1>
-      <p class="mt-1 text-sm text-slate-600">
-        選擇醫師/諮詢師，點選開始時段，再點選結束時段進行預約。
-      </p>
-    </div>
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body">
+        <h1 class="card-title">預約系統</h1>
 
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div class="flex flex-wrap items-end justify-between gap-4">
-        <div class="min-w-[220px]">
-          <label class="text-sm font-medium text-slate-700">選擇資源（醫師/諮詢師）</label>
-          <select v-model="selectedResourceId" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-            <option :value="null" disabled>請選擇</option>
-            <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.name }} (#{{ r.id }})</option>
-          </select>
+        <!-- Mode Tabs -->
+        <div class="tabs tabs-boxed mb-4">
+          <button
+            class="tab"
+            :class="{ 'tab-active': viewMode === 'single' }"
+            @click="viewMode = 'single'"
+          >
+            單一資源
+          </button>
+          <button
+            class="tab"
+            :class="{ 'tab-active': viewMode === 'overlay' }"
+            @click="viewMode = 'overlay'"
+          >
+            疊加觀看
+          </button>
         </div>
 
-        <div class="flex items-center gap-2">
+        <!-- Single Mode: Resource Select + Color Picker -->
+        <div v-if="viewMode === 'single'" class="flex flex-wrap items-end gap-4">
+          <div class="form-control min-w-[220px]">
+            <label class="label">
+              <span class="label-text">選擇資源（醫師/諮詢師）</span>
+            </label>
+            <select v-model="selectedResourceId" class="select select-bordered select-sm">
+              <option :value="null" disabled>請選擇</option>
+              <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.name }}</option>
+            </select>
+          </div>
+
+          <!-- Color Picker -->
+          <div v-if="selectedResourceId" class="form-control">
+            <label class="label">
+              <span class="label-text">顏色標籤</span>
+            </label>
+            <div class="flex gap-2">
+              <button
+                v-for="c in RESOURCE_COLORS"
+                :key="c"
+                type="button"
+                class="w-7 h-7 rounded-full border-2 transition-all hover:scale-110"
+                :class="[
+                  `bg-${c}-500`,
+                  resourceColors.get(selectedResourceId) === c ? 'border-base-content ring-2 ring-base-content ring-offset-2' : 'border-base-300 hover:border-base-content'
+                ]"
+                @click="onColorSelect(c)"
+              />
+            </div>
+          </div>
+
           <button
-            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            class="btn btn-outline btn-sm"
             :disabled="loading"
             type="button"
             @click="reload"
@@ -27,123 +63,186 @@
             {{ loading ? '載入中…' : '重新整理' }}
           </button>
         </div>
-      </div>
 
-      <p v-if="error" class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-        {{ error }}
-      </p>
-
-      <!-- 時段資訊 -->
-      <div v-if="resourceType" class="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-        <span class="font-medium">營業時段：</span>
-        {{ formatTime(resourceType.timeSlotStart) }} - {{ formatTime(resourceType.timeSlotEnd) }}
-        <span class="ml-3 font-medium">營業日：</span>
-        <span v-for="(day, idx) in availableDaysText" :key="idx">{{ day }}</span>
-      </div>
-
-      <!-- 選擇提示 -->
-      <div v-if="selectionMode" class="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-700">
-        <template v-if="selectionMode === 'start'">
-          <span class="font-semibold">步驟 1/2：</span> 請點選<span class="font-semibold">開始時段</span>
-        </template>
-        <template v-else-if="selectionMode === 'end'">
-          <span class="font-semibold">步驟 2/2：</span> 已選開始 {{ selectedStart?.day.label }} {{ selectedStart?.slot.label.split(' - ')[0] }}，請點選<span class="font-semibold">結束時段</span>
-          <button class="ml-2 text-xs underline" @click="resetSelection">重新選擇</button>
-        </template>
-      </div>
-
-      <!-- 時段網格 -->
-      <div v-if="selectedResource && resourceType" class="mt-6">
-        <div class="mb-3 flex items-center justify-between">
-          <div class="text-sm font-semibold text-slate-900">本週時段</div>
-          <div class="flex items-center gap-3">
-            <div class="text-xs text-slate-500">{{ weekStart.toLocaleDateString() }} ～ {{ weekEnd.toLocaleDateString() }}</div>
-            <button
-              v-if="!selectionMode"
-              class="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700"
-              @click="startSelection"
+        <!-- Overlay Mode: Checkbox Multi-Select -->
+        <div v-else class="space-y-3">
+          <label class="label">
+            <span class="label-text">選擇要疊加顯示的資源</span>
+          </label>
+          <div class="flex flex-wrap gap-4">
+            <label
+              v-for="r in resources"
+              :key="r.id"
+              class="flex items-center gap-2 cursor-pointer"
             >
-              新增預約
-            </button>
-            <button
-              v-if="selectionMode"
-              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-              @click="resetSelection"
-            >
-              取消選擇
-            </button>
+              <input
+                type="checkbox"
+                class="checkbox checkbox-sm"
+                :class="`checkbox-${getResourceColor(r.id)}`"
+                :checked="selectedResourceIds.includes(r.id)"
+                @change="toggleResourceSelection(r.id)"
+              />
+              <span
+                class="px-2 py-0.5 rounded text-sm"
+                :class="`bg-${getResourceColor(r.id)}-100 text-${getResourceColor(r.id)}-700`"
+              >
+                {{ r.name }}
+              </span>
+            </label>
+          </div>
+          <button
+            class="btn btn-outline btn-sm"
+            :disabled="loading"
+            type="button"
+            @click="reload"
+          >
+            {{ loading ? '載入中…' : '重新整理' }}
+          </button>
+        </div>
+
+        <div v-if="error" class="alert alert-error mt-4">
+          {{ error }}
+        </div>
+
+        <!-- 時段資訊 (single mode only) -->
+        <div v-if="viewMode === 'single' && resourceType" class="alert mt-4">
+          <div class="text-xs">
+            <span class="font-medium">營業時段：</span>
+            {{ formatTime(resourceType.timeSlotStart) }} - {{ formatTime(resourceType.timeSlotEnd) }}
+            <span class="ml-3 font-medium">營業日：</span>
+            <span v-for="(day, idx) in availableDaysText" :key="idx">{{ day }}</span>
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full border-collapse text-xs">
-            <thead>
-              <tr>
-                <th class="border border-slate-200 bg-slate-50 px-2 py-1 text-left">時間</th>
-                <th 
-                  v-for="day in weekDays" 
-                  :key="day.key" 
-                  class="border border-slate-200 px-2 py-1 text-center min-w-[80px]"
-                  :class="isDayAvailable(day.dayOfWeek) ? 'bg-slate-50' : 'bg-slate-200 text-slate-400'"
-                >
-                  {{ day.label }}<br /><span class="text-slate-400">{{ day.date }}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="slot in timeSlots" :key="slot.key">
-                <td class="border border-slate-200 bg-slate-50 px-2 py-1 font-medium whitespace-nowrap">
-                  {{ slot.label }}
-                </td>
-                <td
-                  v-for="day in weekDays"
-                  :key="day.key + slot.key"
-                  class="border border-slate-200 px-1 py-1 text-center transition-colors"
-                  :class="getSlotClass(day, slot)"
-                  @click="onSlotClick(day, slot)"
-                >
-                  <span v-if="getSlotAssignment(day, slot)">{{ getSlotAssignment(day, slot)?.name || '已預約' }}</span>
-                  <span v-else-if="isSlotInSelection(day, slot)" class="text-brand-600 font-semibold">✓</span>
-                  <span v-else-if="!isDayAvailable(day.dayOfWeek)" class="text-slate-300">—</span>
-                  <span v-else class="text-slate-400">—</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- 新增預約表單 -->
-      <div v-if="showBookingForm && selectedStart && selectedEnd" class="mt-6 rounded-xl border border-brand-200 bg-brand-50 p-4">
-        <div class="text-sm font-semibold text-slate-900">確認預約</div>
-        <div class="mt-2 text-xs text-slate-600">
-          <div><span class="font-medium">日期：</span>{{ selectedStart.day.label }} ({{ selectedStart.day.date }})</div>
-          <div><span class="font-medium">時段：</span>{{ selectedStart.slot.label.split(' - ')[0] }} - {{ selectedEnd.slot.label.split(' - ')[1] }}</div>
-          <div><span class="font-medium">時長：</span>{{ calculateDuration() }} 分鐘</div>
-        </div>
-        <div class="mt-3 space-y-3">
-          <div>
-            <label class="text-sm font-medium text-slate-700">預約名稱</label>
-            <input
-              v-model="bookingName"
-              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              placeholder="例如：王小明 諮詢"
-            />
+        <!-- 選擇提示 (single mode only) -->
+        <div v-if="viewMode === 'single' && selectionMode" class="alert alert-info mt-4">
+          <div class="text-sm">
+            <template v-if="selectionMode === 'start'">
+              <span class="font-semibold">步驟 1/2：</span> 請點選<span class="font-semibold">開始時段</span>
+            </template>
+            <template v-else-if="selectionMode === 'end'">
+              <span class="font-semibold">步驟 2/2：</span> 已選開始 {{ selectedStart?.day.label }} {{ selectedStart?.slot.label.split(' - ')[0] }}，請點選<span class="font-semibold">結束時段</span>
+              <button class="btn btn-ghost btn-xs ml-2" @click="resetSelection">重新選擇</button>
+            </template>
           </div>
-          <div class="flex gap-2">
-            <button
-              class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-              :disabled="submitting || !bookingName.trim()"
-              @click="submitBooking"
-            >
-              {{ submitting ? '送出中…' : '確認預約' }}
-            </button>
-            <button
-              class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              @click="resetSelection"
-            >
-              取消
-            </button>
+        </div>
+
+        <!-- 時段網格 -->
+        <div v-if="canShowCalendar" class="mt-6">
+          <div class="mb-3 flex items-center justify-between">
+            <div class="text-sm font-semibold">本週時段</div>
+            <div class="flex items-center gap-3">
+              <div class="text-xs opacity-60">{{ weekStart.toLocaleDateString() }} ～ {{ weekEnd.toLocaleDateString() }}</div>
+              <template v-if="viewMode === 'single'">
+                <button
+                  v-if="!selectionMode"
+                  class="btn btn-primary btn-xs"
+                  @click="startSelection"
+                >
+                  新增預約
+                </button>
+                <button
+                  v-if="selectionMode"
+                  class="btn btn-outline btn-xs"
+                  @click="resetSelection"
+                >
+                  取消選擇
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse text-xs">
+              <thead>
+                <tr>
+                  <th class="border border-base-300 bg-base-200 px-2 py-1 text-left">時間</th>
+                  <th
+                    v-for="day in weekDays"
+                    :key="day.key"
+                    class="border border-base-300 px-2 py-1 text-center min-w-[100px]"
+                    :class="isDayAvailable(day.dayOfWeek) ? 'bg-base-200' : 'bg-base-300 opacity-50'"
+                  >
+                    {{ day.label }}<br /><span class="opacity-60">{{ day.date }}</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="slot in timeSlots" :key="slot.key">
+                  <td class="border border-base-300 bg-base-200 px-2 py-1 font-medium whitespace-nowrap">
+                    {{ slot.label }}
+                  </td>
+                  <td
+                    v-for="day in weekDays"
+                    :key="day.key + slot.key"
+                    class="border border-base-300 px-1 py-1 align-top transition-colors"
+                    :class="getSlotCellClass(day, slot)"
+                    @click="onSlotClick(day, slot)"
+                  >
+                    <!-- Overlay Mode: Show all assignments -->
+                    <template v-if="viewMode === 'overlay'">
+                      <div
+                        v-for="item in getSlotAssignments(day, slot)"
+                        :key="item.assignment.id"
+                        class="text-xs px-1 py-0.5 mb-0.5 rounded truncate"
+                        :class="`bg-${item.color}-100 text-${item.color}-700`"
+                        :title="`${item.resourceName}: ${item.assignment.name}`"
+                      >
+                        {{ item.assignment.name }}
+                      </div>
+                      <span v-if="getSlotAssignments(day, slot).length === 0 && isDayAvailable(day.dayOfWeek)" class="opacity-30">—</span>
+                    </template>
+
+                    <!-- Single Mode: Show single resource -->
+                    <template v-else>
+                      <span v-if="getSingleSlotAssignment(day, slot)" class="text-xs">
+                        {{ getSingleSlotAssignment(day, slot)?.name || '已預約' }}
+                      </span>
+                      <span v-else-if="isSlotInSelection(day, slot)" class="text-primary font-semibold">✓</span>
+                      <span v-else-if="!isDayAvailable(day.dayOfWeek)" class="opacity-30">—</span>
+                      <span v-else class="opacity-50">—</span>
+                    </template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 新增預約表單 (single mode only) -->
+        <div v-if="viewMode === 'single' && showBookingForm && selectedStart && selectedEnd" class="alert alert-info mt-6">
+          <div class="w-full">
+            <div class="font-semibold mb-2">確認預約</div>
+            <div class="text-xs space-y-1 mb-3">
+              <div><span class="font-medium">日期：</span>{{ selectedStart.day.label }} ({{ selectedStart.day.date }})</div>
+              <div><span class="font-medium">時段：</span>{{ selectedStart.slot.label.split(' - ')[0] }} - {{ selectedEnd.slot.label.split(' - ')[1] }}</div>
+              <div><span class="font-medium">時長：</span>{{ calculateDuration() }} 分鐘</div>
+            </div>
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">預約名稱</span>
+              </label>
+              <input
+                v-model="bookingName"
+                class="input input-bordered input-sm"
+                placeholder="例如：王小明 諮詢"
+              />
+            </div>
+            <div class="flex gap-2 mt-3">
+              <button
+                class="btn btn-primary btn-sm"
+                :disabled="submitting || !bookingName.trim()"
+                @click="submitBooking"
+              >
+                {{ submitting ? '送出中…' : '確認預約' }}
+              </button>
+              <button
+                class="btn btn-outline btn-sm"
+                @click="resetSelection"
+              >
+                取消
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -154,26 +253,44 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../../features/auth/store'
-import { 
-  listResources, 
-  listAssignmentsForRange, 
-  createAssignment, 
+import {
+  listResources,
+  listAssignmentsForRange,
+  createAssignment,
   getResourceType,
-  type Resource, 
+  getResourceColors,
+  setResourceColor,
+  RESOURCE_COLORS,
+  type Resource,
   type ResourceAssignment,
   type ResourceType,
+  type ResourceColor,
 } from '../../features/resource/api'
 
 const auth = useAuth()
 
+// View mode
+const viewMode = ref<'single' | 'overlay'>('single')
+
+// Resources
 const resources = ref<Resource[]>([])
+const resourceColors = ref<Map<number, ResourceColor>>(new Map())
+
+// Single mode state
 const selectedResourceId = ref<number | null>(null)
 const resourceType = ref<ResourceType | null>(null)
-const assignments = ref<ResourceAssignment[]>([])
+
+// Overlay mode state
+const selectedResourceIds = ref<number[]>([])
+
+// Assignments (keyed by resourceId for overlay mode)
+const assignmentsByResource = ref<Map<number, ResourceAssignment[]>>(new Map())
+
+// UI state
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-// 選擇模式
+// Selection state (single mode only)
 const selectionMode = ref<'start' | 'end' | null>(null)
 const selectedStart = ref<{ day: WeekDay; slot: TimeSlot } | null>(null)
 const selectedEnd = ref<{ day: WeekDay; slot: TimeSlot } | null>(null)
@@ -181,10 +298,10 @@ const showBookingForm = ref(false)
 const bookingName = ref('')
 const submitting = ref(false)
 
-// 時間相關
+// Week calculation
 const now = new Date()
 const weekStart = new Date(now)
-weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7)) // Monday
+weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7))
 weekStart.setHours(0, 0, 0, 0)
 const weekEnd = new Date(weekStart)
 weekEnd.setDate(weekStart.getDate() + 7)
@@ -207,6 +324,7 @@ type TimeSlot = {
   index: number
 }
 
+// Helper functions
 function parseTimeString(timeStr?: string): { hour: number; minute: number } | null {
   if (!timeStr) return null
   const match = timeStr.match(/^(\d{2}):(\d{2})/)
@@ -220,29 +338,46 @@ function formatTime(timeStr?: string): string {
   return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`
 }
 
+function getResourceColor(resourceId: number): ResourceColor {
+  return resourceColors.value.get(resourceId) || RESOURCE_COLORS[resourceId % RESOURCE_COLORS.length]
+}
+
+// Computed
+const canShowCalendar = computed(() => {
+  if (viewMode.value === 'single') {
+    return selectedResourceId.value && resourceType.value
+  }
+  return selectedResourceIds.value.length > 0
+})
+
 const timeSlots = computed<TimeSlot[]>(() => {
-  if (!resourceType.value) return []
-  
-  const start = parseTimeString(resourceType.value.timeSlotStart)
-  const end = parseTimeString(resourceType.value.timeSlotEnd)
-  
-  if (!start || !end) return []
-  
+  // For overlay mode, we need to merge time slots from all selected resources
+  // For now, use a default 09:00-18:00 range, or from the first selected resource type
+  let start = { hour: 9, minute: 0 }
+  let end = { hour: 18, minute: 0 }
+
+  if (viewMode.value === 'single' && resourceType.value) {
+    const s = parseTimeString(resourceType.value.timeSlotStart)
+    const e = parseTimeString(resourceType.value.timeSlotEnd)
+    if (s) start = s
+    if (e) end = e
+  }
+
   const slots: TimeSlot[] = []
   let hour = start.hour
   let minute = start.minute
   const slotMinutes = 30
   let index = 0
-  
+
   while (hour < end.hour || (hour === end.hour && minute < end.minute)) {
     const endMinute = minute + slotMinutes
     const endHour = hour + Math.floor(endMinute / 60)
     const actualEndMinute = endMinute % 60
-    
+
     if (endHour > end.hour || (endHour === end.hour && actualEndMinute > end.minute)) {
       break
     }
-    
+
     slots.push({
       key: `${hour}${String(minute).padStart(2, '0')}`,
       label: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} - ${String(endHour).padStart(2, '0')}:${String(actualEndMinute).padStart(2, '0')}`,
@@ -252,21 +387,21 @@ const timeSlots = computed<TimeSlot[]>(() => {
       endMinute: actualEndMinute,
       index: index++,
     })
-    
+
     minute += slotMinutes
     if (minute >= 60) {
       hour += Math.floor(minute / 60)
       minute = minute % 60
     }
   }
-  
+
   return slots
 })
 
 const weekDays = computed<WeekDay[]>(() => {
   const dayLabels = ['日', '一', '二', '三', '四', '五', '六']
   const days: WeekDay[] = []
-  
+
   for (let i = 0; i < 7; i++) {
     const d = new Date(weekStart)
     d.setDate(weekStart.getDate() + i)
@@ -279,11 +414,15 @@ const weekDays = computed<WeekDay[]>(() => {
       dayOfWeek: dow,
     })
   }
-  
+
   return days
 })
 
 function isDayAvailable(dayOfWeek: number): boolean {
+  if (viewMode.value === 'overlay') {
+    // In overlay mode, show all days
+    return true
+  }
   if (!resourceType.value) return false
   switch (dayOfWeek) {
     case 0: return resourceType.value.onSunday ?? false
@@ -310,15 +449,50 @@ const availableDaysText = computed(() => {
   return days.length ? [days.join('、')] : ['無']
 })
 
-const selectedResource = computed(() => resources.value.find((r) => r.id === selectedResourceId.value) ?? null)
+// Slot assignment helpers
+function getSingleSlotAssignment(day: WeekDay, slot: TimeSlot): ResourceAssignment | null {
+  if (!selectedResourceId.value) return null
+  const assignments = assignmentsByResource.value.get(selectedResourceId.value) ?? []
+  return findAssignmentInSlot(assignments, day, slot)
+}
 
-function getSlotAssignment(day: WeekDay, slot: TimeSlot): ResourceAssignment | null {
+function getSlotAssignments(day: WeekDay, slot: TimeSlot): Array<{
+  assignment: ResourceAssignment
+  resourceId: number
+  resourceName: string
+  color: ResourceColor
+}> {
+  const result: Array<{
+    assignment: ResourceAssignment
+    resourceId: number
+    resourceName: string
+    color: ResourceColor
+  }> = []
+
+  for (const resourceId of selectedResourceIds.value) {
+    const assignments = assignmentsByResource.value.get(resourceId) ?? []
+    const assignment = findAssignmentInSlot(assignments, day, slot)
+    if (assignment) {
+      const resource = resources.value.find((r) => r.id === resourceId)
+      result.push({
+        assignment,
+        resourceId,
+        resourceName: resource?.name ?? `#${resourceId}`,
+        color: getResourceColor(resourceId),
+      })
+    }
+  }
+
+  return result
+}
+
+function findAssignmentInSlot(assignments: ResourceAssignment[], day: WeekDay, slot: TimeSlot): ResourceAssignment | null {
   const slotStart = new Date(day.dateObj)
   slotStart.setHours(slot.hour, slot.minute, 0, 0)
   const slotEnd = new Date(day.dateObj)
   slotEnd.setHours(slot.endHour, slot.endMinute, 0, 0)
 
-  return assignments.value.find((a) => {
+  return assignments.find((a) => {
     const from = new Date(a.from)
     const to = a.to ? new Date(a.to) : new Date(from.getTime() + 30 * 60 * 1000)
     return from < slotEnd && to > slotStart
@@ -328,21 +502,21 @@ function getSlotAssignment(day: WeekDay, slot: TimeSlot): ResourceAssignment | n
 function isSlotInSelection(day: WeekDay, slot: TimeSlot): boolean {
   if (!selectedStart.value) return false
   if (day.key !== selectedStart.value.day.key) return false
-  
+
   const startIdx = selectedStart.value.slot.index
   const endIdx = selectedEnd.value?.slot.index ?? startIdx
-  
+
   return slot.index >= startIdx && slot.index <= endIdx
 }
 
 function isSlotAvailableForSelection(day: WeekDay, slot: TimeSlot): boolean {
   if (!isDayAvailable(day.dayOfWeek)) return false
-  if (getSlotAssignment(day, slot)) return false
-  
+  if (getSingleSlotAssignment(day, slot)) return false
+
   const slotDate = new Date(day.dateObj)
   slotDate.setHours(slot.hour, slot.minute)
   if (slotDate < now) return false
-  
+
   return true
 }
 
@@ -350,53 +524,70 @@ function canSelectAsEnd(day: WeekDay, slot: TimeSlot): boolean {
   if (!selectedStart.value) return false
   if (day.key !== selectedStart.value.day.key) return false
   if (slot.index < selectedStart.value.slot.index) return false
-  
-  // 檢查中間所有時段是否可用
+
   const startIdx = selectedStart.value.slot.index
   for (let i = startIdx; i <= slot.index; i++) {
     const checkSlot = timeSlots.value[i]
     if (!checkSlot) return false
-    if (getSlotAssignment(day, checkSlot)) return false
+    if (getSingleSlotAssignment(day, checkSlot)) return false
   }
-  
+
   return true
 }
 
-function getSlotClass(day: WeekDay, slot: TimeSlot): string {
-  // 選中的時段
-  if (isSlotInSelection(day, slot)) {
-    return 'bg-brand-200 text-brand-700'
-  }
-  
-  // 非營業日
-  if (!isDayAvailable(day.dayOfWeek)) {
-    return 'bg-slate-200 text-slate-400 cursor-not-allowed'
-  }
-  
-  // 已預約
-  if (getSlotAssignment(day, slot)) {
-    return 'bg-rose-100 text-rose-700 cursor-not-allowed'
+function getSlotCellClass(day: WeekDay, slot: TimeSlot): string {
+  if (viewMode.value === 'overlay') {
+    // Overlay mode: simpler styling
+    if (!isDayAvailable(day.dayOfWeek)) return 'bg-base-200 opacity-50'
+    return 'bg-base-100'
   }
 
-  // 過去時間
+  // Single mode
+  if (isSlotInSelection(day, slot)) {
+    const color = selectedResourceId.value ? getResourceColor(selectedResourceId.value) : 'blue'
+    return `bg-${color}-100`
+  }
+
+  if (!isDayAvailable(day.dayOfWeek)) {
+    return 'bg-base-200 opacity-50 cursor-not-allowed'
+  }
+
+  if (getSingleSlotAssignment(day, slot)) {
+    return 'bg-error/10 text-error cursor-not-allowed'
+  }
+
   const slotDate = new Date(day.dateObj)
   slotDate.setHours(slot.hour, slot.minute)
-  if (slotDate < now) return 'bg-slate-100 text-slate-400 cursor-not-allowed'
+  if (slotDate < now) return 'bg-base-200 opacity-50 cursor-not-allowed'
 
-  // 選擇結束時段模式
   if (selectionMode.value === 'end') {
     if (canSelectAsEnd(day, slot)) {
-      return 'hover:bg-brand-100 cursor-pointer'
+      return 'hover:bg-primary/10 cursor-pointer'
     }
-    return 'bg-slate-100 text-slate-400 cursor-not-allowed'
+    return 'bg-base-200 opacity-50 cursor-not-allowed'
   }
 
-  // 選擇開始時段模式
   if (selectionMode.value === 'start') {
-    return 'hover:bg-brand-100 cursor-pointer'
+    return 'hover:bg-primary/10 cursor-pointer'
   }
 
-  return 'bg-white'
+  return 'bg-base-100'
+}
+
+// Event handlers
+async function onColorSelect(color: ResourceColor) {
+  if (!selectedResourceId.value || !auth.token.value) return
+  resourceColors.value.set(selectedResourceId.value, color)
+  await setResourceColor(auth.token.value, selectedResourceId.value, color)
+}
+
+function toggleResourceSelection(resourceId: number) {
+  const idx = selectedResourceIds.value.indexOf(resourceId)
+  if (idx >= 0) {
+    selectedResourceIds.value.splice(idx, 1)
+  } else {
+    selectedResourceIds.value.push(resourceId)
+  }
 }
 
 function startSelection() {
@@ -416,17 +607,17 @@ function resetSelection() {
 }
 
 function onSlotClick(day: WeekDay, slot: TimeSlot) {
+  if (viewMode.value === 'overlay') return // No click action in overlay mode
   if (!selectionMode.value) return
-  
   if (!isSlotAvailableForSelection(day, slot)) return
-  
+
   if (selectionMode.value === 'start') {
     selectedStart.value = { day, slot }
-    selectedEnd.value = { day, slot } // 預設同一個時段
+    selectedEnd.value = { day, slot }
     selectionMode.value = 'end'
   } else if (selectionMode.value === 'end') {
     if (!canSelectAsEnd(day, slot)) return
-    
+
     selectedEnd.value = { day, slot }
     selectionMode.value = null
     showBookingForm.value = true
@@ -468,23 +659,49 @@ async function submitBooking() {
   }
 }
 
+// Data loading
 async function loadResources() {
   if (!auth.token.value) return
   resources.value = await listResources(auth.token.value)
-  if (!selectedResourceId.value && resources.value.length) selectedResourceId.value = resources.value[0].id
+  if (!selectedResourceId.value && resources.value.length) {
+    selectedResourceId.value = resources.value[0].id
+  }
+  // Load colors for all resources
+  const ids = resources.value.map((r) => r.id)
+  resourceColors.value = await getResourceColors(auth.token.value, ids)
 }
 
 async function loadResourceType() {
-  if (!auth.token.value || !selectedResource.value) {
+  if (!auth.token.value || !selectedResourceId.value) {
     resourceType.value = null
     return
   }
-  resourceType.value = await getResourceType(auth.token.value, selectedResource.value.resourceTypeId)
+  const resource = resources.value.find((r) => r.id === selectedResourceId.value)
+  if (resource) {
+    resourceType.value = await getResourceType(auth.token.value, resource.resourceTypeId)
+  }
 }
 
 async function loadAssignments() {
-  if (!auth.token.value || !selectedResourceId.value) return
-  assignments.value = await listAssignmentsForRange(auth.token.value, selectedResourceId.value, weekStart, weekEnd)
+  if (!auth.token.value) return
+
+  const idsToLoad = viewMode.value === 'single'
+    ? (selectedResourceId.value ? [selectedResourceId.value] : [])
+    : selectedResourceIds.value
+
+  if (idsToLoad.length === 0) {
+    assignmentsByResource.value.clear()
+    return
+  }
+
+  const newMap = new Map<number, ResourceAssignment[]>()
+  await Promise.all(
+    idsToLoad.map(async (id) => {
+      const assignments = await listAssignmentsForRange(auth.token.value!, id, weekStart, weekEnd)
+      newMap.set(id, assignments)
+    })
+  )
+  assignmentsByResource.value = newMap
 }
 
 async function reload() {
@@ -493,7 +710,9 @@ async function reload() {
   resetSelection()
   try {
     await loadResources()
-    await loadResourceType()
+    if (viewMode.value === 'single') {
+      await loadResourceType()
+    }
     await loadAssignments()
   } catch (e: any) {
     error.value = e?.detail || e?.title || e?.message || '載入失敗'
@@ -502,7 +721,9 @@ async function reload() {
   }
 }
 
+// Watchers
 watch(selectedResourceId, async () => {
+  if (viewMode.value !== 'single') return
   error.value = null
   loading.value = true
   resetSelection()
@@ -514,6 +735,29 @@ watch(selectedResourceId, async () => {
   } finally {
     loading.value = false
   }
+})
+
+watch(selectedResourceIds, async () => {
+  if (viewMode.value !== 'overlay') return
+  error.value = null
+  loading.value = true
+  try {
+    await loadAssignments()
+  } catch (e: any) {
+    error.value = e?.detail || e?.title || e?.message || '載入預約失敗'
+  } finally {
+    loading.value = false
+  }
+}, { deep: true })
+
+watch(viewMode, async () => {
+  error.value = null
+  resetSelection()
+  if (viewMode.value === 'overlay' && selectedResourceIds.value.length === 0 && resources.value.length > 0) {
+    // Auto-select first 2 resources for overlay
+    selectedResourceIds.value = resources.value.slice(0, 2).map((r) => r.id)
+  }
+  await loadAssignments()
 })
 
 onMounted(reload)

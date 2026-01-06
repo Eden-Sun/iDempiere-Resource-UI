@@ -3,34 +3,13 @@ import daisyui from 'daisyui'
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx,vue}'],
-  theme: {
-    extend: {
-      colors: {
-        brand: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-        },
-      },
-    },
-  },
+  safelist: [
+    // Dynamic resource colors
+    { pattern: /bg-(blue|red|green|purple|orange|cyan|pink)-(100|200|500)/ },
+    { pattern: /text-(blue|red|green|purple|orange|cyan|pink)-(600|700)/ },
+    { pattern: /border-(blue|red|green|purple|orange|cyan|pink)-500/ },
+  ],
   plugins: [daisyui],
-  daisyui: {
-    themes: [
-      {
-        light: {
-          primary: '#2563eb', // brand-600
-          'primary-content': '#ffffff',
-        },
-      },
-    ],
-  },
+  daisyui: {},
 }
 

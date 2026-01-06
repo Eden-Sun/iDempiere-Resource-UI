@@ -1,20 +1,22 @@
 <template>
   <div class="dynamic-field">
     <div class="flex items-center justify-between gap-2">
-      <label :for="fieldId" class="block text-sm font-medium text-slate-700">
-        {{ labelText }}
-        <span v-if="isRequired" class="text-rose-500">*</span>
+      <label :for="fieldId" class="label">
+        <span class="label-text">
+          {{ labelText }}
+          <span v-if="isRequired" class="text-error">*</span>
+        </span>
       </label>
 
       <!-- Admin mode: checkbox to mark field as hidden -->
-      <label v-if="adminMode" class="flex items-center gap-1 text-xs text-slate-500 cursor-pointer">
+      <label v-if="adminMode" class="label cursor-pointer gap-1">
+        <span class="label-text text-xs">隱藏</span>
         <input
           type="checkbox"
           :checked="markedHidden"
           @change="emit('update:markedHidden', !markedHidden)"
-          class="h-3 w-3 rounded border-slate-300 text-slate-600"
+          class="checkbox checkbox-xs"
         />
-        <span>隱藏</span>
       </label>
     </div>
 
@@ -27,7 +29,7 @@
       :maxlength="maxLength"
       :required="isRequired"
       :placeholder="field.description"
-      :class="inputClass"
+      class="input input-bordered input-sm w-full"
     />
 
     <!-- Number Input -->
@@ -38,18 +40,20 @@
       type="number"
       :required="isRequired"
       :placeholder="field.description"
-      :class="inputClass"
+      class="input input-bordered input-sm w-full"
     />
 
     <!-- Checkbox (Yes/No) -->
-    <div v-else-if="inputType === 'checkbox'" class="mt-2 flex items-center">
-      <input
-        :id="fieldId"
-        v-model="localValue"
-        type="checkbox"
-        class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-      />
-      <span class="ml-2 text-sm text-slate-600">{{ field.description }}</span>
+    <div v-else-if="inputType === 'checkbox'" class="form-control">
+      <label class="label cursor-pointer justify-start gap-2">
+        <input
+          :id="fieldId"
+          v-model="localValue"
+          type="checkbox"
+          class="checkbox checkbox-sm"
+        />
+        <span class="label-text">{{ field.description }}</span>
+      </label>
     </div>
 
     <!-- Date Input -->
@@ -59,7 +63,7 @@
       v-model="localValue"
       type="date"
       :required="isRequired"
-      :class="inputClass"
+      class="input input-bordered input-sm w-full"
     />
 
     <!-- DateTime Input -->
@@ -69,7 +73,7 @@
       v-model="localValue"
       type="datetime-local"
       :required="isRequired"
-      :class="inputClass"
+      class="input input-bordered input-sm w-full"
     />
 
     <!-- Textarea -->
@@ -80,7 +84,7 @@
       :required="isRequired"
       :placeholder="field.description"
       rows="3"
-      :class="inputClass"
+      class="textarea textarea-bordered textarea-sm w-full"
     />
 
     <!-- Select (Lookup) -->
@@ -90,7 +94,7 @@
       v-model="localValue"
       :required="isRequired"
       :disabled="lookupLoading"
-      :class="inputClass"
+      class="select select-bordered select-sm w-full"
     >
       <option :value="null">{{ lookupLoading ? '載入中...' : '-- 請選擇 --' }}</option>
       <option v-for="opt in lookupOptions" :key="String(opt.value)" :value="opt.value">
@@ -98,13 +102,13 @@
       </option>
     </select>
 
-    <p v-if="lookupError && inputType === 'select'" class="mt-1 text-xs text-rose-600">
-      {{ lookupError }}
+    <p v-if="lookupError && inputType === 'select'" class="label">
+      <span class="label-text-alt text-error">{{ lookupError }}</span>
     </p>
 
     <!-- Help text -->
-    <p v-if="field.help && showHelp" class="mt-1 text-xs text-slate-500">
-      {{ field.help }}
+    <p v-if="field.help && showHelp" class="label">
+      <span class="label-text-alt">{{ field.help }}</span>
     </p>
   </div>
 </template>
@@ -149,8 +153,6 @@ const inputType = computed(() => {
 const isRequired = computed(() => props.field.column?.isMandatory ?? false)
 
 const maxLength = computed(() => props.field.column?.fieldLength || undefined)
-
-const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500'
 
 // Sync local value with prop
 watch(

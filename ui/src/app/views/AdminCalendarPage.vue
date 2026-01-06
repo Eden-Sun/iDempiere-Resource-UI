@@ -1,21 +1,24 @@
 <template>
   <div class="space-y-6">
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h1 class="text-lg font-semibold">管理員：行事曆</h1>
-      <p class="mt-1 text-sm text-slate-600">查看所有資源的預約狀況，可新增或刪除預約。</p>
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body">
+        <h1 class="card-title">管理員：行事曆</h1>
+        <p>查看所有資源的預約狀況，可新增或刪除預約。</p>
+      </div>
     </div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-          <select v-model="selectedResourceId" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+          <select v-model="selectedResourceId" class="select select-bordered select-sm">
             <option :value="null">全部資源</option>
             <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.name }}</option>
           </select>
-          <div class="text-xs text-slate-500">{{ weekStart.toLocaleDateString() }} ～ {{ weekEnd.toLocaleDateString() }}</div>
+          <div class="text-xs opacity-60">{{ weekStart.toLocaleDateString() }} ～ {{ weekEnd.toLocaleDateString() }}</div>
         </div>
         <button
-          class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+          class="btn btn-primary btn-sm"
           :disabled="loading"
           @click="reload"
         >
@@ -23,9 +26,9 @@
         </button>
       </div>
 
-      <p v-if="error" class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+      <div v-if="error" class="alert alert-error mt-4">
         {{ error }}
-      </p>
+      </div>
 
       <!-- 時段網格 -->
       <div class="mt-4 overflow-x-auto">
@@ -46,9 +49,9 @@
                 :key="day.key + hour"
                 class="border border-slate-200 px-1 py-1 align-top"
               >
-                <div v-for="a in getSlotAssignments(day, hour)" :key="a.id" class="mb-1 flex items-center justify-between gap-1 rounded bg-brand-100 px-1.5 py-0.5 text-brand-800">
+                <div v-for="a in getSlotAssignments(day, hour)" :key="a.id" class="mb-1 flex items-center justify-between gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-primary">
                   <span class="truncate">{{ a.resourceName }}: {{ a.name || '—' }}</span>
-                  <button class="text-rose-500 hover:text-rose-700" title="刪除" @click="confirmDelete(a)">×</button>
+                  <button class="text-error hover:text-error/80" title="刪除" @click="confirmDelete(a)">×</button>
                 </div>
               </td>
             </tr>
@@ -57,24 +60,24 @@
       </div>
 
       <!-- 新增預約 -->
-      <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <div class="text-sm font-semibold text-slate-900">快速新增預約</div>
-        <div class="mt-3 grid gap-3 sm:grid-cols-5">
-          <select v-model="newResourceId" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm">
+      <div class="mt-6 bg-base-200 rounded-lg p-4">
+        <div class="font-semibold mb-3">快速新增預約</div>
+        <div class="grid gap-3 sm:grid-cols-5">
+          <select v-model="newResourceId" class="select select-bordered select-sm">
             <option :value="null" disabled>選擇資源</option>
             <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.name }}</option>
           </select>
-          <select v-model="newDay" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm">
+          <select v-model="newDay" class="select select-bordered select-sm">
             <option :value="null" disabled>選擇日期</option>
             <option v-for="d in weekDays" :key="d.key" :value="d.key">{{ d.label }} {{ d.date }}</option>
           </select>
-          <select v-model="newHour" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm">
+          <select v-model="newHour" class="select select-bordered select-sm">
             <option :value="null" disabled>選擇時段</option>
             <option v-for="h in hours" :key="h" :value="h">{{ h }}:00</option>
           </select>
-          <input v-model="newName" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm" placeholder="預約名稱" />
+          <input v-model="newName" class="input input-bordered input-sm" placeholder="預約名稱" />
           <button
-            class="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+            class="btn btn-primary btn-sm"
             :disabled="submitting || !newResourceId || !newDay || !newHour || !newName.trim()"
             @click="submitNew"
           >
@@ -82,18 +85,20 @@
           </button>
         </div>
       </div>
+      </div>
     </div>
 
     <!-- 刪除確認 Modal -->
-    <div v-if="deleteTarget" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="deleteTarget = null">
-      <div class="rounded-xl bg-white p-6 shadow-xl">
-        <div class="text-sm font-semibold">確定刪除此預約？</div>
-        <div class="mt-2 text-xs text-slate-600">{{ deleteTarget.name }} ({{ deleteTarget.from }})</div>
-        <div class="mt-4 flex gap-2">
-          <button class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700" @click="doDelete">刪除</button>
-          <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm" @click="deleteTarget = null">取消</button>
+    <div class="modal" :class="{ 'modal-open': deleteTarget !== null }">
+      <div class="modal-box">
+        <h3 class="font-bold text-lg">確定刪除此預約？</h3>
+        <p class="py-4">{{ deleteTarget?.name }} ({{ deleteTarget?.from }})</p>
+        <div class="modal-action">
+          <button class="btn btn-error btn-sm" @click="doDelete">刪除</button>
+          <button class="btn btn-outline btn-sm" @click="deleteTarget = null">取消</button>
         </div>
       </div>
+      <div class="modal-backdrop" @click="deleteTarget = null"></div>
     </div>
   </div>
 </template>

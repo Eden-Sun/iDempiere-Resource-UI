@@ -1,16 +1,49 @@
 <template>
-  <div class="grid gap-6 lg:grid-cols-2">
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body">
-        <h1 class="card-title">登入</h1>
-        <p class="text-sm opacity-60">使用 iDempiere REST API 取得 Token（不自行實作後端）。</p>
+  <div class="hero min-h-[calc(100vh-200px)] bg-base-200">
+    <div class="hero-content flex-col lg:flex-row-reverse gap-8 w-full max-w-4xl">
+      <!-- Right side: Info (desktop only) -->
+      <div class="hidden lg:block text-center lg:text-left flex-1">
+        <h1 class="text-4xl font-bold">iDempiere 預約系統</h1>
+        <p class="py-6 opacity-70">
+          使用 iDempiere REST API 進行身份驗證。支援多租戶、多角色、多組織的企業級權限管理。
+        </p>
+        <div class="flex flex-col gap-2 text-sm opacity-60">
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            <span>支援多租戶企業架構</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            <span>基於角色的存取控制</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            <span>JWT Token 安全認證</span>
+          </div>
+        </div>
+      </div>
 
-        <div class="mt-4">
-          <ul class="steps steps-horizontal mb-6 w-full">
+      <!-- Left side: Login card -->
+      <div class="card bg-base-100 shadow-xl w-full max-w-md shrink-0">
+        <div class="card-body">
+          <!-- Header (mobile only shows logo) -->
+          <div class="text-center mb-6 lg:mb-4">
+            <div class="avatar placeholder mb-4 lg:mb-2">
+              <div class="bg-primary text-primary-content w-16 lg:w-12 rounded-xl">
+                <span class="text-2xl lg:text-lg font-bold">Rx</span>
+              </div>
+            </div>
+            <h1 class="text-2xl font-bold lg:hidden">iDempiere 預約系統</h1>
+            <p class="text-sm opacity-60 mt-2 lg:mt-0">使用 REST API 登入</p>
+          </div>
+
+          <!-- Steps -->
+          <ul class="steps w-full mb-6">
             <li class="step" :class="{ 'step-primary': step >= 1 }">帳密</li>
             <li class="step" :class="{ 'step-primary': step >= 2 }">租戶/角色</li>
           </ul>
 
+          <!-- Step 1: Credentials -->
           <form v-if="step === 1" class="space-y-4" @submit.prevent="onSubmitCredentials">
             <div class="form-control">
               <label class="label">
@@ -19,8 +52,8 @@
               <input
                 v-model="userName"
                 type="text"
-                placeholder="例如：GardenAdmin"
-                class="input input-bordered input-sm"
+                placeholder="GardenAdmin"
+                class="input input-bordered"
                 autocomplete="username"
               />
             </div>
@@ -33,113 +66,93 @@
                 v-model="password"
                 type="password"
                 placeholder="••••••••"
-                class="input input-bordered input-sm"
+                class="input input-bordered"
                 autocomplete="current-password"
               />
             </div>
 
-            <button class="btn btn-primary btn-sm w-full" :disabled="loading">
+            <button class="btn btn-neutral btn-lg w-full" :disabled="loading">
+              <span v-if="loading" class="loading loading-spinner"></span>
               {{ loading ? '登入中…' : '登入' }}
             </button>
           </form>
 
+          <!-- Step 2: Client/Role/Org -->
           <form v-else class="space-y-4" @submit.prevent="onSubmitParameters">
-            <div class="alert alert-info py-2 text-xs">
-              第一次登入會回傳可用的 Tenant/Role。請完成選擇後，系統會呼叫 <code>PUT /api/v1/auth/tokens</code>
-              取得正式 token。
-            </div>
-
             <div class="form-control">
               <label class="label">
                 <span class="label-text">租戶</span>
               </label>
-              <select v-model="clientId" class="select select-bordered select-sm">
-                <option :value="null" disabled>請選擇</option>
-                <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }} (#{{ c.id }})</option>
+              <select v-model="clientId" class="select select-bordered">
+                <option :value="null" disabled>請選擇租戶</option>
+                <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
               </select>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">角色</span>
-                </label>
-                <select v-model="roleId" class="select select-bordered select-sm">
-                  <option :value="null" disabled>請選擇</option>
-                  <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.name }} (#{{ r.id }})</option>
-                </select>
-              </div>
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">組織</span>
-                </label>
-                <select v-model="organizationId" class="select select-bordered select-sm">
-                  <option :value="null" disabled>請選擇</option>
-                  <option v-for="o in organizations" :key="o.id" :value="o.id">{{ o.name }} (#{{ o.id }})</option>
-                </select>
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">角色</span>
+              </label>
+              <select v-model="roleId" class="select select-bordered">
+                <option :value="null" disabled>請選擇角色</option>
+                <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.name }}</option>
+              </select>
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">組織</span>
+              </label>
+              <select v-model="organizationId" class="select select-bordered">
+                <option :value="null" disabled>請選擇組織</option>
+                <option v-for="o in organizations" :key="o.id" :value="o.id">{{ o.name }}</option>
+              </select>
+            </div>
+
+            <div class="collapse collapse-arrow bg-base-200">
+              <input type="checkbox" />
+              <div class="collapse-title text-sm font-medium">進階選項（可選）</div>
+              <div class="collapse-content space-y-4">
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">倉庫</span>
+                  </label>
+                  <select v-model="warehouseId" class="select select-bordered select-sm">
+                    <option :value="null">不指定</option>
+                    <option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name }}</option>
+                  </select>
+                </div>
+                <div class="form-control">
+                  <label class="label">
+                    <span class="label-text">語系</span>
+                  </label>
+                  <input
+                    v-model="language"
+                    type="text"
+                    placeholder="zh_TW / en_US"
+                    class="input input-bordered input-sm"
+                  />
+                </div>
               </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">倉庫（可選）</span>
-                </label>
-                <select v-model="warehouseId" class="select select-bordered select-sm">
-                  <option :value="null">不指定</option>
-                  <option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name }} (#{{ w.id }})</option>
-                </select>
-              </div>
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">語系</span>
-                </label>
-                <input
-                  v-model="language"
-                  type="text"
-                  placeholder="例如：zh_TW / en_US"
-                  class="input input-bordered input-sm"
-                />
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2">
+            <div class="flex flex-col-reverse sm:flex-row gap-3">
+              <button class="btn btn-ghost" type="button" :disabled="loading" @click="resetToStep1">
+                返回
+              </button>
               <button
-                class="btn btn-primary btn-sm flex-1"
+                class="btn btn-neutral btn-lg flex-1"
                 :disabled="loading || !clientId || !roleId || !organizationId"
               >
+                <span v-if="loading" class="loading loading-spinner"></span>
                 {{ loading ? '設定中…' : '完成登入' }}
-              </button>
-              <button class="btn btn-ghost btn-sm" type="button" :disabled="loading" @click="resetToStep1">
-                返回
               </button>
             </div>
           </form>
 
-          <div v-if="error" class="alert alert-error mt-4 py-2 text-sm">
-            {{ error }}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card bg-gradient-to-br from-primary/10 to-base-100">
-      <div class="card-body">
-        <h2 class="card-title text-sm">API 位置</h2>
-        <div class="space-y-2 text-sm">
-          <div class="flex items-center justify-between rounded-lg bg-base-100 p-3 shadow-sm">
-            <code class="text-xs">POST /api/v1/auth/tokens</code>
-            <span class="badge badge-ghost badge-sm">取得 token</span>
-          </div>
-          <div class="flex items-center justify-between rounded-lg bg-base-100 p-3 shadow-sm">
-            <code class="text-xs">PUT /api/v1/auth/tokens</code>
-            <span class="badge badge-ghost badge-sm">設定 client/role/org</span>
-          </div>
-          <div class="rounded-lg bg-base-100 p-3 shadow-sm">
-            <div class="badge badge-warning badge-sm mb-1">注意</div>
-            <div class="text-xs">
-              前端 base 必須是 <code>/emui/</code>，否則 build 後資源路徑會 404。
-            </div>
+          <div v-if="error" class="alert alert-error mt-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <span>{{ error }}</span>
           </div>
         </div>
       </div>
