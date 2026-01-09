@@ -126,7 +126,7 @@ export async function createAssignment(
       AssignDateFrom: toISO(input.from),
       AssignDateTo: toISO(input.to),
       Qty: input.qty ?? 1,
-      IsConfirmed: true,
+      IsConfirmed: false,
     },
   })
 }
