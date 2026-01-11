@@ -3,5 +3,5 @@ build/
 lib/*.jar
 ui/node_modules/
 ui/dist/
-web-content/*
+web-content
 !web-content/.gitkeep
