@@ -98,7 +98,32 @@
       </option>
     </select>
 
-    <p v-if="lookupError && inputType === 'select'" class="mt-1 text-xs text-rose-600">
+    <!-- MultiSelect (Checkbox Group) -->
+    <div v-else-if="inputType === 'multiselect'" class="mt-1">
+      <div v-if="lookupLoading" class="text-sm text-slate-500">載入中...</div>
+      <div v-else-if="lookupOptions.length === 0" class="text-sm text-slate-500">無可選項目</div>
+      <div v-else class="space-y-2 max-h-48 overflow-y-auto border border-slate-300 rounded-lg p-3 bg-white">
+        <label
+          v-for="opt in lookupOptions"
+          :key="String(opt.value)"
+          class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded px-1"
+        >
+          <input
+            type="checkbox"
+            :value="opt.value"
+            :checked="isOptionSelected(opt.value)"
+            @change="toggleOption(opt.value)"
+            class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+          />
+          <span class="text-sm text-slate-700">{{ opt.label }}</span>
+        </label>
+      </div>
+      <p v-if="selectedCount > 0" class="mt-1 text-xs text-slate-500">
+        已選擇 {{ selectedCount }} 項
+      </p>
+    </div>
+
+    <p v-if="lookupError && (inputType === 'select' || inputType === 'multiselect')" class="mt-1 text-xs text-rose-600">
       {{ lookupError }}
     </p>
 
@@ -152,6 +177,35 @@ const maxLength = computed(() => props.field.column?.fieldLength || undefined)
 
 const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500'
 
+// Multiselect helpers
+function parseMultiValue(val: unknown): (string | number)[] {
+  if (Array.isArray(val)) return val
+  if (typeof val === 'string' && val.trim()) {
+    // Handle comma-separated string
+    return val.split(',').map(v => v.trim()).filter(Boolean)
+  }
+  return []
+}
+
+function isOptionSelected(optValue: string | number): boolean {
+  const selected = parseMultiValue(localValue.value)
+  return selected.some(v => String(v) === String(optValue))
+}
+
+function toggleOption(optValue: string | number): void {
+  const selected = parseMultiValue(localValue.value)
+  const idx = selected.findIndex(v => String(v) === String(optValue))
+  if (idx >= 0) {
+    selected.splice(idx, 1)
+  } else {
+    selected.push(optValue)
+  }
+  // Store as comma-separated string for iDempiere API compatibility
+  localValue.value = selected.join(',')
+}
+
+const selectedCount = computed(() => parseMultiValue(localValue.value).length)
+
 // Sync local value with prop
 watch(
   () => props.modelValue,
@@ -165,14 +219,14 @@ watch(localValue, (val) => {
   emit('update:modelValue', val)
 })
 
-// Load lookup options for select fields
+// Load lookup options for select/multiselect fields
 async function loadLookupOptions() {
   lookupError.value = null
   lookupOptions.value = []
 
   const colName = props.field.columnName
 
-  if (inputType.value !== 'select') {
+  if (inputType.value !== 'select' && inputType.value !== 'multiselect') {
     return
   }
   if (!props.field.column) {
@@ -193,12 +247,12 @@ async function loadLookupOptions() {
 
   lookupLoading.value = true
   try {
-    // 1) List/Table/Search with Reference: use Reference API
-    if ((refId === ReferenceType.List || refId === ReferenceType.Table || refId === ReferenceType.Search) && refValueId) {
+    // 1) List/Table/Search/MultiSelect with Reference: use Reference API
+    if ((refId === ReferenceType.List || refId === ReferenceType.Table || refId === ReferenceType.Search || refId === ReferenceType.ChosenMultipleSelectionList) && refValueId) {
       console.log(`[DynamicField] ${colName}: trying Reference API (refValueId=${refValueId})`)
       lookupOptions.value = await getReferenceLookupOptions(auth.token.value, refValueId)
       console.log(`[DynamicField] ${colName}: got ${lookupOptions.value.length} from Reference API`)
-      // Don't fallback for Table/List/Search types - they MUST use Reference API
+      // Don't fallback for Table/List/Search/MultiSelect types - they MUST use Reference API
       return
     }
 

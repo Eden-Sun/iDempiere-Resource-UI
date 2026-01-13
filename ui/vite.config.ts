@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+const testIP = '192.168.1.47'
+
 export default defineConfig({
   // IMPORTANT: this plugin is served under /emui
   base: '/emui/',
@@ -8,7 +10,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: `http://${process.env.VITE_API_IP || 'localhost'}:8080`,
+        target: `http://${process.env.VITE_API_IP || testIP}:8080`,
         changeOrigin: true,
       },
     },

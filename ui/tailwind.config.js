@@ -23,14 +23,6 @@ export default {
   },
   plugins: [daisyui],
   daisyui: {
-    themes: [
-      {
-        light: {
-          primary: '#2563eb', // brand-600
-          'primary-content': '#ffffff',
-        },
-      },
-    ],
+    themes: ['light'],
   },
 }
-

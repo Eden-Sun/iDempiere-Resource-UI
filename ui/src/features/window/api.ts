@@ -74,6 +74,7 @@ export const ReferenceType = {
   Image: 32,
   Binary: 23,
   Button: 28,
+  ChosenMultipleSelectionList: 200161,
 } as const
 
 // === API Functions ===
@@ -428,7 +429,7 @@ function extractColumnName(identifier: string): string {
 /**
  * Determine input type based on reference ID
  */
-export function getInputType(referenceId: number): 'text' | 'number' | 'checkbox' | 'date' | 'datetime' | 'textarea' | 'select' {
+export function getInputType(referenceId: number): 'text' | 'number' | 'checkbox' | 'date' | 'datetime' | 'textarea' | 'select' | 'multiselect' {
   switch (referenceId) {
     case ReferenceType.YesNo:
       return 'checkbox'
@@ -450,6 +451,8 @@ export function getInputType(referenceId: number): 'text' | 'number' | 'checkbox
     case ReferenceType.TableDirect:
     case ReferenceType.Search:
       return 'select'
+    case ReferenceType.ChosenMultipleSelectionList:
+      return 'multiselect'
     default:
       return 'text'
   }
@@ -464,6 +467,7 @@ export function isLookupField(referenceId: number): boolean {
     ReferenceType.Table,
     ReferenceType.TableDirect,
     ReferenceType.Search,
+    ReferenceType.ChosenMultipleSelectionList,
   ].includes(referenceId)
 }
 
