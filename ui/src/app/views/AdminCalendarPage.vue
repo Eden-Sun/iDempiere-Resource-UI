@@ -73,7 +73,7 @@
       <!-- 新增預約 -->
       <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
         <div class="text-sm font-semibold text-slate-900">快速新增預約</div>
-        <div class="mt-3 grid gap-3 sm:grid-cols-5">
+        <div class="mt-3 grid gap-3 sm:grid-cols-6">
           <select v-model="newResourceId" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm">
             <option :value="null" disabled>選擇資源</option>
             <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.name }}</option>
@@ -85,6 +85,9 @@
           <select v-model="newSlot" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm">
             <option :value="null" disabled>選擇時段</option>
             <option v-for="s in timeSlots" :key="s.key" :value="s.key">{{ s.label }}</option>
+          </select>
+          <select v-model="newDuration" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm">
+            <option v-for="d in durationOptions" :key="d.value" :value="d.value">{{ d.label }}</option>
           </select>
           <input v-model="newName" class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm" placeholder="預約名稱" />
           <button
@@ -180,8 +183,19 @@ const error = ref<string | null>(null)
 const newResourceId = ref<number | null>(null)
 const newDay = ref<string | null>(null)
 const newSlot = ref<string | null>(null)
+const newDuration = ref(30) // 預設 30 分鐘
 const newName = ref('')
 const submitting = ref(false)
+
+// 時長選項 (30分鐘 ~ 3小時)
+const durationOptions = [
+  { value: 30, label: '30 分鐘' },
+  { value: 60, label: '1 小時' },
+  { value: 90, label: '1.5 小時' },
+  { value: 120, label: '2 小時' },
+  { value: 150, label: '2.5 小時' },
+  { value: 180, label: '3 小時' },
+]
 
 // 刪除
 const deleteTarget = ref<(ResourceAssignment & { resourceId: number }) | null>(null)
@@ -464,7 +478,7 @@ async function submitNew() {
     const from = new Date(dayObj.dateObj)
     from.setHours(slotObj.hour, slotObj.minute, 0, 0)
     const to = new Date(from)
-    to.setMinutes(to.getMinutes() + 30)
+    to.setMinutes(to.getMinutes() + newDuration.value)
     await createAssignment(auth.token.value, { resourceId: newResourceId.value, name: newName.value.trim(), from, to })
     newName.value = ''
     await reload()
