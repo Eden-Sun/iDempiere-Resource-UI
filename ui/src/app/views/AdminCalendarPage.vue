@@ -46,7 +46,7 @@
               <div class="day-name">{{ day.label }}</div>
               <div class="day-date" :class="{ 'today-badge': isToday(day.dateObj) }">{{ day.dateObj.getDate() }}</div>
             </div>
-            <div class="day-grid">
+            <div class="day-grid" :style="{ height: `${hours.length * HOUR_HEIGHT}px` }">
               <!-- Hour slots background -->
               <div v-for="hour in hours" :key="hour" class="hour-slot">
                 <div class="half-hour-line"></div>
@@ -158,7 +158,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../../features/auth/store'
-import { listResources, listAssignmentsForRange, createAssignment, deleteAssignment, getAssignmentColors, type Resource, type ResourceAssignment } from '../../features/resource/api'
+import { listResources, listAssignmentsForRange, createAssignment, deleteAssignment, getAssignmentColors, getResourceType, type Resource, type ResourceAssignment, type ResourceType } from '../../features/resource/api'
 
 // 事件顯示資訊（Google Calendar style）
 type CalendarEvent = ResourceAssignment & {
@@ -174,6 +174,7 @@ type CalendarEvent = ResourceAssignment & {
 const auth = useAuth()
 
 const resources = ref<Resource[]>([])
+const resourceTypes = ref<Map<number, ResourceType>>(new Map())
 const selectedResourceId = ref<number | null>(null)
 const allAssignments = ref<Map<number, ResourceAssignment[]>>(new Map())
 const loading = ref(false)
@@ -287,27 +288,110 @@ weekStart.setHours(0, 0, 0, 0)
 const weekEnd = new Date(weekStart)
 weekEnd.setDate(weekStart.getDate() + 7)
 
-// 日曆時間範圍：9:00 - 18:00
-const HOUR_START = 9
-const HOUR_END = 18
-const hours = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
+// 預設時間範圍（若資源類型無設定時使用）
+const DEFAULT_HOUR_START = 9
+const DEFAULT_HOUR_END = 18
 const HOUR_HEIGHT = 60 // 每小時高度 (px)
 
-// 30分鐘時段選項（用於新增預約）
-type TimeSlot = { key: string; label: string; hour: number; minute: number }
-const timeSlots: TimeSlot[] = []
-for (let h = HOUR_START; h < HOUR_END; h++) {
-  timeSlots.push({ key: `${h}00`, label: `${h}:00`, hour: h, minute: 0 })
-  timeSlots.push({ key: `${h}30`, label: `${h}:30`, hour: h, minute: 30 })
+// 根據選中的資源類型計算有效時間範圍
+const effectiveTimeRange = computed(() => {
+  const types = getActiveResourceTypes()
+  if (types.length === 0) {
+    return { start: DEFAULT_HOUR_START, end: DEFAULT_HOUR_END }
+  }
+
+  // 取所有資源類型的時間範圍聯集（最早開始～最晚結束）
+  let minStart = 24
+  let maxEnd = 0
+
+  for (const rt of types) {
+    const start = parseTimeSlot(rt.timeSlotStart, DEFAULT_HOUR_START)
+    const end = parseTimeSlot(rt.timeSlotEnd, DEFAULT_HOUR_END)
+    minStart = Math.min(minStart, start)
+    maxEnd = Math.max(maxEnd, end)
+  }
+
+  return {
+    start: minStart < 24 ? minStart : DEFAULT_HOUR_START,
+    end: maxEnd > 0 ? maxEnd : DEFAULT_HOUR_END,
+  }
+})
+
+// 解析時間字串如 "09:00:00" -> 9
+function parseTimeSlot(timeStr: string | undefined, fallback: number): number {
+  if (!timeStr) return fallback
+  const match = timeStr.match(/^(\d{1,2}):/)
+  if (match) return parseInt(match[1], 10)
+  return fallback
 }
 
-const weekDays = computed(() => {
+// 獲取當前有效的資源類型列表
+function getActiveResourceTypes(): ResourceType[] {
+  if (selectedResourceId.value) {
+    const resource = resources.value.find(r => r.id === selectedResourceId.value)
+    if (resource) {
+      const rt = resourceTypes.value.get(resource.resourceTypeId)
+      return rt ? [rt] : []
+    }
+    return []
+  }
+  // 全部資源：收集所有資源類型
+  const typeIds = new Set(resources.value.map(r => r.resourceTypeId))
+  return Array.from(typeIds).map(id => resourceTypes.value.get(id)).filter((rt): rt is ResourceType => !!rt)
+}
+
+// 根據資源類型計算有效的營業日（週一～週日）
+const effectiveBusinessDays = computed(() => {
+  const types = getActiveResourceTypes()
+  if (types.length === 0) {
+    // 無設定時顯示全部
+    return { mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true }
+  }
+
+  // 取聯集：任一資源類型營業的日子都顯示
+  return {
+    mon: types.some(rt => rt.onMonday),
+    tue: types.some(rt => rt.onTuesday),
+    wed: types.some(rt => rt.onWednesday),
+    thu: types.some(rt => rt.onThursday),
+    fri: types.some(rt => rt.onFriday),
+    sat: types.some(rt => rt.onSaturday),
+    sun: types.some(rt => rt.onSunday),
+  }
+})
+
+const hours = computed(() => {
+  const { start, end } = effectiveTimeRange.value
+  return Array.from({ length: end - start }, (_, i) => start + i)
+})
+
+// 30分鐘時段選項（用於新增預約）- 根據營業時間動態生成
+type TimeSlot = { key: string; label: string; hour: number; minute: number }
+const timeSlots = computed<TimeSlot[]>(() => {
+  const { start, end } = effectiveTimeRange.value
+  const slots: TimeSlot[] = []
+  for (let h = start; h < end; h++) {
+    slots.push({ key: `${h}00`, label: `${h}:00`, hour: h, minute: 0 })
+    slots.push({ key: `${h}30`, label: `${h}:30`, hour: h, minute: 30 })
+  }
+  return slots
+})
+
+// 全部星期（用於查詢，不過濾）
+const allWeekDays = computed(() => {
   const days = ['一', '二', '三', '四', '五', '六', '日']
   return days.map((label, i) => {
     const d = new Date(weekStart)
     d.setDate(weekStart.getDate() + i)
-    return { key: `d${i}`, label: `週${label}`, date: `${d.getMonth() + 1}/${d.getDate()}`, dateObj: new Date(d) }
+    return { key: `d${i}`, label: `週${label}`, date: `${d.getMonth() + 1}/${d.getDate()}`, dateObj: new Date(d), dayIndex: i }
   })
+})
+
+// 根據營業日過濾的星期（用於顯示）
+const weekDays = computed(() => {
+  const bd = effectiveBusinessDays.value
+  const businessDayFlags = [bd.mon, bd.tue, bd.wed, bd.thu, bd.fri, bd.sat, bd.sun]
+  return allWeekDays.value.filter((_, i) => businessDayFlags[i])
 })
 
 function isToday(date: Date): boolean {
@@ -319,6 +403,7 @@ function isToday(date: Date): boolean {
 
 // 獲取某天的所有事件，並計算佈局
 function getDayEvents(day: { dateObj: Date }): CalendarEvent[] {
+  const { start: HOUR_START, end: HOUR_END } = effectiveTimeRange.value
   const dayStart = new Date(day.dateObj)
   dayStart.setHours(HOUR_START, 0, 0, 0)
   const dayEnd = new Date(day.dateObj)
@@ -387,6 +472,7 @@ function getDayEvents(day: { dateObj: Date }): CalendarEvent[] {
 }
 
 function getEventStyle(event: CalendarEvent): Record<string, string> {
+  const { start: HOUR_START, end: HOUR_END } = effectiveTimeRange.value
   const dayStart = new Date(event.startDate)
   dayStart.setHours(HOUR_START, 0, 0, 0)
   const dayEnd = new Date(event.startDate)
@@ -423,6 +509,22 @@ function getEventStyle(event: CalendarEvent): Record<string, string> {
 async function loadAll() {
   if (!auth.token.value) return
   resources.value = await listResources(auth.token.value)
+
+  // 載入所有資源類型
+  const typeIds = new Set(resources.value.map(r => r.resourceTypeId).filter(id => id > 0))
+  const typeMap = new Map<number, ResourceType>()
+  await Promise.all(
+    Array.from(typeIds).map(async (typeId) => {
+      try {
+        const rt = await getResourceType(auth.token.value!, typeId)
+        typeMap.set(typeId, rt)
+      } catch (e) {
+        console.error(`Failed to load resource type ${typeId}:`, e)
+      }
+    }),
+  )
+  resourceTypes.value = typeMap
+
   const map = new Map<number, ResourceAssignment[]>()
   const allAssignmentIds: number[] = []
   await Promise.all(
@@ -473,8 +575,8 @@ async function submitNew() {
   submitting.value = true
   error.value = null
   try {
-    const dayObj = weekDays.value.find((d) => d.key === newDay.value)!
-    const slotObj = timeSlots.find((s) => s.key === newSlot.value)!
+    const dayObj = allWeekDays.value.find((d) => d.key === newDay.value)!
+    const slotObj = timeSlots.value.find((s) => s.key === newSlot.value)!
     const from = new Date(dayObj.dateObj)
     from.setHours(slotObj.hour, slotObj.minute, 0, 0)
     const to = new Date(from)
@@ -489,7 +591,17 @@ async function submitNew() {
   }
 }
 
-watch(selectedResourceId, () => {})
+// 當資源選擇變更時，重置快速新增表單中可能已失效的選項
+watch([selectedResourceId, newResourceId], () => {
+  // 檢查 newDay 是否仍在有效列表中
+  if (newDay.value && !weekDays.value.some(d => d.key === newDay.value)) {
+    newDay.value = null
+  }
+  // 檢查 newSlot 是否仍在有效列表中
+  if (newSlot.value && !timeSlots.value.some(s => s.key === newSlot.value)) {
+    newSlot.value = null
+  }
+})
 
 onMounted(reload)
 </script>
@@ -579,7 +691,7 @@ onMounted(reload)
 
 .day-grid {
   position: relative;
-  height: calc(60px * 9); /* 9 hours */
+  /* height is set dynamically via inline style */
 }
 
 .hour-slot {
