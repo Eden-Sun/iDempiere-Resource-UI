@@ -1,242 +1,171 @@
-# iDempiere Resource UI - 專案說明
+# Claude 快速上手指南
 
-## 專案概述
+> 此文件幫助 Claude 快速理解專案，減少 token 消耗。
+> 最後更新：2026-01-14
 
-Vue 3 + TypeScript 前端應用，用於 iDempiere ERP 的資源預約管理。透過 iDempiere REST API 進行認證和資料操作。
+## 一句話概述
 
-- **Framework**: Vue 3 (Composition API)
-- **UI**: TailwindCSS + DaisyUI
-- **Build**: Vite
-- **Base URL**: `/emui/`
+**診所預約管理系統前端**，連接 iDempiere ERP REST API，Vue 3 + TypeScript + daisyUI。
 
 ---
 
-## 目錄結構
+## 技術棧速查
 
 ```
-src/
-├── main.ts                    # 應用入口，路由守衛
-├── app/
-│   ├── App.vue               # 根組件，token 過期處理
-│   ├── routes.ts             # 路由定義
-│   └── views/
-│       ├── LoginPage.vue     # 兩階段登入頁面
-│       ├── BookingPage.vue   # 資源預約（一般用戶）
-│       ├── AdminCalendarPage.vue  # 管理員行事曆
-│       └── BPartnerPage.vue  # 業務夥伴列表/編輯/新增
+Framework: Vue 3 (Composition API + <script setup>)
+Language:  TypeScript
+Build:     Vite (base: /emui/)
+UI:        daisyUI (Tailwind CSS)
+State:     useAuth() composable (localStorage)
+API:       apiFetch() 封裝 (shared/api/http.ts)
+```
+
+---
+
+## 目錄結構（只看重點）
+
+```
+ui/src/
+├── app/views/
+│   ├── LoginPage.vue          # 登入（兩步驟：帳密 → Tenant/Role/Org）
+│   ├── BookingPage.vue        # 用戶預約頁 ⭐ 核心功能
+│   └── AdminCalendarPage.vue  # 管理員行事曆
 ├── features/
-│   ├── auth/
-│   │   ├── api.ts            # 認證 API (login, getRoles, getOrganizations...)
-│   │   ├── store.ts          # 認證狀態管理 (useAuth)
-│   │   └── types.ts          # 認證型別定義
-│   ├── resource/
-│   │   └── api.ts            # 資源預約 API
-│   └── window/
-│       └── api.ts            # 通用 Window API（欄位元資料、CRUD、列表）
-├── shared/
-│   ├── api/
-│   │   └── http.ts           # HTTP 封裝，token 過期檢測
-│   └── labels/
-│       └── columnLabels.ts   # 欄位標籤翻譯
-└── components/
-    ├── DynamicForm.vue       # 動態表單組件
-    └── DynamicField.vue      # 動態欄位組件
+│   ├── auth/api.ts            # 登入 API
+│   ├── auth/store.ts          # useAuth() token 管理
+│   └── resource/api.ts        # 預約 CRUD ⭐
+└── shared/api/http.ts         # apiFetch 封裝
+
+ui/
+├── TODO.md                    # 開發進度追蹤 ⭐ 必看
+├── CLAUDE.md                  # 本文件
+└── .env                       # VITE_API_IP
 ```
 
 ---
 
-## 認證流程
-
-### 兩階段登入
-
-```
-第一階段：帳密驗證
-POST /api/v1/auth/tokens
-├── 輸入：userName, password
-└── 輸出：臨時 token + clients 列表
-
-第二階段：參數選擇
-PUT /api/v1/auth/tokens
-├── 選擇：clientId → roleId → organizationId → warehouseId (可選)
-└── 輸出：正式 token + userId
-```
-
-### 認證 API (`features/auth/api.ts`)
-
-| 函數 | 端點 | 說明 |
-|------|------|------|
-| `login()` | POST /api/v1/auth/tokens | 帳密驗證 |
-| `setLoginParameters()` | PUT /api/v1/auth/tokens | 設定登入參數 |
-| `getRoles()` | GET /api/v1/auth/roles | 取得角色列表 |
-| `getOrganizations()` | GET /api/v1/auth/organizations | 取得組織列表 |
-| `getWarehouses()` | GET /api/v1/auth/warehouses | 取得倉庫列表 |
-| `getClientLanguage()` | GET /api/v1/auth/language | 取得租戶語系 |
-
-### 會話狀態 (`features/auth/store.ts`)
+## API 端點速查
 
 ```typescript
-type Session = {
-  token: string
-  refreshToken?: string
-  userId: number
-  userName?: string      // 從 JWT 解碼
-  clientId: number
-  organizationId: number
-  roleId?: number
-  warehouseId?: number
-  language?: string
-}
-```
+// 認證
+POST /api/v1/auth/tokens              // 登入
+PUT  /api/v1/auth/tokens              // 設定 client/role/org
 
-- 儲存位置：`localStorage['idempiere.resource.session.v1']`
-- JWT 解碼僅用於顯示 userName（不驗證）
+// 資源預約（核心）
+GET    /api/v1/models/S_Resource
+GET    /api/v1/models/S_ResourceType/{id}
+GET    /api/v1/models/S_ResourceAssignment?$filter=...
+POST   /api/v1/models/S_ResourceAssignment
+PUT    /api/v1/models/S_ResourceAssignment/{id}
+DELETE /api/v1/models/S_ResourceAssignment/{id}
+
+// 顏色標籤（存 AD_SysConfig）
+Name: EMUI_RESOURCE_ASSIGNMENT_COLOR_{assignmentId}
+```
 
 ---
 
-## 路由與權限
+## 已完成功能 ✅
 
-### 路由定義 (`app/routes.ts`)
+### 登入
+- 兩步驟登入流程
+- Token 持久化 localStorage
 
-| 路徑 | 組件 | 說明 |
-|------|------|------|
-| `/login` | LoginPage | 公開，無需認證 |
-| `/book` | BookingPage | 資源預約（一般用戶） |
-| `/admin/calendar` | AdminCalendarPage | 管理員行事曆 |
-| `/bpartner` | BPartnerPage | 建立業務夥伴 |
+### 預約頁 (`BookingPage.vue`) - 70%
+- 週行事曆（Google Calendar 風格）
+- 多資源疊加顯示
+- **直接點日曆新增預約**（不需按鈕）
+- Hover 顯示時長（綠色 overlay + 分鐘 badge）
+- 過去時段 disabled（斜線 + cursor: not-allowed）
+- 點擊預約可編輯（名稱/顏色/刪除）
+- 營業日/時段過濾
 
-### 路由守衛 (`main.ts`)
+---
 
+## 程式碼模式
+
+### API 呼叫
 ```typescript
-router.beforeEach((to) => {
-  const publicRoutes = new Set(['/login'])
-  if (publicRoutes.has(to.path)) return true
-  if (!auth.isAuthenticated.value) return { path: '/login' }
-  return true
+import { apiFetch } from '../../shared/api/http'
+
+// GET
+const res = await apiFetch<{ records: any[] }>(
+  `/api/v1/models/TABLE`,
+  { token, searchParams: { $filter: `Field eq ${val}` } }
+)
+
+// POST/PUT
+await apiFetch(`/api/v1/models/TABLE/${id}`, {
+  method: 'PUT', token, json: { Field: value }
 })
 ```
 
-**目前限制**：只檢查是否有 token，不檢查角色權限。
-
----
-
-## 資源預約 API (`features/resource/api.ts`)
-
-| 函數 | 說明 |
-|------|------|
-| `listResources()` | 列出可用資源 |
-| `listAssignmentsForRange()` | 查詢指定時間範圍的預約 |
-| `createAssignment()` | 建立預約 |
-| `deleteAssignment()` | 刪除預約 |
-| `setAssignmentColor()` | 設定預約顏色 |
-
----
-
-## iDempiere REST API 使用方式
-
-### Window API vs Model API
-
-**重要**：iDempiere REST API 有兩種端點模式，用途不同：
-
-| 操作 | 端點 | 說明 |
-|------|------|------|
-| **列表** | `GET /api/v1/models/{TableName}` | Model API，支援 $filter, $orderby, $top, $skip |
-| **取得單筆** | `GET /api/v1/models/{TableName}/{id}` | Model API |
-| **新增** | `POST /api/v1/windows/{windowSlug}` | Window API（觸發商業邏輯） |
-| **更新** | `PUT /api/v1/models/{TableName}/{id}` | Model API |
-| **刪除** | `DELETE /api/v1/models/{TableName}/{id}` | Model API |
-
-**注意**：
-- Window API 的 `/windows/{slug}/tabs/{tab}` 端點**不支援列表查詢**（會 404）
-- 新增建議用 Window API 以觸發完整商業邏輯
-- 列表/更新用 Model API 較穩定
-
-### 範例：Business Partner
-
+### 行事曆計算
 ```typescript
-// 列表
-GET /api/v1/models/C_BPartner?$orderby=Name&$top=20
-
-// 新增
-POST /api/v1/windows/business-partner
-Body: { Name: "...", Value: "...", C_BP_Group_ID: 104 }
-
-// 更新
-PUT /api/v1/models/C_BPartner/1000009
-Body: { Name: "..." }
+const HOUR_HEIGHT = 60  // 每小時 60px
+// 時間→位置: top = (minutes / 60) * HOUR_HEIGHT
+// 位置→時間: minutes = (y / HOUR_HEIGHT) * 60
 ```
 
 ---
 
-## Window API (`features/window/api.ts`)
+## 待開發（依優先順序）
 
-### CRUD 操作
+1. **權限系統** - System/User 區分、選單權限
+2. **業務夥伴 C_BPartner** - 客戶/員工/供應商
+3. **諮詢單 R_Request** - 待接應、甘特圖
+4. **銷售訂單 C_Order** - 開單
+5. **療程單 M_Production** - 訂單轉療程
 
-| 函數 | 說明 |
-|------|------|
-| `createWindowRecord()` | 建立記錄（透過 Window API） |
-| `createChildTabRecord()` | 建立子標籤記錄 |
-| `getTabFieldsWithMeta()` | 取得欄位元資料 |
-
-### Reference Types
-
-```typescript
-ReferenceType = {
-  String: 10, Integer: 11, Amount: 12, Number: 22,
-  Date: 15, DateTime: 16, List: 17, Table: 18,
-  TableDirect: 19, YesNo: 20, Search: 30, Text: 14,
-  Memo: 34, ChosenMultipleSelectionList: 200161,  // 多選
-}
-```
-
-### 多選欄位 (ChosenMultipleSelectionList)
-
-- Reference ID: 200161
-- UI: Checkbox group
-- 儲存格式: 逗號分隔字串
+**詳見 `TODO.md`**
 
 ---
 
-## HTTP 層 (`shared/api/http.ts`)
+## 注意事項
 
-- 所有請求自動帶 `Authorization: Bearer {token}`
-- Token 過期檢測：401 + title 包含 'expired'
-- 過期回調：`setTokenExpiredHandler()`
-
----
-
-## 欄位權限控制
-
-### 系統欄位（自動隱藏）
-
-```typescript
-const systemFields = ['AD_Client_ID', 'Created', 'CreatedBy', 'Updated', 'UpdatedBy', 'IsActive']
-```
-
-### 管理員欄位配置
-
-- `getFieldVisibility()` - 取得隱藏欄位
-- `setFieldVisibility()` - 設定隱藏欄位（需 Admin 權限）
-- 403 錯誤時設定 `canConfigureFields = false`
-
----
-
-## 待實作：權限檢查
-
-**目前問題**：
-- 前端只檢查 token 存在，不檢查角色權限
-- 沒有 API 查詢特定 Role 的功能權限
-
-**可能方案**：
-1. 後端提供權限查詢 API
-2. JWT 內嵌權限資訊
-3. 登入時返回權限清單
+1. **Base URL**: `/emui/`
+2. **API Proxy**: dev 時 `/api` → `http://{VITE_API_IP}:8080`
+3. **顏色存儲**: 在 `AD_SysConfig`，非 Assignment 本身
+4. **時間格式**: ISO `yyyy-MM-dd'T'HH:mm:ss'Z'`
 
 ---
 
 ## 開發指令
 
 ```bash
-bun install      # 安裝依賴
-bun run dev      # 開發模式
-bun run build    # 建置
+cd ui
+npm run dev    # http://localhost:5173/emui/
+npm run build  # 輸出 ../web-content/
 ```
+
+---
+
+## 快速定位
+
+| 需求 | 檔案 |
+|------|------|
+| 登入 | `features/auth/api.ts` |
+| 預約 CRUD | `features/resource/api.ts` |
+| 預約 UI | `app/views/BookingPage.vue` |
+| 進度追蹤 | `TODO.md` |
+
+---
+
+## iDempiere API 陷阱
+
+```
+✅ 列表用 GET /api/v1/models/{Table}
+✅ 新增用 POST /api/v1/windows/{slug} (觸發商業邏輯)
+✅ 更新用 PUT /api/v1/models/{Table}/{id}
+❌ 不要用 /windows/{slug}/tabs/{tab} 查列表（會 404）
+```
+
+---
+
+## 最近變更 (2026-01-14)
+
+- 新增預約編輯功能（點擊修改）
+- 直接點日曆預約（移除按鈕依賴）
+- 過去時段 disabled 樣式
+- Hover 時長預覽
+- 建立 TODO.md 進度追蹤
