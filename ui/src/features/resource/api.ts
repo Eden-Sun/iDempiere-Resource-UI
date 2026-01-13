@@ -131,6 +131,25 @@ export async function createAssignment(
   })
 }
 
+export async function updateAssignment(
+  token: string,
+  id: number,
+  input: { name?: string; from?: Date; to?: Date },
+): Promise<any> {
+  const toISO = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+  const json: Record<string, any> = {}
+  if (input.name !== undefined) json.Name = input.name
+  if (input.from !== undefined) json.AssignDateFrom = toISO(input.from)
+  if (input.to !== undefined) json.AssignDateTo = toISO(input.to)
+
+  return await apiFetch<any>(`${API_V1}/models/S_ResourceAssignment/${id}`, {
+    method: 'PUT',
+    token,
+    json,
+  })
+}
+
 export async function deleteAssignment(token: string, id: number): Promise<void> {
   await apiFetch<any>(`${API_V1}/models/S_ResourceAssignment/${id}`, {
     method: 'DELETE',

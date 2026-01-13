@@ -159,7 +159,7 @@
                   :key="event.id"
                   class="event-card"
                   :style="getEventStyle(event)"
-                  @click.stop="showPopout($event, event)"
+                  @click.stop="openEditModal(event)"
                   @mouseenter="showPopout($event, event)"
                   @mouseleave="hidePopout"
                 >
@@ -303,6 +303,90 @@
             <span>{{ formatDateTime(activePopout.assignment.to) }}</span>
           </div>
         </div>
+        <div class="mt-3 pt-2 border-t border-slate-100">
+          <button
+            class="w-full text-xs text-brand-600 hover:text-brand-700 font-medium"
+            @click="openEditModal(activePopout.assignment)"
+          >
+            點擊編輯
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 編輯預約 Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showEditModal && editingEvent"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="closeEditModal"
+      >
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-slate-900">編輯預約</h3>
+            <button
+              class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              @click="closeEditModal"
+            >
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+            <div class="grid grid-cols-2 gap-2">
+              <div><span class="font-medium text-slate-500">資源：</span>{{ editingEvent.resourceName }}</div>
+              <div><span class="font-medium text-slate-500">時段：</span>{{ formatEventTime(editingEvent.from) }} - {{ formatEventTime(editingEvent.to || editingEvent.from) }}</div>
+              <div class="col-span-2"><span class="font-medium text-slate-500">日期：</span>{{ formatDateTime(editingEvent.from).split(' ')[0] }}</div>
+            </div>
+          </div>
+
+          <div class="mt-4 space-y-4">
+            <div>
+              <label class="text-sm font-medium text-slate-700">預約名稱</label>
+              <input
+                v-model="editName"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                placeholder="例如：王小明 諮詢"
+                autofocus
+              />
+            </div>
+            <div>
+              <label class="text-sm font-medium text-slate-700">顏色標籤</label>
+              <div class="mt-1 flex items-center gap-3">
+                <input
+                  v-model="editColor"
+                  type="color"
+                  class="h-10 w-16 cursor-pointer rounded border border-slate-300"
+                />
+                <div
+                  class="flex-1 rounded-lg border px-3 py-2 text-sm"
+                  :style="{ backgroundColor: editColor + '15', color: editColor, borderColor: editColor }"
+                >
+                  {{ editColor }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex gap-3">
+            <button
+              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              :disabled="submitting || !editName.trim()"
+              @click="saveEdit"
+            >
+              {{ submitting ? '儲存中…' : '儲存變更' }}
+            </button>
+            <button
+              class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-100 disabled:opacity-60"
+              :disabled="deleting"
+              @click="confirmDelete"
+            >
+              {{ deleting ? '刪除中…' : '刪除' }}
+            </button>
+          </div>
+        </div>
       </div>
     </Teleport>
   </div>
@@ -315,6 +399,8 @@ import {
   listResources,
   listAssignmentsForRange,
   createAssignment,
+  updateAssignment,
+  deleteAssignment,
   getResourceType,
   getAssignmentColors,
   setAssignmentColor,
@@ -378,6 +464,13 @@ const bookingColor = ref('#3b82f6')
 const submitting = ref(false)
 const assignmentColors = ref<Map<number, string>>(new Map())
 
+// 編輯預約
+const editingEvent = ref<CalendarEvent | null>(null)
+const editName = ref('')
+const editColor = ref('#3b82f6')
+const showEditModal = ref(false)
+const deleting = ref(false)
+
 // Hover 時的預計時長
 const hoverDuration = computed(() => {
   if (!selectedStart.value || !hoverSlot.value) return 0
@@ -414,6 +507,65 @@ function keepPopout() {
   if (hidePopoutTimer) {
     clearTimeout(hidePopoutTimer)
     hidePopoutTimer = null
+  }
+}
+
+// 編輯預約功能
+function openEditModal(event: CalendarEvent) {
+  activePopout.value = null
+  editingEvent.value = event
+  editName.value = event.name || ''
+  editColor.value = assignmentColors.value.get(event.id) || getResourceColor(event.resourceId)
+  showEditModal.value = true
+}
+
+function closeEditModal() {
+  showEditModal.value = false
+  editingEvent.value = null
+  editName.value = ''
+  editColor.value = '#3b82f6'
+}
+
+async function saveEdit() {
+  if (!auth.token.value || !editingEvent.value || !editName.value.trim()) return
+
+  submitting.value = true
+  error.value = null
+
+  try {
+    await updateAssignment(auth.token.value, editingEvent.value.id, {
+      name: editName.value.trim(),
+    })
+
+    // 更新顏色
+    if (editColor.value) {
+      await setAssignmentColor(auth.token.value, editingEvent.value.id, editColor.value)
+    }
+
+    closeEditModal()
+    await loadAllAssignments()
+  } catch (e: any) {
+    error.value = e?.detail || e?.title || e?.message || '更新失敗'
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function confirmDelete() {
+  if (!auth.token.value || !editingEvent.value) return
+  if (!confirm(`確定要刪除「${editingEvent.value.name || '此預約'}」嗎？`)) return
+
+  deleting.value = true
+  error.value = null
+
+  try {
+    await deleteAssignment(auth.token.value, editingEvent.value.id)
+    closeEditModal()
+    await loadAllAssignments()
+  } catch (e: any) {
+    error.value = e?.detail || e?.title || e?.message || '刪除失敗'
+  } finally {
+    deleting.value = false
   }
 }
 
