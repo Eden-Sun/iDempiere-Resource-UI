@@ -158,7 +158,6 @@
         ref="bpFormRef"
         window-slug="business-partner"
         tab-slug="business-partner"
-        :record-id="editingId"
         :default-values="formDefaults"
         :submit-label="editingId ? '儲存' : '建立'"
         @submit="handleSubmit"
@@ -170,11 +169,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import DynamicForm from '../../components/DynamicForm.vue'
-import {
-  listWindowRecords,
-  createWindowRecord,
-  updateWindowRecord,
-} from '../../features/window/api'
+import { createWindowRecord } from '../../features/window/api'
+import { apiFetch } from '../../shared/api/http'
 import { useAuth } from '../../features/auth/store'
 
 const auth = useAuth()
@@ -200,7 +196,16 @@ const successMessage = ref<string | null>(null)
 // Default values for new records
 const formDefaults = computed(() => {
   if (editingRecord.value) {
-    return editingRecord.value
+    // Flatten nested objects from Model API (e.g., { C_BP_Group_ID: { id: 104 } } -> { C_BP_Group_ID: 104 })
+    const flattened: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(editingRecord.value)) {
+      if (value && typeof value === 'object' && 'id' in (value as object)) {
+        flattened[key] = (value as { id: unknown }).id
+      } else {
+        flattened[key] = value
+      }
+    }
+    return flattened
   }
   return {
     C_BP_Group_ID: 104, // Standard BP Group
@@ -211,7 +216,7 @@ const hasNextPage = computed(() => {
   return currentPage.value * pageSize < totalCount.value
 })
 
-// Load list
+// Load list using Model API
 async function loadList() {
   if (!auth.token.value) return
 
@@ -219,24 +224,23 @@ async function loadList() {
   error.value = null
 
   try {
-    const filter = searchQuery.value.trim()
-      ? `contains(Name,'${searchQuery.value.trim()}')`
-      : undefined
+    const searchParams: Record<string, string | number> = {
+      $orderby: 'Name',
+      $top: pageSize,
+      $skip: (currentPage.value - 1) * pageSize,
+    }
 
-    const result = await listWindowRecords(
-      auth.token.value,
-      'business-partner',
-      'business-partner',
-      {
-        filter,
-        orderby: 'Name',
-        top: pageSize,
-        skip: (currentPage.value - 1) * pageSize,
-      },
+    if (searchQuery.value.trim()) {
+      searchParams.$filter = `contains(Name,'${searchQuery.value.trim()}')`
+    }
+
+    const result = await apiFetch<{ records: any[]; 'row-count'?: number }>(
+      '/api/v1/models/C_BPartner',
+      { token: auth.token.value, searchParams },
     )
 
-    listRecords.value = result.records
-    totalCount.value = result.totalCount ?? result.records.length
+    listRecords.value = result.records ?? []
+    totalCount.value = result['row-count'] ?? result.records?.length ?? 0
   } catch (e: any) {
     error.value = e?.detail || e?.title || e?.message || '載入列表失敗'
   } finally {
@@ -294,17 +298,15 @@ async function handleSubmit(data: Record<string, unknown>) {
 
   try {
     if (editingId.value) {
-      // Update existing
-      await updateWindowRecord(
-        auth.token.value,
-        'business-partner',
-        'business-partner',
-        editingId.value,
-        data,
-      )
+      // Update existing using Model API
+      await apiFetch(`/api/v1/models/C_BPartner/${editingId.value}`, {
+        method: 'PUT',
+        token: auth.token.value,
+        json: data,
+      })
       successMessage.value = '業務夥伴已更新'
     } else {
-      // Create new
+      // Create new using Window API (this works)
       await createWindowRecord(auth.token.value, 'business-partner', data)
       successMessage.value = '業務夥伴已建立'
     }

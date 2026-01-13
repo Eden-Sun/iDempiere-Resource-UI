@@ -131,17 +131,51 @@ router.beforeEach((to) => {
 
 ---
 
+## iDempiere REST API 使用方式
+
+### Window API vs Model API
+
+**重要**：iDempiere REST API 有兩種端點模式，用途不同：
+
+| 操作 | 端點 | 說明 |
+|------|------|------|
+| **列表** | `GET /api/v1/models/{TableName}` | Model API，支援 $filter, $orderby, $top, $skip |
+| **取得單筆** | `GET /api/v1/models/{TableName}/{id}` | Model API |
+| **新增** | `POST /api/v1/windows/{windowSlug}` | Window API（觸發商業邏輯） |
+| **更新** | `PUT /api/v1/models/{TableName}/{id}` | Model API |
+| **刪除** | `DELETE /api/v1/models/{TableName}/{id}` | Model API |
+
+**注意**：
+- Window API 的 `/windows/{slug}/tabs/{tab}` 端點**不支援列表查詢**（會 404）
+- 新增建議用 Window API 以觸發完整商業邏輯
+- 列表/更新用 Model API 較穩定
+
+### 範例：Business Partner
+
+```typescript
+// 列表
+GET /api/v1/models/C_BPartner?$orderby=Name&$top=20
+
+// 新增
+POST /api/v1/windows/business-partner
+Body: { Name: "...", Value: "...", C_BP_Group_ID: 104 }
+
+// 更新
+PUT /api/v1/models/C_BPartner/1000009
+Body: { Name: "..." }
+```
+
+---
+
 ## Window API (`features/window/api.ts`)
 
 ### CRUD 操作
 
 | 函數 | 說明 |
 |------|------|
-| `listWindowRecords()` | 列出視窗記錄（支援篩選、排序、分頁） |
-| `getWindowRecord()` | 取得單筆記錄 |
-| `createWindowRecord()` | 建立記錄 |
-| `updateWindowRecord()` | 更新記錄 |
+| `createWindowRecord()` | 建立記錄（透過 Window API） |
 | `createChildTabRecord()` | 建立子標籤記錄 |
+| `getTabFieldsWithMeta()` | 取得欄位元資料 |
 
 ### Reference Types
 
