@@ -117,10 +117,33 @@
                 <div class="day-name">{{ day.label }}</div>
                 <div class="day-date" :class="{ 'today-badge': isToday(day.dateObj) }">{{ day.dateObj.getDate() }}</div>
               </div>
-              <div class="day-grid" @click="onDayGridClick($event, day)">
+              <div
+                class="day-grid"
+                @click="onDayGridClick($event, day)"
+                @mousemove="onDayGridHover($event, day)"
+                @mouseleave="onDayGridLeave"
+              >
                 <!-- Hour slots background -->
                 <div v-for="hour in displayHours" :key="hour" class="hour-slot">
                   <div class="half-hour-line"></div>
+                </div>
+
+                <!-- Past time disabled overlay (when selecting start time) -->
+                <div
+                  v-if="selectionMode !== 'end' && getPastTimeHeight(day) > 0"
+                  class="past-time-overlay"
+                  :style="{ height: `${getPastTimeHeight(day)}px` }"
+                >
+                  <div class="past-time-label">已過時段</div>
+                </div>
+
+                <!-- Hover preview (when selecting end time) -->
+                <div
+                  v-if="selectionMode === 'end' && selectedStart?.day.key === day.key && hoverSlot"
+                  class="hover-preview-overlay"
+                  :style="getHoverPreviewStyle(day)"
+                >
+                  <div class="hover-duration-badge">{{ hoverDuration }} 分鐘</div>
                 </div>
 
                 <!-- Selection overlay -->
@@ -150,70 +173,98 @@
         </div>
       </div>
 
-      <!-- 新增預約表單 -->
-      <div v-if="showBookingForm && selectedStart && selectedEnd" class="mt-6 rounded-xl border border-brand-200 bg-brand-50 p-4">
-        <div class="text-sm font-semibold text-slate-900">確認預約</div>
-        <div class="mt-2 text-xs text-slate-600">
-          <div><span class="font-medium">日期：</span>{{ selectedStart.day.label }} ({{ selectedStart.day.date }})</div>
-          <div><span class="font-medium">時段：</span>{{ formatSlotTime(selectedStart.slot) }} - {{ formatSlotEndTime(selectedEnd.slot) }}</div>
-          <div><span class="font-medium">時長：</span>{{ calculateDuration() }} 分鐘</div>
-          <div v-if="selectedResourceIds.length > 1" class="mt-2">
-            <span class="font-medium">將為以下資源建立預約：</span>
-            <div class="mt-1 flex flex-wrap gap-2">
-              <span
-                v-for="resId in selectedResourceIds"
-                :key="resId"
-                class="inline-block rounded px-2 py-0.5 text-xs"
-                :style="{
-                  backgroundColor: getResourceColor(resId) + '40',
-                  color: getResourceColor(resId),
-                  borderLeft: `3px solid ${getResourceColor(resId)}`
-                }"
-              >
-                {{ resources.find(r => r.id === resId)?.name }}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div class="mt-3 space-y-3">
-          <div>
-            <label class="text-sm font-medium text-slate-700">預約名稱</label>
-            <input
-              v-model="bookingName"
-              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              placeholder="例如：王小明 諮詢"
-            />
-          </div>
-          <div>
-            <label class="text-sm font-medium text-slate-700">顏色標籤</label>
-            <div class="mt-1 flex items-center gap-3">
-              <input
-                v-model="bookingColor"
-                type="color"
-                class="h-10 w-20 cursor-pointer rounded border border-slate-300"
-              />
-              <div class="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" :style="{ backgroundColor: bookingColor + '20', color: bookingColor, borderColor: bookingColor }">
-                預覽：{{ bookingColor }}
-              </div>
-              <button
-                type="button"
-                class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
-                @click="resetColor"
-              >
-                重置
-              </button>
-            </div>
-          </div>
-          <div class="flex gap-2">
+    </div>
+
+    <!-- 新增預約 Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showBookingForm && selectedStart && selectedEnd"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="resetSelection"
+      >
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-slate-900">確認預約</h3>
             <button
-              class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              @click="resetSelection"
+            >
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+            <div class="grid grid-cols-2 gap-2">
+              <div><span class="font-medium text-slate-500">日期：</span>{{ selectedStart.day.label }} ({{ selectedStart.day.date }})</div>
+              <div><span class="font-medium text-slate-500">時長：</span>{{ calculateDuration() }} 分鐘</div>
+              <div class="col-span-2"><span class="font-medium text-slate-500">時段：</span>{{ formatSlotTime(selectedStart.slot) }} - {{ formatSlotEndTime(selectedEnd.slot) }}</div>
+            </div>
+            <div v-if="selectedResourceIds.length > 1" class="mt-3 border-t border-slate-200 pt-3">
+              <span class="font-medium text-slate-500">預約資源：</span>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <span
+                  v-for="resId in selectedResourceIds"
+                  :key="resId"
+                  class="inline-block rounded px-2 py-0.5 text-xs font-medium"
+                  :style="{
+                    backgroundColor: getResourceColor(resId) + '20',
+                    color: getResourceColor(resId),
+                    borderLeft: `3px solid ${getResourceColor(resId)}`
+                  }"
+                >
+                  {{ resources.find(r => r.id === resId)?.name }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 space-y-4">
+            <div>
+              <label class="text-sm font-medium text-slate-700">預約名稱</label>
+              <input
+                v-model="bookingName"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                placeholder="例如：王小明 諮詢"
+                autofocus
+              />
+            </div>
+            <div>
+              <label class="text-sm font-medium text-slate-700">顏色標籤</label>
+              <div class="mt-1 flex items-center gap-3">
+                <input
+                  v-model="bookingColor"
+                  type="color"
+                  class="h-10 w-16 cursor-pointer rounded border border-slate-300"
+                />
+                <div
+                  class="flex-1 rounded-lg border px-3 py-2 text-sm"
+                  :style="{ backgroundColor: bookingColor + '15', color: bookingColor, borderColor: bookingColor }"
+                >
+                  {{ bookingColor }}
+                </div>
+                <button
+                  type="button"
+                  class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+                  @click="resetColor"
+                >
+                  重置
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex gap-3">
+            <button
+              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
               :disabled="submitting || !bookingName.trim() || selectedResourceIds.length === 0"
               @click="submitBooking"
             >
-              {{ submitting ? '送出中…' : `確認預約${selectedResourceIds.length > 1 ? ` (${selectedResourceIds.length}個資源)` : ''}` }}
+              {{ submitting ? '送出中…' : `確認預約${selectedResourceIds.length > 1 ? ` (${selectedResourceIds.length}個)` : ''}` }}
             </button>
             <button
-              class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               @click="resetSelection"
             >
               取消
@@ -221,7 +272,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </Teleport>
 
     <!-- Popout 資訊卡 -->
     <Teleport to="body">
@@ -320,11 +371,20 @@ function getAssignmentColor(assignmentId: number): string {
 const selectionMode = ref<'start' | 'end' | null>(null)
 const selectedStart = ref<{ day: WeekDay; slot: TimeSlot } | null>(null)
 const selectedEnd = ref<{ day: WeekDay; slot: TimeSlot } | null>(null)
+const hoverSlot = ref<TimeSlot | null>(null)
 const showBookingForm = ref(false)
 const bookingName = ref('')
 const bookingColor = ref('#3b82f6')
 const submitting = ref(false)
 const assignmentColors = ref<Map<number, string>>(new Map())
+
+// Hover 時的預計時長
+const hoverDuration = computed(() => {
+  if (!selectedStart.value || !hoverSlot.value) return 0
+  const startMin = selectedStart.value.slot.hour * 60 + selectedStart.value.slot.minute
+  const endMin = hoverSlot.value.endHour * 60 + hoverSlot.value.endMinute
+  return Math.max(endMin - startMin, 30)
+})
 
 // Popout
 const activePopout = ref<{ assignment: CalendarEvent; x: number; y: number } | null>(null)
@@ -648,6 +708,29 @@ function getEventStyle(event: CalendarEvent): Record<string, string> {
   }
 }
 
+// 計算過去時段的高度（用於 disabled overlay）
+function getPastTimeHeight(day: WeekDay): number {
+  const now = new Date()
+  const dayStart = new Date(day.dateObj)
+  dayStart.setHours(HOUR_START.value, 0, 0, 0)
+  const dayEnd = new Date(day.dateObj)
+  dayEnd.setHours(HOUR_END.value, 0, 0, 0)
+
+  // 如果整天都過去了
+  if (now >= dayEnd) {
+    return (HOUR_END.value - HOUR_START.value) * HOUR_HEIGHT
+  }
+
+  // 如果還沒到這天
+  if (now < dayStart) {
+    return 0
+  }
+
+  // 計算已過去的時間高度
+  const pastMinutes = (now.getTime() - dayStart.getTime()) / (60 * 1000)
+  return Math.min((pastMinutes / 60) * HOUR_HEIGHT, (HOUR_END.value - HOUR_START.value) * HOUR_HEIGHT)
+}
+
 // Selection handling
 function isSelectionInDay(day: WeekDay): boolean {
   return selectedStart.value?.day.key === day.key
@@ -680,8 +763,60 @@ function getSelectionStyle(day: WeekDay): Record<string, string> {
   }
 }
 
+// Hover preview style（從開始時間到 hover 位置）
+function getHoverPreviewStyle(day: WeekDay): Record<string, string> {
+  if (!selectedStart.value || !hoverSlot.value || selectedStart.value.day.key !== day.key) return {}
+
+  const startSlot = selectedStart.value.slot
+  const endSlot = hoverSlot.value
+
+  // 確保 hover 位置在開始時間之後
+  if (endSlot.index < startSlot.index) return {}
+
+  const dayStart = new Date(day.dateObj)
+  dayStart.setHours(HOUR_START.value, 0, 0, 0)
+
+  const startTime = new Date(day.dateObj)
+  startTime.setHours(startSlot.hour, startSlot.minute, 0, 0)
+
+  const endTime = new Date(day.dateObj)
+  endTime.setHours(endSlot.endHour, endSlot.endMinute, 0, 0)
+
+  const startMinutes = (startTime.getTime() - dayStart.getTime()) / (60 * 1000)
+  const endMinutes = (endTime.getTime() - dayStart.getTime()) / (60 * 1000)
+
+  const top = (startMinutes / 60) * HOUR_HEIGHT
+  const height = ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT
+
+  return {
+    top: `${top}px`,
+    height: `${Math.max(height, 30)}px`,
+  }
+}
+
+// Hover 事件處理
+function onDayGridHover(e: MouseEvent, day: WeekDay) {
+  if (selectionMode.value !== 'end') return
+  if (!selectedStart.value || selectedStart.value.day.key !== day.key) return
+
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const y = e.clientY - rect.top
+
+  const totalMinutes = (y / HOUR_HEIGHT) * 60
+  const hoverHour = HOUR_START.value + Math.floor(totalMinutes / 60)
+  const hoverMinute = Math.floor((totalMinutes % 60) / 30) * 30
+
+  const slot = timeSlots.value.find(s => s.hour === hoverHour && s.minute === hoverMinute)
+  if (slot && slot.index >= selectedStart.value.slot.index) {
+    hoverSlot.value = slot
+  }
+}
+
+function onDayGridLeave() {
+  hoverSlot.value = null
+}
+
 function onDayGridClick(e: MouseEvent, day: WeekDay) {
-  if (!selectionMode.value) return
   if (!isAnyDayAvailable(day.dayOfWeek)) return
 
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -706,10 +841,11 @@ function onDayGridClick(e: MouseEvent, day: WeekDay) {
   const hasConflict = events.some(ev => ev.startDate < slotEnd && ev.endDate > slotStart)
   if (hasConflict) return
 
-  // 檢查是否過去時間
-  if (slotStart < now) return
+  // 檢查是否過去時間（選擇開始時間時）
+  if (selectionMode.value !== 'end' && slotStart < now) return
 
-  if (selectionMode.value === 'start') {
+  // 直接點擊日曆即可開始選擇（不需要先按「新增預約」按鈕）
+  if (!selectionMode.value || selectionMode.value === 'start') {
     selectedStart.value = { day, slot }
     selectedEnd.value = { day, slot }
     selectionMode.value = 'end'
@@ -747,6 +883,7 @@ function resetSelection() {
   selectionMode.value = null
   selectedStart.value = null
   selectedEnd.value = null
+  hoverSlot.value = null
   showBookingForm.value = false
   bookingName.value = ''
   bookingColor.value = '#3b82f6'
@@ -997,6 +1134,7 @@ onMounted(reload)
 
 .day-column.day-unavailable {
   background: #f1f5f9;
+  cursor: not-allowed;
 }
 
 .day-column.day-unavailable .day-header-cell {
@@ -1006,7 +1144,7 @@ onMounted(reload)
 .day-grid {
   position: relative;
   height: calc(60px * v-bind('displayHours.length'));
-  cursor: pointer;
+  cursor: cell;
 }
 
 .hour-slot {
@@ -1021,6 +1159,62 @@ onMounted(reload)
   right: 0;
   top: 50%;
   border-top: 1px dashed #e2e8f0;
+}
+
+.past-time-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(148, 163, 184, 0.08),
+    rgba(148, 163, 184, 0.08) 8px,
+    rgba(148, 163, 184, 0.15) 8px,
+    rgba(148, 163, 184, 0.15) 16px
+  );
+  cursor: not-allowed;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+}
+
+.past-time-label {
+  background: rgba(100, 116, 139, 0.7);
+  color: white;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 8px;
+  opacity: 0.8;
+}
+
+.hover-preview-overlay {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.25) 0%, rgba(34, 197, 94, 0.15) 100%);
+  border: 2px solid rgba(34, 197, 94, 0.7);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 4;
+  transition: all 0.1s ease-out;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 4px;
+}
+
+.hover-duration-badge {
+  background: rgba(34, 197, 94, 0.9);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .selection-overlay {
