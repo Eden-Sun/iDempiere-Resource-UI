@@ -1,9 +1,8 @@
 <template>
-  <div class="grid gap-6 lg:grid-cols-2">
+  <div class="mx-auto max-w-md">
     <div class="card bg-base-100 shadow-sm">
       <div class="card-body">
         <h1 class="card-title">登入</h1>
-        <p class="text-sm opacity-60">使用 iDempiere REST API 取得 Token（不自行實作後端）。</p>
 
         <div class="mt-4">
           <ul class="steps steps-horizontal mb-6 w-full">
@@ -44,11 +43,6 @@
           </form>
 
           <form v-else class="space-y-4" @submit.prevent="onSubmitParameters">
-            <div class="alert alert-info py-2 text-xs">
-              第一次登入會回傳可用的 Tenant/Role。請完成選擇後，系統會呼叫 <code>PUT /api/v1/auth/tokens</code>
-              取得正式 token。
-            </div>
-
             <div class="form-control">
               <label class="label">
                 <span class="label-text">租戶</span>
@@ -122,28 +116,6 @@
         </div>
       </div>
     </div>
-
-    <div class="card bg-gradient-to-br from-primary/10 to-base-100">
-      <div class="card-body">
-        <h2 class="card-title text-sm">API 位置</h2>
-        <div class="space-y-2 text-sm">
-          <div class="flex items-center justify-between rounded-lg bg-base-100 p-3 shadow-sm">
-            <code class="text-xs">POST /api/v1/auth/tokens</code>
-            <span class="badge badge-ghost badge-sm">取得 token</span>
-          </div>
-          <div class="flex items-center justify-between rounded-lg bg-base-100 p-3 shadow-sm">
-            <code class="text-xs">PUT /api/v1/auth/tokens</code>
-            <span class="badge badge-ghost badge-sm">設定 client/role/org</span>
-          </div>
-          <div class="rounded-lg bg-base-100 p-3 shadow-sm">
-            <div class="badge badge-warning badge-sm mb-1">注意</div>
-            <div class="text-xs">
-              前端 base 必須是 <code>/emui/</code>，否則 build 後資源路徑會 404。
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -152,6 +124,7 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { login, getRoles, getOrganizations, getWarehouses, getClientLanguage, setLoginParameters } from '../../features/auth/api'
 import { useAuth } from '../../features/auth/store'
+import { usePermission } from '../../features/permission/store'
 import type { ClientOption, NamedId } from '../../features/auth/types'
 
 // Dev defaults from env (方便測試)
@@ -162,6 +135,7 @@ const error = ref<string | null>(null)
 
 const router = useRouter()
 const auth = useAuth()
+const permission = usePermission()
 
 const step = ref<1 | 2>(1)
 
@@ -300,7 +274,13 @@ async function onSubmitParameters() {
       warehouseId: warehouseId.value ?? undefined,
       language: res.language,
     })
-    await router.push('/book')
+
+    // 載入權限
+    await permission.loadPermissions(res.token, roleId.value!, res.userId)
+
+    // 導向第一個可用選單
+    const firstMenu = permission.visibleMenuItems.value[0]
+    await router.push(firstMenu?.path || '/book')
   } catch (e: any) {
     error.value = e?.detail || e?.title || e?.message || '登入參數設定失敗'
   } finally {
