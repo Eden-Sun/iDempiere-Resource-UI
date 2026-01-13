@@ -287,6 +287,66 @@ export async function createChildTabRecord(
 }
 
 /**
+ * List records from a window tab
+ */
+export async function listWindowRecords(
+  token: string,
+  windowSlug: string,
+  tabSlug: string,
+  options?: { filter?: string; orderby?: string; top?: number; skip?: number },
+): Promise<{ records: any[]; totalCount?: number }> {
+  const searchParams: Record<string, string | number> = {}
+  if (options?.filter) searchParams.$filter = options.filter
+  if (options?.orderby) searchParams.$orderby = options.orderby
+  if (options?.top) searchParams.$top = options.top
+  if (options?.skip) searchParams.$skip = options.skip
+
+  const res = await apiFetch<any>(
+    `${API_V1}/windows/${windowSlug}/tabs/${tabSlug}`,
+    { token, searchParams },
+  )
+  return {
+    records: res.records ?? [],
+    totalCount: res['row-count'],
+  }
+}
+
+/**
+ * Get a single record from a window tab
+ */
+export async function getWindowRecord(
+  token: string,
+  windowSlug: string,
+  tabSlug: string,
+  recordId: number,
+): Promise<any> {
+  return await apiFetch<any>(
+    `${API_V1}/windows/${windowSlug}/tabs/${tabSlug}/${recordId}`,
+    { token },
+  )
+}
+
+/**
+ * Update a record via window endpoint
+ */
+export async function updateWindowRecord(
+  token: string,
+  windowSlug: string,
+  tabSlug: string,
+  recordId: number,
+  data: Record<string, unknown>,
+): Promise<any> {
+  return await apiFetch<any>(
+    `${API_V1}/windows/${windowSlug}/tabs/${tabSlug}/${recordId}`,
+    {
+      method: 'PUT',
+      token,
+      json: data,
+    },
+  )
+}
+
+/**
  * Create a record via Model API (direct table access)
  */
 export async function createModelRecord(

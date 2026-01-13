@@ -2,10 +2,32 @@
   <div class="space-y-6">
     <!-- Header -->
     <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h1 class="text-lg font-semibold">業務夥伴</h1>
-      <p class="mt-1 text-sm text-slate-600">
-        建立業務夥伴（可選擇建立聯絡人與地址）。
-      </p>
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-lg font-semibold">業務夥伴</h1>
+          <p class="mt-1 text-sm text-slate-600">
+            {{ mode === 'list' ? '查看和管理業務夥伴' : (editingId ? '編輯業務夥伴' : '建立新業務夥伴') }}
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <button
+            v-if="mode === 'form'"
+            type="button"
+            class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            @click="backToList"
+          >
+            返回列表
+          </button>
+          <button
+            v-if="mode === 'list'"
+            type="button"
+            class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+            @click="startCreate"
+          >
+            新增
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Error Message -->
@@ -24,341 +46,286 @@
       {{ successMessage }}
     </div>
 
-    <!-- Main Form -->
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <!-- Step Indicator -->
-      <div class="mb-6 flex items-center gap-2">
-        <div
-          v-for="(step, idx) in steps"
-          :key="step.key"
-          class="flex items-center"
-        >
-          <div
-            class="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold"
-            :class="
-              currentStep === idx
-                ? 'bg-brand-600 text-white'
-                : currentStep > idx
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-slate-200 text-slate-600'
-            "
-          >
-            {{ currentStep > idx ? '✓' : idx + 1 }}
-          </div>
-          <span
-            class="ml-2 text-sm font-medium"
-            :class="currentStep === idx ? 'text-slate-900' : 'text-slate-500'"
-          >
-            {{ step.label }}
-          </span>
-          <div v-if="idx < steps.length - 1" class="mx-3 h-px w-8 bg-slate-300" />
-        </div>
-      </div>
-
-      <!-- Step 1: Business Partner -->
-      <div v-show="currentStep === 0">
-        <h2 class="mb-4 text-base font-semibold text-slate-800">業務夥伴</h2>
-        <DynamicForm
-          ref="bpFormRef"
-          window-slug="business-partner"
-          tab-slug="business-partner"
-          :default-values="bpDefaults"
-          submit-label="下一步：聯絡人"
-          @submit="handleBpSubmit"
-        />
-      </div>
-
-      <!-- Step 2: Contact -->
-      <div v-show="currentStep === 1">
-        <h2 class="mb-4 text-base font-semibold text-slate-800">聯絡人</h2>
-        <DynamicForm
-          ref="contactFormRef"
-          window-slug="business-partner"
-          tab-slug="contact-user"
-          :exclude-fields="['C_BPartner_ID']"
-          :default-values="contactDefaults"
-          submit-label="下一步：地址"
-          @submit="handleContactSubmit"
-        >
-          <template #actions>
-            <div class="mt-6 flex gap-3">
-              <button
-                type="button"
-                class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                @click="currentStep = 0"
-              >
-                返回
-              </button>
-              <button
-                type="submit"
-                :disabled="submitting"
-                class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-              >
-                {{ submitting ? '儲存中…' : '下一步：地址' }}
-              </button>
-              <button
-                type="button"
-                class="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-                @click="skipContact"
-              >
-                略過
-              </button>
-            </div>
-          </template>
-        </DynamicForm>
-      </div>
-
-      <!-- Step 3: Location -->
-      <div v-show="currentStep === 2">
-        <h2 class="mb-4 text-base font-semibold text-slate-800">地址</h2>
-        <DynamicForm
-          ref="locationFormRef"
-          window-slug="business-partner"
-          tab-slug="location"
-          :exclude-fields="['C_BPartner_ID', 'C_Location_ID']"
-          :default-values="locationDefaults"
-          submit-label="完成"
-          @submit="handleLocationSubmit"
-        >
-          <template #actions>
-            <div class="mt-6 flex gap-3">
-              <button
-                type="button"
-                class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                @click="currentStep = 1"
-              >
-                返回
-              </button>
-              <button
-                type="submit"
-                :disabled="submitting"
-                class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {{ submitting ? '儲存中…' : '完成' }}
-              </button>
-              <button
-                type="button"
-                class="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-                @click="skipLocation"
-              >
-                略過
-              </button>
-            </div>
-          </template>
-        </DynamicForm>
-      </div>
-
-      <!-- Step 4: Done -->
-      <div v-if="currentStep === 3" class="py-8 text-center">
-        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-          <span class="text-3xl">✓</span>
-        </div>
-        <h2 class="text-lg font-semibold text-slate-900">業務夥伴已建立！</h2>
-        <p class="mt-2 text-sm text-slate-600">
-          已成功建立 <strong>{{ createdBpName }}</strong>
-        </p>
-        <div class="mt-6 flex justify-center gap-3">
+    <!-- List View -->
+    <div v-if="mode === 'list'" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <!-- Search -->
+      <div class="border-b border-slate-200 p-4">
+        <div class="flex gap-2">
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜尋名稱..."
+            class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            @keyup.enter="loadList"
+          />
           <button
             type="button"
-            class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-            @click="resetForm"
+            class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+            @click="loadList"
           >
-            再建立一筆
+            搜尋
           </button>
         </div>
       </div>
+
+      <!-- Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
+            <tr>
+              <th class="px-4 py-3">名稱</th>
+              <th class="px-4 py-3">搜尋鍵</th>
+              <th class="px-4 py-3">客戶</th>
+              <th class="px-4 py-3">供應商</th>
+              <th class="px-4 py-3">操作</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200">
+            <tr v-if="listLoading">
+              <td colspan="5" class="px-4 py-8 text-center text-slate-500">載入中...</td>
+            </tr>
+            <tr v-else-if="listRecords.length === 0">
+              <td colspan="5" class="px-4 py-8 text-center text-slate-500">無資料</td>
+            </tr>
+            <tr
+              v-for="record in listRecords"
+              :key="record.id"
+              class="hover:bg-slate-50 cursor-pointer"
+              @click="startEdit(record)"
+            >
+              <td class="px-4 py-3 font-medium text-slate-900">{{ record.Name }}</td>
+              <td class="px-4 py-3 text-slate-600">{{ record.Value }}</td>
+              <td class="px-4 py-3">
+                <span
+                  :class="record.IsCustomer ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'"
+                  class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+                >
+                  {{ record.IsCustomer ? '是' : '否' }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                <span
+                  :class="record.IsVendor ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'"
+                  class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+                >
+                  {{ record.IsVendor ? '是' : '否' }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                <button
+                  type="button"
+                  class="text-brand-600 hover:text-brand-700 font-medium"
+                  @click.stop="startEdit(record)"
+                >
+                  編輯
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="flex items-center justify-between border-t border-slate-200 px-4 py-3">
+        <div class="text-sm text-slate-600">
+          共 {{ totalCount }} 筆
+        </div>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            :disabled="currentPage <= 1"
+            class="rounded-lg border border-slate-200 px-3 py-1 text-sm disabled:opacity-50"
+            @click="prevPage"
+          >
+            上一頁
+          </button>
+          <span class="px-3 py-1 text-sm text-slate-600">第 {{ currentPage }} 頁</span>
+          <button
+            type="button"
+            :disabled="!hasNextPage"
+            class="rounded-lg border border-slate-200 px-3 py-1 text-sm disabled:opacity-50"
+            @click="nextPage"
+          >
+            下一頁
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form View -->
+    <div v-if="mode === 'form'" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <DynamicForm
+        ref="bpFormRef"
+        window-slug="business-partner"
+        tab-slug="business-partner"
+        :record-id="editingId"
+        :default-values="formDefaults"
+        :submit-label="editingId ? '儲存' : '建立'"
+        @submit="handleSubmit"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import DynamicForm from '../../components/DynamicForm.vue'
-import { createWindowRecord, createChildTabRecord, createModelRecord } from '../../features/window/api'
+import {
+  listWindowRecords,
+  createWindowRecord,
+  updateWindowRecord,
+} from '../../features/window/api'
 import { useAuth } from '../../features/auth/store'
 
 const auth = useAuth()
 
-const steps = [
-  { key: 'bp', label: '業務夥伴' },
-  { key: 'contact', label: '聯絡人' },
-  { key: 'location', label: '地址' },
-]
+// View mode
+const mode = ref<'list' | 'form'>('list')
+const editingId = ref<number | null>(null)
+const editingRecord = ref<Record<string, unknown> | null>(null)
 
-// Default values to prevent creation failures
-// C_BP_Group_ID: 104 = Standard (GardenWorld default BP Group)
-const bpDefaults = computed(() => ({
-  C_BP_Group_ID: 104,
-}))
+// List state
+const listRecords = ref<any[]>([])
+const listLoading = ref(false)
+const totalCount = ref(0)
+const currentPage = ref(1)
+const pageSize = 20
+const searchQuery = ref('')
 
-// Contact defaults - Name will be auto-filled from BP name if needed
-const contactDefaults = computed(() => ({
-  // No special defaults needed, Name is usually required
-}))
-
-// Location defaults
-// C_Country_ID: 100 = USA (iDempiere default), 316 = Taiwan
-const locationDefaults = computed(() => ({
-  C_Country_ID: 100,
-}))
-
-const currentStep = ref(0)
-const submitting = ref(false)
+// Form state
+const bpFormRef = ref<InstanceType<typeof DynamicForm> | null>(null)
 const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 
-const createdBpId = ref<number | null>(null)
-const createdBpName = ref('')
-
-const bpFormRef = ref<InstanceType<typeof DynamicForm> | null>(null)
-const contactFormRef = ref<InstanceType<typeof DynamicForm> | null>(null)
-const locationFormRef = ref<InstanceType<typeof DynamicForm> | null>(null)
-
-function formatApiError(e: any, fallback: string, missingFields?: string[]): string {
-  const detail = e?.detail || ''
-  const title = e?.title || ''
-  const message = e?.message || ''
-
-  let result = ''
-
-  // 如果有缺少的必填欄位，優先顯示清楚的欄位列表
-  if (missingFields && missingFields.length > 0) {
-    result = `請填寫以下必填欄位：\n• ${missingFields.join('\n• ')}`
-    return result
+// Default values for new records
+const formDefaults = computed(() => {
+  if (editingRecord.value) {
+    return editingRecord.value
   }
-
-  // 否則顯示 API 回傳的錯誤
-  if (title) result += title
-  if (detail && detail !== title) {
-    result += result ? `: ${detail}` : detail
+  return {
+    C_BP_Group_ID: 104, // Standard BP Group
   }
-  if (!result && message) result = message
+})
 
-  return result || fallback
+const hasNextPage = computed(() => {
+  return currentPage.value * pageSize < totalCount.value
+})
+
+// Load list
+async function loadList() {
+  if (!auth.token.value) return
+
+  listLoading.value = true
+  error.value = null
+
+  try {
+    const filter = searchQuery.value.trim()
+      ? `contains(Name,'${searchQuery.value.trim()}')`
+      : undefined
+
+    const result = await listWindowRecords(
+      auth.token.value,
+      'business-partner',
+      'business-partner',
+      {
+        filter,
+        orderby: 'Name',
+        top: pageSize,
+        skip: (currentPage.value - 1) * pageSize,
+      },
+    )
+
+    listRecords.value = result.records
+    totalCount.value = result.totalCount ?? result.records.length
+  } catch (e: any) {
+    error.value = e?.detail || e?.title || e?.message || '載入列表失敗'
+  } finally {
+    listLoading.value = false
+  }
 }
 
-async function handleBpSubmit(data: Record<string, unknown>) {
+function prevPage() {
+  if (currentPage.value > 1) {
+    currentPage.value--
+    loadList()
+  }
+}
+
+function nextPage() {
+  if (hasNextPage.value) {
+    currentPage.value++
+    loadList()
+  }
+}
+
+// Form actions
+function startCreate() {
+  editingId.value = null
+  editingRecord.value = null
+  error.value = null
+  successMessage.value = null
+  mode.value = 'form'
+}
+
+function startEdit(record: any) {
+  editingId.value = record.id
+  editingRecord.value = record
+  error.value = null
+  successMessage.value = null
+  mode.value = 'form'
+}
+
+function backToList() {
+  mode.value = 'list'
+  editingId.value = null
+  editingRecord.value = null
+  error.value = null
+  loadList()
+}
+
+async function handleSubmit(data: Record<string, unknown>) {
   if (!auth.token.value) {
     error.value = '尚未登入'
     return
   }
 
-  submitting.value = true
   error.value = null
   bpFormRef.value?.setSubmitting(true)
 
   try {
-    const result = await createWindowRecord(auth.token.value, 'business-partner', data)
-    createdBpId.value = result.id
-    createdBpName.value = String(data.Name || result.id)
-    currentStep.value = 1
+    if (editingId.value) {
+      // Update existing
+      await updateWindowRecord(
+        auth.token.value,
+        'business-partner',
+        'business-partner',
+        editingId.value,
+        data,
+      )
+      successMessage.value = '業務夥伴已更新'
+    } else {
+      // Create new
+      await createWindowRecord(auth.token.value, 'business-partner', data)
+      successMessage.value = '業務夥伴已建立'
+    }
+
+    // Go back to list after short delay
+    setTimeout(() => {
+      backToList()
+    }, 1000)
   } catch (e: any) {
     const missing = bpFormRef.value?.getMissingMandatoryFields() || []
-    error.value = formatApiError(e, '建立業務夥伴失敗', missing)
+    if (missing.length > 0) {
+      error.value = `請填寫以下必填欄位：\n• ${missing.join('\n• ')}`
+    } else {
+      error.value = e?.detail || e?.title || e?.message || '操作失敗'
+    }
   } finally {
-    submitting.value = false
     bpFormRef.value?.setSubmitting(false)
   }
 }
 
-async function handleContactSubmit(data: Record<string, unknown>) {
-  if (!auth.token.value || !createdBpId.value) {
-    error.value = '請先完成「業務夥伴」步驟'
-    return
-  }
-
-  submitting.value = true
-  error.value = null
-  contactFormRef.value?.setSubmitting(true)
-
-  try {
-    await createChildTabRecord(
-      auth.token.value,
-      'business-partner',
-      'business-partner',
-      createdBpId.value,
-      'contact-user',
-      data,
-    )
-    currentStep.value = 2
-  } catch (e: any) {
-    const missing = contactFormRef.value?.getMissingMandatoryFields() || []
-    error.value = formatApiError(e, '建立聯絡人失敗', missing)
-  } finally {
-    submitting.value = false
-    contactFormRef.value?.setSubmitting(false)
-  }
-}
-
-async function handleLocationSubmit(data: Record<string, unknown>) {
-  if (!auth.token.value || !createdBpId.value) {
-    error.value = '請先完成「業務夥伴」步驟'
-    return
-  }
-
-  submitting.value = true
-  error.value = null
-  locationFormRef.value?.setSubmitting(true)
-
-  try {
-    // Step 1: Create C_Location first
-    const locationData: Record<string, unknown> = {}
-    // Extract C_Location fields from data
-    const locationFields = ['C_Country_ID', 'C_Region_ID', 'C_City_ID', 'Address1', 'Address2', 'Address3', 'Address4', 'City', 'Postal', 'Postal_Add', 'RegionName']
-    for (const field of locationFields) {
-      if (data[field] !== undefined && data[field] !== null && data[field] !== '') {
-        locationData[field] = data[field]
-        delete data[field]
-      }
-    }
-
-    // Ensure C_Country_ID is set (required)
-    if (!locationData.C_Country_ID) {
-      locationData.C_Country_ID = locationDefaults.value.C_Country_ID || 100 // Default: USA
-    }
-
-    const locationResult = await createModelRecord(auth.token.value, 'C_Location', locationData)
-
-    // Step 2: Create C_BPartner_Location with C_Location_ID
-    data.C_Location_ID = locationResult.id
-
-    await createChildTabRecord(
-      auth.token.value,
-      'business-partner',
-      'business-partner',
-      createdBpId.value,
-      'location',
-      data,
-    )
-    currentStep.value = 3
-    successMessage.value = `已成功建立業務夥伴「${createdBpName.value}」！`
-  } catch (e: any) {
-    const missing = locationFormRef.value?.getMissingMandatoryFields() || []
-    error.value = formatApiError(e, '建立地址失敗', missing)
-  } finally {
-    submitting.value = false
-    locationFormRef.value?.setSubmitting(false)
-  }
-}
-
-function skipContact() {
-  currentStep.value = 2
-}
-
-function skipLocation() {
-  currentStep.value = 3
-  successMessage.value = `已成功建立業務夥伴「${createdBpName.value}」！`
-}
-
-function resetForm() {
-  currentStep.value = 0
-  createdBpId.value = null
-  createdBpName.value = ''
-  error.value = null
-  successMessage.value = null
-  // Reload forms to reset data
-  bpFormRef.value?.reload()
-  contactFormRef.value?.reload()
-  locationFormRef.value?.reload()
-}
+onMounted(() => {
+  loadList()
+})
 </script>

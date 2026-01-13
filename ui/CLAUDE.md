@@ -23,7 +23,7 @@ src/
 │       ├── LoginPage.vue     # 兩階段登入頁面
 │       ├── BookingPage.vue   # 資源預約（一般用戶）
 │       ├── AdminCalendarPage.vue  # 管理員行事曆
-│       └── BPartnerPage.vue  # 業務夥伴建立
+│       └── BPartnerPage.vue  # 業務夥伴列表/編輯/新增
 ├── features/
 │   ├── auth/
 │   │   ├── api.ts            # 認證 API (login, getRoles, getOrganizations...)
@@ -32,7 +32,7 @@ src/
 │   ├── resource/
 │   │   └── api.ts            # 資源預約 API
 │   └── window/
-│       └── api.ts            # 通用 Window API（欄位元資料、CRUD）
+│       └── api.ts            # 通用 Window API（欄位元資料、CRUD、列表）
 ├── shared/
 │   ├── api/
 │   │   └── http.ts           # HTTP 封裝，token 過期檢測
@@ -128,6 +128,37 @@ router.beforeEach((to) => {
 | `createAssignment()` | 建立預約 |
 | `deleteAssignment()` | 刪除預約 |
 | `setAssignmentColor()` | 設定預約顏色 |
+
+---
+
+## Window API (`features/window/api.ts`)
+
+### CRUD 操作
+
+| 函數 | 說明 |
+|------|------|
+| `listWindowRecords()` | 列出視窗記錄（支援篩選、排序、分頁） |
+| `getWindowRecord()` | 取得單筆記錄 |
+| `createWindowRecord()` | 建立記錄 |
+| `updateWindowRecord()` | 更新記錄 |
+| `createChildTabRecord()` | 建立子標籤記錄 |
+
+### Reference Types
+
+```typescript
+ReferenceType = {
+  String: 10, Integer: 11, Amount: 12, Number: 22,
+  Date: 15, DateTime: 16, List: 17, Table: 18,
+  TableDirect: 19, YesNo: 20, Search: 30, Text: 14,
+  Memo: 34, ChosenMultipleSelectionList: 200161,  // 多選
+}
+```
+
+### 多選欄位 (ChosenMultipleSelectionList)
+
+- Reference ID: 200161
+- UI: Checkbox group
+- 儲存格式: 逗號分隔字串
 
 ---
 

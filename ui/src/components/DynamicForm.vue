@@ -110,13 +110,14 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import DynamicField from './DynamicField.vue'
-import { type TabField, getTabFieldsWithMeta, getFieldVisibility, setFieldVisibility, ReferenceType } from '../features/window/api'
+import { type TabField, getTabFieldsWithMeta, getFieldVisibility, setFieldVisibility, getWindowRecord, ReferenceType } from '../features/window/api'
 import { useAuth } from '../features/auth/store'
 
 const props = withDefaults(
   defineProps<{
     windowSlug: string
     tabSlug: string
+    recordId?: number | null
     excludeFields?: string[]
     defaultValues?: Record<string, unknown>
     submitLabel?: string
@@ -124,6 +125,7 @@ const props = withDefaults(
     showHelp?: boolean
   }>(),
   {
+    recordId: null,
     excludeFields: () => [],
     defaultValues: () => ({}),
     submitLabel: '儲存',
@@ -234,15 +236,34 @@ async function loadFields(): Promise<void> {
     // Simple heuristic: if we can read SysConfig, likely we can configure fields
     canConfigureFields.value = true  // Optimistic; will fail on save if not admin
 
-    // Initialize form data with defaults
-    for (const field of visibleFields.value) {
-      if (!(field.columnName in formData)) {
-        // Check if a default value is provided via props
-        if (field.columnName in props.defaultValues) {
-          formData[field.columnName] = props.defaultValues[field.columnName]
+    // Load existing record data if recordId is provided
+    let recordData: Record<string, unknown> = {}
+    if (props.recordId) {
+      const record = await getWindowRecord(
+        auth.token.value,
+        props.windowSlug,
+        props.tabSlug,
+        props.recordId,
+      )
+      // Flatten nested objects (e.g., { C_BP_Group_ID: { id: 104 } } -> { C_BP_Group_ID: 104 })
+      for (const [key, value] of Object.entries(record)) {
+        if (value && typeof value === 'object' && 'id' in (value as object)) {
+          recordData[key] = (value as { id: unknown }).id
         } else {
-          formData[field.columnName] = getDefaultValue(field)
+          recordData[key] = value
         }
+      }
+    }
+
+    // Initialize form data: record data > default values > field defaults
+    for (const field of visibleFields.value) {
+      const colName = field.columnName
+      if (colName in recordData) {
+        formData[colName] = recordData[colName]
+      } else if (colName in props.defaultValues) {
+        formData[colName] = props.defaultValues[colName]
+      } else {
+        formData[colName] = getDefaultValue(field)
       }
     }
 
@@ -399,8 +420,8 @@ defineExpose({
   getMissingMandatoryFields,
 })
 
-// Watch for tab changes
-watch([() => props.windowSlug, () => props.tabSlug], loadFields)
+// Watch for tab or record changes
+watch([() => props.windowSlug, () => props.tabSlug, () => props.recordId], loadFields)
 
 onMounted(loadFields)
 </script>
