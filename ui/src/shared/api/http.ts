@@ -67,8 +67,8 @@ export async function apiFetch<T>(
         err.detail = b.detail
       }
 
-      // Check for token expiration
-      if (err.status === 401 && err.title?.toLowerCase().includes('expired')) {
+      // Check for token expiration or invalid token (any 401)
+      if (err.status === 401) {
         err.isTokenExpired = true
         if (onTokenExpired) {
           onTokenExpired()

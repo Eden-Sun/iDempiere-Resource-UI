@@ -1,25 +1,25 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-const testIP = '192.168.1.47'
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiIP = env.VITE_API_IP || '127.0.0.1'
 
-export default defineConfig({
-  // IMPORTANT: this plugin is served under /emui
-  base: '/emui/',
-  plugins: [vue()],
-  server: {
-    proxy: {
-      '/api': {
-        target: `http://${process.env.VITE_API_IP || testIP}:8080`,
-        changeOrigin: true,
+  return {
+    base: '/emui/',
+    plugins: [vue()],
+    server: {
+      proxy: {
+        '/api': {
+          target: `http://${apiIP}:8080`,
+          changeOrigin: true,
+        },
       },
     },
-  },
-  build: {
-    // Output directly to plugin's web root (no extra dist layer)
-    outDir: '../web-content',
-    assetsDir: 'assets',
-    emptyOutDir: true,
-  },
+    build: {
+      outDir: '../web-content',
+      assetsDir: 'assets',
+      emptyOutDir: true,
+    },
+  }
 })
-

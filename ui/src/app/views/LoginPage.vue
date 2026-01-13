@@ -154,9 +154,9 @@ import { login, getRoles, getOrganizations, getWarehouses, getClientLanguage, se
 import { useAuth } from '../../features/auth/store'
 import type { ClientOption, NamedId } from '../../features/auth/types'
 
-// Dev defaults (方便測試)
-const userName = ref('GardenAdmin')
-const password = ref('GardenAdmin')
+// Dev defaults from env (方便測試)
+const userName = ref(import.meta.env.VITE_DEFAULT_USER || '')
+const password = ref(import.meta.env.VITE_DEFAULT_PASS || '')
 const loading = ref(false)
 const error = ref<string | null>(null)
 
