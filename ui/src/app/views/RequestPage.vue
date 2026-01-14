@@ -46,12 +46,17 @@
         <StatisticsView />
       </div>
 
-      <!-- 甘特圖 -->
-      <div v-if="activeTab === 'gantt'" class="p-6">
-        <GanttChartView />
-      </div>
-    </div>
-  </div>
+       <!-- 甘特圖 -->
+       <div v-if="activeTab === 'gantt'" class="p-6">
+         <GanttChartView />
+       </div>
+
+       <!-- 看板 -->
+       <div v-if="activeTab === 'kanban'" class="p-6">
+         <KanbanBoardView />
+       </div>
+     </div>
+   </div>
 </template>
 
 <script setup lang="ts">
@@ -62,8 +67,9 @@ import MyCustomersView from './MyCustomersView.vue'
 import CustomerDetailView from './CustomerDetailView.vue'
 import StatisticsView from './StatisticsView.vue'
 import GanttChartView from './GanttChartView.vue'
+import KanbanBoardView from './KanbanBoardView.vue'
 
-type TabId = 'list' | 'pending' | 'my' | 'customer' | 'stats' | 'gantt'
+type TabId = 'list' | 'pending' | 'my' | 'customer' | 'stats' | 'gantt' | 'kanban'
 
 const tabs = [
   { id: 'list' as TabId, label: '所有諮詢單' },
@@ -72,6 +78,7 @@ const tabs = [
   { id: 'customer' as TabId, label: '客戶查詢' },
   { id: 'stats' as TabId, label: '統計' },
   { id: 'gantt' as TabId, label: '甘特圖' },
+  { id: 'kanban' as TabId, label: '看板' },
 ]
 
 const activeTab = ref<TabId>('list')

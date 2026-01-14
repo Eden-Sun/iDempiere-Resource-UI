@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen">
-    <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <header v-if="!isLoginPage" class="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div class="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-3">
         <div class="flex items-center gap-3">
           <div class="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-white shadow-sm">
@@ -56,16 +56,18 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '../features/auth/store'
 import { usePermission } from '../features/permission/store'
 import { setTokenExpiredHandler } from '../shared/api/http'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuth()
 const permission = usePermission()
 const errorMessage = ref<string | null>(null)
 
+const isLoginPage = computed(() => route.path === '/login')
 const isAuthenticated = computed(() => auth.isAuthenticated.value)
 const isSystem = computed(() => permission.isSystem.value)
 const visibleMenuItems = computed(() => permission.visibleMenuItems.value)

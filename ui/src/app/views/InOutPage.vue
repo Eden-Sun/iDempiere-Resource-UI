@@ -213,7 +213,7 @@ async function loadOrders(): Promise<void> {
   try {
     orders.value = await InOutAPI.getPendingPurchaseOrders(token.value)
   } catch (e: any) {
-    error.value = `載入失敗: ${e.message}`
+    error.value = `載入失敗: ${e?.detail || e?.title || e?.message || '未知錯誤'}`
   } finally {
     loading.value = false
   }
@@ -237,7 +237,7 @@ async function loadOrderLines(orderId: number): Promise<void> {
       qtyError: '',
     }))
   } catch (e: any) {
-    error.value = `載入明細失敗: ${e.message}`
+    error.value = `載入明細失敗: ${e?.detail || e?.title || e?.message || '未知錯誤'}`
   } finally {
     linesLoading.value = false
   }
@@ -261,6 +261,7 @@ async function confirmReceipt(): Promise<void> {
   successMessage.value = ''
 
   try {
+    // Validate quantities
     for (const line of orderLines.value) {
       validateQty(line)
       if (line.qtyError) {
@@ -268,29 +269,39 @@ async function confirmReceipt(): Promise<void> {
       }
     }
 
-    const inOut = await InOutAPI.createInOut(token.value, currentOrder.value.id, movementDate.value)
-    const inOutId = inOut.id || inOut.M_InOut_ID
+    // Filter lines with qty > 0
+    const linesToReceive = orderLines.value.filter((l) => l.qtyToReceive > 0)
+    if (linesToReceive.length === 0) {
+      throw new Error('請至少輸入一項收貨數量')
+    }
+
+    // Step 1: Get DocType for Receipt and default locator
+    const [docTypeId, locatorId] = await Promise.all([
+      InOutAPI.getReceiptDocType(token.value),
+      InOutAPI.getDefaultLocator(token.value, currentOrder.value.M_Warehouse_ID?.id ?? currentOrder.value.M_Warehouse_ID),
+    ])
+
+    // Step 2: Create M_InOut header
+    const inOut = await InOutAPI.createInOut(token.value, currentOrder.value, movementDate.value, docTypeId)
+    const inOutId = inOut.id
 
     if (!inOutId) {
       throw new Error('建立收貨單失敗')
     }
 
-    const inOutLines = await InOutAPI.getInOutLines(token.value, inOutId)
-
-    for (const line of orderLines.value) {
-      const inOutLine = inOutLines.find((il) => il.orderLineId === line.id)
-      if (inOutLine && line.qtyToReceive > 0) {
-        await InOutAPI.updateInOutLine(token.value, inOutLine.id, line.qtyToReceive)
-      }
+    // Step 3: Create M_InOutLine for each order line
+    for (const line of linesToReceive) {
+      await InOutAPI.createInOutLine(token.value, inOutId, line, line.qtyToReceive, locatorId)
     }
 
+    // Step 4: Complete the InOut
     await InOutAPI.completeInOut(token.value, inOutId)
 
     successMessage.value = `收貨完成！收貨單號: ${inOut.DocumentNo || inOutId}`
     await loadOrders()
     backToList()
   } catch (e: any) {
-    error.value = `收貨失敗: ${e.message}`
+    error.value = `收貨失敗: ${e?.detail || e?.title || e?.message || '未知錯誤'}`
   } finally {
     submitting.value = false
   }

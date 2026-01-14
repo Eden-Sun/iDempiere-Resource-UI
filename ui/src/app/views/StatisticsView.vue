@@ -18,50 +18,51 @@
 
     <!-- Statistics Grid -->
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div
-        v-for="(stat, salesRepId) in statistics"
-        :key="salesRepId"
-        class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
-      >
-        <div class="flex items-center justify-between">
-          <h3 class="font-medium text-slate-900">{{ getSalesRepName(salesRepId) }}</h3>
-          <span class="text-2xl font-bold text-brand-600">{{ stat.total }}</span>
-        </div>
-        <div class="mt-4 space-y-2">
-          <!-- By Type -->
-          <div v-if="stat.byType.size > 0">
-            <h4 class="text-xs font-medium text-slate-600">依類型</h4>
-            <div class="mt-1 flex flex-wrap gap-1">
-              <span
-                v-for="([typeId, count], idx) in Array.from(stat.byType.entries())"
-                :key="idx"
-                class="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700"
-              >
-                {{ getRequestTypeName(typeId) }}: {{ count }}
-              </span>
-            </div>
+      <template v-for="[salesRepId, stat] in Array.from(statistics.entries())" :key="salesRepId">
+        <div
+          v-if="stat && stat.byType && stat.byStatus"
+          class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <div class="flex items-center justify-between">
+            <h3 class="font-medium text-slate-900">{{ getSalesRepName(salesRepId) }}</h3>
+            <span class="text-2xl font-bold text-brand-600">{{ stat.total }}</span>
           </div>
+          <div class="mt-4 space-y-2">
+            <!-- By Type -->
+            <div v-if="stat.byType && stat.byType.size > 0">
+              <h4 class="text-xs font-medium text-slate-600">依類型</h4>
+              <div class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="([typeId, count], idx) in Array.from(stat.byType.entries())"
+                  :key="idx"
+                  class="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700"
+                >
+                  {{ getRequestTypeName(typeId) }}: {{ count }}
+                </span>
+              </div>
+            </div>
 
-          <!-- By Status -->
-          <div v-if="stat.byStatus.size > 0">
-            <h4 class="text-xs font-medium text-slate-600">依狀態</h4>
-            <div class="mt-1 flex flex-wrap gap-1">
-              <span
-                v-for="([statusId, count], idx) in Array.from(stat.byStatus.entries())"
-                :key="idx"
-                class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-                :class="getStatusColorClass(statusId)"
-              >
-                {{ getRequestStatusName(statusId) }}: {{ count }}
-              </span>
+            <!-- By Status -->
+            <div v-if="stat.byStatus && stat.byStatus.size > 0">
+              <h4 class="text-xs font-medium text-slate-600">依狀態</h4>
+              <div class="mt-1 flex flex-wrap gap-1">
+                <span
+                  v-for="([statusId, count], idx) in Array.from(stat.byStatus.entries())"
+                  :key="idx"
+                  class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+                  :class="getStatusColorClass(statusId)"
+                >
+                  {{ getRequestStatusName(statusId) }}: {{ count }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </template>
     </div>
 
     <!-- Empty State -->
-    <div v-if="!loading && statistics.size === 0" class="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
+    <div v-if="!loading && (!statistics || statistics.size === 0)" class="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
       <p class="text-sm text-slate-600">尚無諮詢統計資料</p>
     </div>
   </div>
@@ -120,7 +121,19 @@ async function loadData() {
   error.value = null
 
   try {
-    statistics.value = await getRequestStatistics(auth.token.value)
+    const stats = await getRequestStatistics(auth.token.value)
+
+    // Ensure all stat objects have the required properties
+    const validatedStats = new Map()
+    for (const [salesRepId, stat] of stats.entries()) {
+      validatedStats.set(salesRepId, {
+        total: stat.total || 0,
+        byType: stat.byType || new Map(),
+        byStatus: stat.byStatus || new Map(),
+      })
+    }
+
+    statistics.value = validatedStats
 
     // Load sales rep names
     const salesRepIds = Array.from(statistics.value.keys()).filter(id => id > 0)

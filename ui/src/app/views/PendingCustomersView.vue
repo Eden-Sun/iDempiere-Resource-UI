@@ -211,6 +211,10 @@ function closeModal() {
 
 async function submitRequest() {
   if (!auth.token.value || !selectedCustomer.value || !form.value.name.trim()) return
+  if (!auth.userId.value) {
+    error.value = '無法取得使用者資訊，請重新登入'
+    return
+  }
 
   submitting.value = true
   error.value = null
@@ -218,6 +222,7 @@ async function submitRequest() {
   try {
     await createRequest(auth.token.value, {
       bPartnerId: selectedCustomer.value.id,
+      salesRepId: auth.userId.value, // 使用當前登入使用者作為諮詢師
       name: form.value.name.trim(),
       description: form.value.description || undefined,
       requestTypeId: form.value.requestTypeId,

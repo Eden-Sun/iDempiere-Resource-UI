@@ -1,120 +1,144 @@
 <template>
-  <div class="mx-auto max-w-md">
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body">
-        <h1 class="card-title">登入</h1>
+  <div class="min-h-screen flex items-center justify-center bg-base-100 p-4">
+    <div class="w-full max-w-sm">
 
-        <div class="mt-4">
-          <ul class="steps steps-horizontal mb-6 w-full">
-            <li class="step" :class="{ 'step-primary': step >= 1 }">帳密</li>
-            <li class="step" :class="{ 'step-primary': step >= 2 }">租戶/角色</li>
-          </ul>
 
-          <form v-if="step === 1" class="space-y-4" @submit.prevent="onSubmitCredentials">
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">帳號</span>
-              </label>
+        <form class="space-y-3" @submit.prevent="onSubmitLogin">
+          <!-- Username/Email -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">用戶</span>
+            </label>
+            <input
+              v-model="userName"
+              type="text"
+              placeholder="例如：GardenAdmin"
+              class="input input-bordered input-sm"
+              autocomplete="username"
+              required
+            />
+          </div>
+
+          <!-- Password -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">密碼</span>
+            </label>
+            <input
+              v-model="password"
+              type="password"
+              placeholder="••••••••"
+              class="input input-bordered input-sm"
+              autocomplete="current-password"
+              required
+            />
+          </div>
+
+          <!-- Language -->
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">語言</span>
+            </label>
+            <select v-model="language" class="select select-bordered select-sm">
+              <option value="zh_TW">中文 (繁體)</option>
+              <option value="zh_CN">中文 (簡體)</option>
+              <option value="en_US">English</option>
+              <option value="ja_JP">日本語</option>
+            </select>
+          </div>
+
+          <!-- Select Role checkbox -->
+          <div class="form-control">
+            <label class="label cursor-pointer">
               <input
-                v-model="userName"
-                type="text"
-                placeholder="例如：GardenAdmin"
-                class="input input-bordered input-sm"
-                autocomplete="username"
+                v-model="selectRole"
+                type="checkbox"
+                class="checkbox checkbox-primary"
               />
-            </div>
+              <span class="label-text ml-2">選擇角色</span>
+            </label>
+          </div>
 
+          <!-- Role selection fields (shown when selectRole is true) -->
+          <div v-if="selectRole" class="space-y-3 border-t pt-3">
+            <!-- Client/Tenant -->
             <div class="form-control">
               <label class="label">
-                <span class="label-text">密碼</span>
+                <span class="label-text">客戶</span>
               </label>
-              <input
-                v-model="password"
-                type="password"
-                placeholder="••••••••"
-                class="input input-bordered input-sm"
-                autocomplete="current-password"
-              />
-            </div>
-
-            <button class="btn btn-primary btn-sm w-full" :disabled="loading">
-              {{ loading ? '登入中…' : '登入' }}
-            </button>
-          </form>
-
-          <form v-else class="space-y-4" @submit.prevent="onSubmitParameters">
-            <div class="form-control">
-              <label class="label">
-                <span class="label-text">租戶</span>
-              </label>
-              <select v-model="clientId" class="select select-bordered select-sm">
-                <option :value="null" disabled>請選擇</option>
-                <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }} (#{{ c.id }})</option>
+              <select v-model="clientId" class="select select-bordered select-sm" :disabled="!clients.length">
+                <option :value="null" disabled>選擇客戶</option>
+                <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
               </select>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
+            <!-- Role and Organization -->
+            <div class="grid gap-4 grid-cols-2">
               <div class="form-control">
                 <label class="label">
                   <span class="label-text">角色</span>
                 </label>
-                <select v-model="roleId" class="select select-bordered select-sm">
-                  <option :value="null" disabled>請選擇</option>
-                  <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.name }} (#{{ r.id }})</option>
+                <select v-model="roleId" class="select select-bordered select-sm" :disabled="!roles.length">
+                  <option :value="null" disabled>選擇角色</option>
+                  <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.name }}</option>
                 </select>
               </div>
               <div class="form-control">
                 <label class="label">
                   <span class="label-text">組織</span>
                 </label>
-                <select v-model="organizationId" class="select select-bordered select-sm">
-                  <option :value="null" disabled>請選擇</option>
-                  <option v-for="o in organizations" :key="o.id" :value="o.id">{{ o.name }} (#{{ o.id }})</option>
+                <select v-model="organizationId" class="select select-bordered select-sm" :disabled="!organizations.length">
+                  <option :value="null" disabled>選擇組織</option>
+                  <option v-for="o in organizations" :key="o.id" :value="o.id">{{ o.name }}</option>
                 </select>
               </div>
             </div>
 
-            <div class="grid gap-4 md:grid-cols-2">
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">倉庫（可選）</span>
-                </label>
-                <select v-model="warehouseId" class="select select-bordered select-sm">
-                  <option :value="null">不指定</option>
-                  <option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name }} (#{{ w.id }})</option>
-                </select>
-              </div>
-              <div class="form-control">
-                <label class="label">
-                  <span class="label-text">語系</span>
-                </label>
-                <input
-                  v-model="language"
-                  type="text"
-                  placeholder="例如：zh_TW / en_US"
-                  class="input input-bordered input-sm"
-                />
-              </div>
+            <!-- Warehouse (optional) -->
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">倉庫 <span class="text-sm opacity-60">(可選)</span></span>
+              </label>
+              <select v-model="warehouseId" class="select select-bordered select-sm">
+                <option :value="null">未指定</option>
+                <option v-for="w in warehouses" :key="w.id" :value="w.id">{{ w.name }}</option>
+              </select>
             </div>
+          </div>
 
-            <div class="flex items-center gap-2">
-              <button
-                class="btn btn-primary btn-sm flex-1"
-                :disabled="loading || !clientId || !roleId || !organizationId"
-              >
-                {{ loading ? '設定中…' : '完成登入' }}
-              </button>
-              <button class="btn btn-ghost btn-sm" type="button" :disabled="loading" @click="resetToStep1">
-                返回
-              </button>
-            </div>
-          </form>
-
-          <div v-if="error" class="alert alert-error mt-4 py-2 text-sm">
+          <!-- Error message -->
+          <div v-if="error" class="alert alert-error py-1 text-sm">
             {{ error }}
           </div>
-        </div>
-      </div>
+
+          <!-- Buttons and Remember Me -->
+          <div class="space-y-2">
+            <button
+              class="btn btn-primary w-full"
+              :disabled="loading || (selectRole && (!clientId || !roleId || !organizationId))"
+              type="submit"
+            >
+              {{ loading ? '登入中...' : '確定' }}
+            </button>
+
+            <!-- Remember Me Toggle -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <input
+                  v-model="rememberMe"
+                  type="checkbox"
+                  class="toggle toggle-primary toggle-sm"
+                />
+                <span class="text-sm font-medium">記住我</span>
+              </div>
+
+              <div class="flex gap-4 text-sm">
+                <a href="#" class="link link-primary" @click.prevent="onForgotPassword">忘記密碼</a>
+                <a href="#" class="link link-primary" @click.prevent="onHelp">說明</a>
+              </div>
+            </div>
+          </div>
+        </form>
     </div>
   </div>
 </template>
@@ -122,7 +146,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { login, getRoles, getOrganizations, getWarehouses, getClientLanguage, setLoginParameters } from '../../features/auth/api'
+import { login, setLoginParameters, getRoles, getOrganizations, getWarehouses, getClientLanguage } from '../../features/auth/api'
 import { useAuth } from '../../features/auth/store'
 import { usePermission } from '../../features/permission/store'
 import type { ClientOption, NamedId } from '../../features/auth/types'
@@ -137,63 +161,206 @@ const router = useRouter()
 const auth = useAuth()
 const permission = usePermission()
 
-const step = ref<1 | 2>(1)
+// Form fields
+const language = ref<string>('zh_TW')
+const selectRole = ref(false)
+const rememberMe = ref(false)
 
-const pendingToken = ref<string | null>(null)
+// Role selection fields
 const clients = ref<ClientOption[]>([])
-
 const clientId = ref<number | null>(null)
 const roleId = ref<number | null>(null)
 const organizationId = ref<number | null>(null)
 const warehouseId = ref<number | null>(null)
-const language = ref<string>('zh_TW')
 
 const roles = ref<NamedId[]>([])
 const organizations = ref<NamedId[]>([])
 const warehouses = ref<NamedId[]>([])
 
-function resetToStep1() {
-  step.value = 1
-  pendingToken.value = null
-  clients.value = []
-  clientId.value = null
-  roleId.value = null
-  organizationId.value = null
-  warehouseId.value = null
-  roles.value = []
-  organizations.value = []
-  warehouses.value = []
-}
+// Watch for client selection to load roles
+watch([clientId, selectRole], async ([id, shouldSelect]) => {
+  if (!shouldSelect || !id) {
+    roles.value = []
+    organizations.value = []
+    warehouses.value = []
+    roleId.value = null
+    organizationId.value = null
+    warehouseId.value = null
+    return
+  }
 
-async function onSubmitCredentials() {
   error.value = null
-  loading.value = true
   try {
-    const res = await login({ userName: userName.value.trim(), password: password.value })
-    if (!res.token) throw new Error('未取得 token')
+    // Get temporary token for role selection
+    const tempRes = await login({ userName: userName.value.trim(), password: password.value.trim() })
+    if (!tempRes.token) throw new Error('無法取得臨時權杖')
 
-    // If already has full session, store and go.
-    // Note: This case is rare; usually requires client/role/org selection.
-    if (res.userId) {
-      auth.set({
-        token: res.token,
-        refreshToken: res.refresh_token,
-        userId: res.userId,
-        clientId: 0,  // Will be set from token context
-        organizationId: 0,
-        language: res.language,
-      })
-      await router.push('/book')
-      return
-    }
+    const lang = await getClientLanguage(id, tempRes.token)
+    language.value = lang.language || language.value
+    roles.value = await getRoles(id, tempRes.token)
 
-    // Otherwise, require selection of client/role/org.
-    pendingToken.value = res.token
-    clients.value = res.clients ?? []
-    step.value = 2
+    // Preselect first role if only one
+    if (roles.value.length === 1) roleId.value = roles.value[0].id
+  } catch (e: any) {
+    error.value = e?.detail || e?.title || '載入角色失敗'
+  }
+})
+
+// Watch for role selection to load organizations
+watch([roleId, clientId, selectRole], async ([rid, cid, shouldSelect]) => {
+  if (!shouldSelect || !cid || !rid) {
+    organizations.value = []
+    warehouses.value = []
+    organizationId.value = null
+    warehouseId.value = null
+    return
+  }
+
+  error.value = null
+  try {
+    // Get temporary token for organization selection
+    const tempRes = await login({ userName: userName.value.trim(), password: password.value.trim() })
+    if (!tempRes.token) throw new Error('無法取得臨時權杖')
+
+    organizations.value = await getOrganizations(cid, rid, tempRes.token)
+
+    // Preselect first organization if only one
+    if (organizations.value.length === 1) organizationId.value = organizations.value[0].id
+  } catch (e: any) {
+    error.value = e?.detail || e?.title || '載入組織失敗'
+  }
+})
+
+// Watch for organization selection to load warehouses
+watch([organizationId, clientId, roleId, selectRole], async ([oid, cid, rid, shouldSelect]) => {
+  if (!shouldSelect || !cid || !rid || !oid) {
+    warehouses.value = []
+    warehouseId.value = null
+    return
+  }
+
+  error.value = null
+  try {
+    // Get temporary token for warehouse selection
+    const tempRes = await login({ userName: userName.value.trim(), password: password.value.trim() })
+    if (!tempRes.token) throw new Error('Failed to get temporary token')
+
+    warehouses.value = await getWarehouses(cid, rid, oid, tempRes.token)
+  } catch (e: any) {
+    // warehouse is optional; don't show error
+    warehouses.value = []
+  }
+})
+
+// Load clients when selectRole is enabled
+watch(selectRole, async (shouldSelect) => {
+  if (!shouldSelect) {
+    clients.value = []
+    clientId.value = null
+    roles.value = []
+    organizations.value = []
+    warehouses.value = []
+    roleId.value = null
+    organizationId.value = null
+    warehouseId.value = null
+    return
+  }
+
+  error.value = null
+  try {
+    // Get temporary token to load clients
+    const tempRes = await login({ userName: userName.value.trim(), password: password.value.trim() })
+    if (!tempRes.token) throw new Error('無法取得臨時權杖')
+
+    clients.value = tempRes.clients ?? []
 
     // Preselect first client if only one
     if (clients.value.length === 1) clientId.value = clients.value[0].id
+  } catch (e: any) {
+    error.value = e?.detail || e?.title || '載入客戶失敗'
+  }
+})
+
+async function onSubmitLogin() {
+  error.value = null
+  loading.value = true
+
+  try {
+    // Step 1: Basic login to get temporary token
+    const tempRes = await login({
+      userName: userName.value.trim(),
+      password: password.value.trim(),
+    })
+
+    if (!tempRes.token) throw new Error('無法取得權杖')
+
+    // If selectRole is not checked, auto-select first available client/role/org
+    let finalClientId = clientId.value
+    let finalRoleId = roleId.value
+    let finalOrgId = organizationId.value
+    let finalWarehouseId = warehouseId.value
+
+    if (!selectRole.value) {
+      // Auto-select first client
+      const availableClients = tempRes.clients ?? []
+      if (availableClients.length === 0) throw new Error('無可用的客戶')
+      finalClientId = availableClients[0].id
+
+      // Get roles for first client
+      const availableRoles = await getRoles(finalClientId, tempRes.token)
+      if (availableRoles.length === 0) throw new Error('無可用的角色')
+      finalRoleId = availableRoles[0].id
+
+      // Get organizations for first role
+      const availableOrgs = await getOrganizations(finalClientId, finalRoleId, tempRes.token)
+      if (availableOrgs.length === 0) throw new Error('無可用的組織')
+      finalOrgId = availableOrgs[0].id
+    }
+
+    if (finalClientId == null || finalRoleId == null || finalOrgId == null) {
+      throw new Error('請選擇客戶、角色和組織')
+    }
+
+    // Step 2: Set login parameters to get final token
+    const finalRes = await setLoginParameters(
+      {
+        clientId: finalClientId,
+        roleId: finalRoleId,
+        organizationId: finalOrgId,
+        warehouseId: finalWarehouseId ?? undefined,
+        language: language.value,
+      },
+      tempRes.token
+    )
+
+    if (!finalRes.token || !finalRes.userId) {
+      throw new Error('登入參數設定失敗')
+    }
+
+    // Store session
+    auth.set({
+      token: finalRes.token,
+      refreshToken: finalRes.refresh_token,
+      userId: finalRes.userId,
+      clientId: finalClientId,
+      organizationId: finalOrgId,
+      roleId: finalRoleId,
+      warehouseId: finalWarehouseId ?? undefined,
+      language: finalRes.language || language.value,
+    })
+
+    // Load permissions
+    await permission.loadPermissions(
+      finalRes.token,
+      finalRoleId,
+      finalRes.userId,
+      finalClientId,
+      finalOrgId
+    )
+
+    // Navigate to first available menu
+    const firstMenu = permission.visibleMenuItems.value[0]
+    await router.push(firstMenu?.path || '/book')
   } catch (e: any) {
     error.value = e?.detail || e?.title || e?.message || '登入失敗'
   } finally {
@@ -201,91 +368,14 @@ async function onSubmitCredentials() {
   }
 }
 
-watch(clientId, async (id) => {
-  if (!id || !pendingToken.value) return
-  error.value = null
-  roles.value = []
-  organizations.value = []
-  warehouses.value = []
-  roleId.value = null
-  organizationId.value = null
-  warehouseId.value = null
-  try {
-    const lang = await getClientLanguage(id, pendingToken.value)
-    language.value = lang.language || language.value
-    roles.value = await getRoles(id, pendingToken.value)
-    if (roles.value.length === 1) roleId.value = roles.value[0].id
-  } catch (e: any) {
-    error.value = e?.detail || e?.title || '讀取角色失敗'
-  }
-})
+function onForgotPassword() {
+  // TODO: Implement forgot password functionality
+  alert('忘記密碼功能尚未實現')
+}
 
-watch(roleId, async (rid) => {
-  if (!clientId.value || !rid || !pendingToken.value) return
-  error.value = null
-  organizations.value = []
-  warehouses.value = []
-  organizationId.value = null
-  warehouseId.value = null
-  try {
-    organizations.value = await getOrganizations(clientId.value, rid, pendingToken.value)
-    if (organizations.value.length === 1) organizationId.value = organizations.value[0].id
-  } catch (e: any) {
-    error.value = e?.detail || e?.title || '讀取組織失敗'
-  }
-})
-
-watch(organizationId, async (oid) => {
-  if (!clientId.value || !roleId.value || !oid || !pendingToken.value) return
-  error.value = null
-  warehouses.value = []
-  warehouseId.value = null
-  try {
-    warehouses.value = await getWarehouses(clientId.value, roleId.value, oid, pendingToken.value)
-  } catch (e: any) {
-    // warehouse is optional; don't block
-    warehouses.value = []
-  }
-})
-
-async function onSubmitParameters() {
-  if (!pendingToken.value || !clientId.value || !roleId.value || !organizationId.value) return
-  error.value = null
-  loading.value = true
-  try {
-    const res = await setLoginParameters(
-      {
-        clientId: clientId.value,
-        roleId: roleId.value,
-        organizationId: organizationId.value,
-        warehouseId: warehouseId.value ?? undefined,
-        language: language.value || undefined,
-      },
-      pendingToken.value,
-    )
-    if (!res.token || !res.userId) throw new Error('登入參數設定後未取得完整 token/userId')
-    auth.set({
-      token: res.token,
-      refreshToken: res.refresh_token,
-      userId: res.userId,
-      clientId: clientId.value,
-      organizationId: organizationId.value,
-      roleId: roleId.value ?? undefined,
-      warehouseId: warehouseId.value ?? undefined,
-      language: res.language,
-    })
-
-    // 載入權限
-    await permission.loadPermissions(res.token, roleId.value!, res.userId, clientId.value!, organizationId.value!)
-
-    // 導向第一個可用選單
-    const firstMenu = permission.visibleMenuItems.value[0]
-    await router.push(firstMenu?.path || '/book')
-  } catch (e: any) {
-    error.value = e?.detail || e?.title || e?.message || '登入參數設定失敗'
-  } finally {
-    loading.value = false
-  }
+function onHelp() {
+  // TODO: Implement help functionality
+  window.open('https://wiki.idempiere.org/en/Login_Help', '_blank')
 }
 </script>
 

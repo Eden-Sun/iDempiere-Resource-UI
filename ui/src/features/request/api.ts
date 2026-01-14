@@ -29,6 +29,8 @@ export type RequestType = {
 export type RequestStatus = {
   id: number
   name: string
+  isActive?: boolean
+  seqNo?: number
 }
 
 export async function listRequests(
@@ -159,20 +161,36 @@ export async function createRequest(
 ): Promise<any> {
   const toISO = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z')
 
+  const json: Record<string, any> = {
+    Summary: input.name,
+    Result: input.description,
+    C_BPartner_ID: input.bPartnerId,
+    IsSelfService: true,
+  }
+
+  // SalesRep_ID 是必填欄位，不能為 null
+  if (input.salesRepId !== undefined && input.salesRepId !== null) {
+    json.SalesRep_ID = input.salesRepId
+  }
+
+  // 其他可選欄位
+  if (input.requestTypeId !== undefined && input.requestTypeId !== null) {
+    json.R_RequestType_ID = input.requestTypeId
+  }
+  if (input.requestStatusId !== undefined && input.requestStatusId !== null) {
+    json.R_Status_ID = input.requestStatusId
+  }
+  if (input.startDate) {
+    json.StartDate = toISO(input.startDate)
+  }
+  if (input.closeDate) {
+    json.CloseDate = toISO(input.closeDate)
+  }
+
   return await apiFetch<any>(`${API_V1}/models/R_Request`, {
     method: 'POST',
     token,
-    json: {
-      Summary: input.name,
-      Result: input.description,
-      C_BPartner_ID: input.bPartnerId,
-      SalesRep_ID: input.salesRepId || null,
-      R_RequestType_ID: input.requestTypeId || null,
-      R_Status_ID: input.requestStatusId || null,
-      StartDate: input.startDate ? toISO(input.startDate) : null,
-      CloseDate: input.closeDate ? toISO(input.closeDate) : null,
-      IsSelfService: true,
-    },
+    json,
   })
 }
 
@@ -207,6 +225,10 @@ export async function updateRequest(
   })
 }
 
+export async function updateRequestStatus(token: string, id: number, requestStatusId: number): Promise<any> {
+  return await updateRequest(token, id, { requestStatusId })
+}
+
 export async function deleteRequest(token: string, id: number): Promise<void> {
   await apiFetch<any>(`${API_V1}/models/R_Request/${id}`, {
     method: 'DELETE',
@@ -238,8 +260,8 @@ export async function listRequestStatuses(token: string): Promise<RequestStatus[
     {
       token,
       searchParams: {
-        $select: 'R_Status_ID,Name',
-        $orderby: 'Name',
+        $select: 'R_Status_ID,Name,IsActive,SeqNo',
+        $orderby: 'SeqNo,Name',
       } satisfies SearchParams,
     },
   )
@@ -247,6 +269,8 @@ export async function listRequestStatuses(token: string): Promise<RequestStatus[
   return (res.records ?? []).map((r) => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
+    isActive: Boolean(r.IsActive ?? true),
+    seqNo: r.SeqNo ? Number(r.SeqNo) : undefined,
   }))
 }
 
