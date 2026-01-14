@@ -84,6 +84,14 @@
             <div class="text-xs text-slate-500">{{ weekStart.toLocaleDateString() }} ～ {{ weekEnd.toLocaleDateString() }}</div>
             <button
               v-if="!selectionMode"
+              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              :disabled="exporting"
+              @click="exportCSV"
+            >
+              {{ exporting ? '匯出中…' : '匯出 CSV' }}
+            </button>
+            <button
+              v-if="!selectionMode"
               class="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700"
               @click="startSelection"
             >
@@ -203,19 +211,36 @@
             </div>
             <div v-if="selectedResourceIds.length > 1" class="mt-3 border-t border-slate-200 pt-3">
               <span class="font-medium text-slate-500">預約資源：</span>
-              <div class="mt-2 flex flex-wrap gap-2">
-                <span
+              <div class="mt-2 space-y-2">
+                <div
                   v-for="resId in selectedResourceIds"
                   :key="resId"
-                  class="inline-block rounded px-2 py-0.5 text-xs font-medium"
-                  :style="{
-                    backgroundColor: getResourceColor(resId) + '20',
-                    color: getResourceColor(resId),
-                    borderLeft: `3px solid ${getResourceColor(resId)}`
-                  }"
+                  class="flex items-center gap-2"
                 >
-                  {{ resources.find(r => r.id === resId)?.name }}
-                </span>
+                  <span
+                    class="inline-block rounded px-2 py-0.5 text-xs font-medium"
+                    :style="{
+                      backgroundColor: getResourceColor(resId) + '20',
+                      color: getResourceColor(resId),
+                      borderLeft: `3px solid ${getResourceColor(resId)}`
+                    }"
+                  >
+                    {{ resources.find(r => r.id === resId)?.name }}
+                  </span>
+                  <input
+                    :value="formatDateTimeLocal(multiResourceTimes.get(resId)?.from || '')"
+                    type="datetime-local"
+                    class="rounded border border-slate-300 px-2 py-1 text-xs"
+                    @change="(e) => updateResourceTime(resId, 'from', e.target.value)"
+                  />
+                  <span class="text-slate-400">-</span>
+                  <input
+                    :value="formatDateTimeLocal(multiResourceTimes.get(resId)?.to || '')"
+                    type="datetime-local"
+                    class="rounded border border-slate-300 px-2 py-1 text-xs"
+                    @change="(e) => updateResourceTime(resId, 'to', e.target.value)"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -228,6 +253,15 @@
                 class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                 placeholder="例如：王小明 諮詢"
                 autofocus
+              />
+            </div>
+            <div v-if="showDescriptionField">
+              <label class="text-sm font-medium text-slate-700">備註</label>
+              <textarea
+                v-model="bookingDescription"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                rows="3"
+                placeholder="選填：備註資訊..."
               />
             </div>
             <div>
@@ -344,12 +378,37 @@
 
           <div class="mt-4 space-y-4">
             <div>
+              <label class="text-sm font-medium text-slate-700">開始時間</label>
+              <input
+                v-model="editFromDate"
+                type="datetime-local"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              />
+            </div>
+            <div>
+              <label class="text-sm font-medium text-slate-700">結束時間</label>
+              <input
+                v-model="editToDate"
+                type="datetime-local"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              />
+            </div>
+            <div>
               <label class="text-sm font-medium text-slate-700">預約名稱</label>
               <input
                 v-model="editName"
                 class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                 placeholder="例如：王小明 諮詢"
                 autofocus
+              />
+            </div>
+            <div v-if="showDescriptionField">
+              <label class="text-sm font-medium text-slate-700">備註</label>
+              <textarea
+                v-model="editDescription"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                rows="3"
+                placeholder="選填：備註資訊..."
               />
             </div>
             <div>
@@ -373,7 +432,7 @@
           <div class="mt-6 flex gap-3">
             <button
               class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-              :disabled="submitting || !editName.trim()"
+              :disabled="submitting || !editName.trim() || !editFromDate || !editToDate"
               @click="saveEdit"
             >
               {{ submitting ? '儲存中…' : '儲存變更' }}
@@ -395,6 +454,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../../features/auth/store'
+import { usePermission } from '../../features/permission/store'
 import {
   listResources,
   listAssignmentsForRange,
@@ -404,10 +464,22 @@ import {
   getResourceType,
   getAssignmentColors,
   setAssignmentColor,
+  getResourceDefaultColors,
+  getAllAssignmentsForExport,
   type Resource,
   type ResourceAssignment,
   type ResourceType,
 } from '../../features/resource/api'
+import {
+  formatDateTime,
+  formatDateTimeLocal,
+  formatEventTime,
+  formatTime,
+  parseTimeString,
+  getWeekStart,
+  getWeekEnd,
+} from '../../shared/utils/datetime'
+import { getErrorMessage } from '../../shared/utils/error'
 
 // 事件顯示資訊（Google Calendar style）
 type CalendarEvent = ResourceAssignment & {
@@ -420,13 +492,19 @@ type CalendarEvent = ResourceAssignment & {
 }
 
 const auth = useAuth()
+const permission = usePermission()
 
 const resources = ref<Resource[]>([])
 const selectedResourceIds = ref<number[]>([])
 const resourceTypes = ref<Map<number, ResourceType>>(new Map())
 const assignments = ref<Map<number, ResourceAssignment[]>>(new Map())
+const resourceDefaultColors = ref<Map<number, string>>(new Map())
 const loading = ref(false)
+const exporting = ref(false)
 const error = ref<string | null>(null)
+
+// 額外欄位可見性
+const showDescriptionField = ref(false)
 
 // 資源顏色映射
 const resourceColors = [
@@ -441,8 +519,10 @@ const resourceColors = [
 ]
 
 function getResourceColor(resourceId: number): string {
-  const index = resources.value.findIndex(r => r.id === resourceId)
-  return resourceColors[index % resourceColors.length]
+  return resourceDefaultColors.value.get(resourceId) || (() => {
+    const index = resources.value.findIndex(r => r.id === resourceId)
+    return resourceColors[index % resourceColors.length]
+  })()
 }
 
 function getAssignmentColor(assignmentId: number): string {
@@ -461,13 +541,20 @@ const hoverSlot = ref<TimeSlot | null>(null)
 const showBookingForm = ref(false)
 const bookingName = ref('')
 const bookingColor = ref('#3b82f6')
+const bookingDescription = ref('')
 const submitting = ref(false)
 const assignmentColors = ref<Map<number, string>>(new Map())
+
+// 多資源預約時間（各別修改）
+const multiResourceTimes = ref<Map<number, { from: Date; to: Date }>>(new Map())
 
 // 編輯預約
 const editingEvent = ref<CalendarEvent | null>(null)
 const editName = ref('')
 const editColor = ref('#3b82f6')
+const editFromDate = ref('')
+const editToDate = ref('')
+const editDescription = ref('')
 const showEditModal = ref(false)
 const deleting = ref(false)
 
@@ -511,11 +598,27 @@ function keepPopout() {
 }
 
 // 編輯預約功能
-function openEditModal(event: CalendarEvent) {
+async function openEditModal(event: CalendarEvent) {
   activePopout.value = null
   editingEvent.value = event
   editName.value = event.name || ''
   editColor.value = assignmentColors.value.get(event.id) || getResourceColor(event.resourceId)
+
+  const fromDate = new Date(event.from)
+  const toDate = event.to ? new Date(event.to) : new Date(fromDate.getTime() + 30 * 60 * 1000)
+  editFromDate.value = formatDateTimeLocal(fromDate)
+  editToDate.value = formatDateTimeLocal(toDate)
+  editDescription.value = (event as any).description || ''
+
+  // 檢查欄位可見性
+  if (auth.token.value && auth.clientId.value && auth.organizationId.value) {
+    showDescriptionField.value = await permission.isFieldVisible(
+      auth.token.value,
+      'S_ResourceAssignment',
+      'Description'
+    )
+  }
+
   showEditModal.value = true
 }
 
@@ -524,10 +627,26 @@ function closeEditModal() {
   editingEvent.value = null
   editName.value = ''
   editColor.value = '#3b82f6'
+  editFromDate.value = ''
+  editToDate.value = ''
+  editDescription.value = ''
 }
 
 async function saveEdit() {
-  if (!auth.token.value || !editingEvent.value || !editName.value.trim()) return
+  if (!auth.token.value || !editingEvent.value || !editName.value.trim() || !editFromDate.value || !editToDate.value) return
+
+  const fromDate = new Date(editFromDate.value)
+  const toDate = new Date(editToDate.value)
+
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    error.value = '時間格式無效'
+    return
+  }
+
+  if (fromDate >= toDate) {
+    error.value = '結束時間必須晚於開始時間'
+    return
+  }
 
   submitting.value = true
   error.value = null
@@ -535,9 +654,11 @@ async function saveEdit() {
   try {
     await updateAssignment(auth.token.value, editingEvent.value.id, {
       name: editName.value.trim(),
+      from: fromDate,
+      to: toDate,
+      description: editDescription.value || undefined,
     })
 
-    // 更新顏色
     if (editColor.value) {
       await setAssignmentColor(auth.token.value, editingEvent.value.id, editColor.value)
     }
@@ -545,7 +666,7 @@ async function saveEdit() {
     closeEditModal()
     await loadAllAssignments()
   } catch (e: any) {
-    error.value = e?.detail || e?.title || e?.message || '更新失敗'
+    error.value = getErrorMessage(e, '更新失敗')
   } finally {
     submitting.value = false
   }
@@ -563,7 +684,7 @@ async function confirmDelete() {
     closeEditModal()
     await loadAllAssignments()
   } catch (e: any) {
-    error.value = e?.detail || e?.title || e?.message || '刪除失敗'
+    error.value = getErrorMessage(e, '刪除失敗')
   } finally {
     deleting.value = false
   }
@@ -579,23 +700,10 @@ const popoutStyle = computed(() => {
   }
 })
 
-function formatDateTime(dateStr: string): string {
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-function formatEventTime(dateStr: string): string {
-  const d = new Date(dateStr)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
 // 時間相關
 const now = new Date()
-const weekStart = new Date(now)
-weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-weekStart.setHours(0, 0, 0, 0)
-const weekEnd = new Date(weekStart)
-weekEnd.setDate(weekStart.getDate() + 7)
+const weekStart = getWeekStart(now)
+const weekEnd = getWeekEnd(weekStart)
 
 type WeekDay = {
   key: string
@@ -633,18 +741,6 @@ const displayHours = computed(() => {
 
 const HOUR_HEIGHT = 60
 
-function parseTimeString(timeStr?: string): { hour: number; minute: number } | null {
-  if (!timeStr) return null
-  const match = timeStr.match(/^(\d{2}):(\d{2})/)
-  if (!match) return null
-  return { hour: parseInt(match[1], 10), minute: parseInt(match[2], 10) }
-}
-
-function formatTime(timeStr?: string): string {
-  const t = parseTimeString(timeStr)
-  if (!t) return '--:--'
-  return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`
-}
 
 function formatSlotTime(slot?: TimeSlot | null): string {
   if (!slot) return '--:--'
@@ -1019,16 +1115,38 @@ function onDayGridClick(e: MouseEvent, day: WeekDay) {
 
     selectedEnd.value = { day, slot }
     selectionMode.value = null
+
+    // 初始化各資源的預約時間（預設為相同的時間）
+    const from = new Date(selectedStart.value.day.dateObj)
+    from.setHours(selectedStart.value.slot.hour, selectedStart.value.slot.minute, 0, 0)
+    const to = new Date(selectedEnd.value.day.dateObj)
+    to.setHours(selectedEnd.value.slot.endHour, selectedEnd.value.slot.endMinute, 0, 0)
+
+    multiResourceTimes.value = new Map(
+      selectedResourceIds.value.map(resId => [resId, { from: new Date(from), to: new Date(to) }])
+    )
+
     showBookingForm.value = true
   }
 }
 
-function startSelection() {
+async function startSelection() {
   selectionMode.value = 'start'
   selectedStart.value = null
   selectedEnd.value = null
   showBookingForm.value = false
   bookingName.value = ''
+  bookingDescription.value = ''
+  resetColor()
+
+  // 檢查欄位可見性
+  if (auth.token.value && auth.clientId.value && auth.organizationId.value) {
+    showDescriptionField.value = await permission.isFieldVisible(
+      auth.token.value,
+      'S_ResourceAssignment',
+      'Description'
+    )
+  }
 }
 
 function resetSelection() {
@@ -1038,11 +1156,15 @@ function resetSelection() {
   hoverSlot.value = null
   showBookingForm.value = false
   bookingName.value = ''
-  bookingColor.value = '#3b82f6'
+  bookingDescription.value = ''
+  multiResourceTimes.value = new Map()
+  resetColor()
 }
 
 function resetColor() {
-  bookingColor.value = '#3b82f6'
+  bookingColor.value = selectedResourceIds.value.length > 0
+    ? getResourceColor(selectedResourceIds.value[0])
+    : '#3b82f6'
 }
 
 function calculateDuration(): number {
@@ -1059,20 +1181,22 @@ async function submitBooking() {
   error.value = null
 
   try {
-    const from = new Date(selectedStart.value.day.dateObj)
-    from.setHours(selectedStart.value.slot.hour, selectedStart.value.slot.minute, 0, 0)
-    const to = new Date(selectedEnd.value.day.dateObj)
-    to.setHours(selectedEnd.value.slot.endHour, selectedEnd.value.slot.endMinute, 0, 0)
+    const defaultFrom = new Date(selectedStart.value.day.dateObj)
+    defaultFrom.setHours(selectedStart.value.slot.hour, selectedStart.value.slot.minute, 0, 0)
+    const defaultTo = new Date(selectedEnd.value.day.dateObj)
+    defaultTo.setHours(selectedEnd.value.slot.endHour, selectedEnd.value.slot.endMinute, 0, 0)
 
     const createdAssignments = await Promise.all(
-      selectedResourceIds.value.map(resourceId =>
-        createAssignment(auth.token.value!, {
+      selectedResourceIds.value.map(resourceId => {
+        const time = multiResourceTimes.value.get(resourceId)
+        return createAssignment(auth.token.value!, {
           resourceId,
           name: bookingName.value.trim(),
-          from,
-          to,
+          from: time?.from || defaultFrom,
+          to: time?.to || defaultTo,
+          description: bookingDescription.value || undefined,
         })
-      )
+      })
     )
 
     if (bookingColor.value) {
@@ -1093,10 +1217,29 @@ async function submitBooking() {
     resetSelection()
     await loadAllAssignments()
   } catch (e: any) {
-    error.value = e?.detail || e?.title || e?.message || '預約失敗'
+    error.value = getErrorMessage(e, '預約失敗')
   } finally {
     submitting.value = false
   }
+}
+
+function updateResourceTime(resourceId: number, field: 'from' | 'to', value: string) {
+  if (!value) return
+
+  const date = new Date(value)
+  if (isNaN(date.getTime())) return
+
+  const times = multiResourceTimes.value.get(resourceId) || { from: new Date(), to: new Date() }
+  times[field] = date
+
+  // 驗證開始時間早於結束時間
+  if (times.from >= times.to) {
+    error.value = `${resources.find(r => r.id === resourceId)?.name} 的結束時間必須晚於開始時間`
+    return
+  }
+
+  multiResourceTimes.value.set(resourceId, times)
+  error.value = null
 }
 
 async function loadResources() {
@@ -1104,6 +1247,16 @@ async function loadResources() {
   resources.value = await listResources(auth.token.value)
   if (selectedResourceIds.value.length === 0 && resources.value.length) {
     selectedResourceIds.value = [resources.value[0].id]
+  }
+
+  try {
+    const colors = await getResourceDefaultColors(
+      auth.token.value,
+      resources.value.map(r => r.id)
+    )
+    resourceDefaultColors.value = colors
+  } catch (e) {
+    console.error('Failed to load resource default colors:', e)
   }
 }
 
@@ -1174,7 +1327,7 @@ async function reloadForSelectedResources() {
     await loadResourceTypes()
     await loadAllAssignments()
   } catch (e: any) {
-    error.value = e?.detail || e?.title || e?.message || '載入預約失敗'
+    error.value = getErrorMessage(e, '載入預約失敗')
   } finally {
     loading.value = false
   }
@@ -1188,9 +1341,54 @@ async function reload() {
     await loadResources()
     await reloadForSelectedResources()
   } catch (e: any) {
-    error.value = e?.detail || e?.title || e?.message || '載入失敗'
+    error.value = getErrorMessage(e, '載入失敗')
   } finally {
     loading.value = false
+  }
+}
+
+async function exportCSV() {
+  if (!auth.token.value) return
+
+  exporting.value = true
+  error.value = null
+
+  try {
+    const data = await getAllAssignmentsForExport(auth.token.value, weekStart, weekEnd)
+
+    if (data.length === 0) {
+      error.value = '本週無預約資料可匯出'
+      return
+    }
+
+    const headers = ['預約 ID', '預約名稱', '資源名稱', '開始時間', '結束時間']
+    const rows = data.map(({ assignment, resourceName }) => [
+      assignment.id,
+      assignment.name,
+      resourceName,
+      formatDateTime(assignment.from),
+      assignment.to ? formatDateTime(assignment.to) : ''
+    ])
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n')
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+
+    link.setAttribute('href', url)
+    link.setAttribute('download', `預約匯出_${weekStart.toISOString().split('T')[0]}_${weekEnd.toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (e: any) {
+    error.value = getErrorMessage(e, '匯出失敗')
+  } finally {
+    exporting.value = false
   }
 }
 
