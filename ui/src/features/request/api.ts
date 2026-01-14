@@ -275,6 +275,39 @@ export async function listRequestStatuses(token: string): Promise<RequestStatus[
 }
 
 /**
+ * 取得特定 Request Type 的可用狀態
+ */
+export async function getStatusesForRequestType(token: string, requestTypeId: number): Promise<RequestStatus[]> {
+  try {
+    // 在 iDempiere 中，R_RequestType 可能關聯到特定的狀態
+    // 先嘗試獲取 Request Type 的資訊，看有沒有關聯的狀態
+    const typeRes = await apiFetch<any>(`${API_V1}/models/R_RequestType/${requestTypeId}`, {
+      token,
+      searchParams: {
+        $select: 'R_Status_ID_ID,R_StatusCategory_ID',
+      },
+    })
+
+    // 如果 Request Type 有關聯的預設狀態，返回該狀態
+    if (typeRes.R_Status_ID_ID?.id) {
+      const defaultStatusId = Number(typeRes.R_Status_ID_ID.id)
+      const allStatuses = await listRequestStatuses(token)
+      const defaultStatus = allStatuses.find(s => s.id === defaultStatusId)
+      
+      if (defaultStatus) {
+        return [defaultStatus]
+      }
+    }
+
+    // 如果沒有特定狀態關聯，返回所有狀態
+    return await listRequestStatuses(token)
+  } catch (e) {
+    // 如果獲取失敗，返回所有狀態作為後備
+    return await listRequestStatuses(token)
+  }
+}
+
+/**
  * 取得待接應客戶（還沒有開過諮詢單的客戶）
  */
 export async function getPendingCustomers(token: string): Promise<{ id: number; name: string }[]> {

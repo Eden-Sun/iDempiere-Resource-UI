@@ -17,7 +17,7 @@
         <select
           v-model="filter.requestTypeId"
           class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-          @change="loadData"
+          @change="onRequestTypeChange"
         >
           <option :value="undefined">全部</option>
           <option v-for="type in requestTypes" :key="type.id" :value="type.id">
@@ -31,11 +31,24 @@
           v-model="filter.requestStatusId"
           class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
           @change="loadData"
+          :disabled="loadingStatuses"
         >
-          <option :value="undefined">全部</option>
-          <option v-for="status in requestStatuses" :key="status.id" :value="status.id">
+          <option :value="undefined">{{ loadingStatuses ? '載入中…' : '全部' }}</option>
+          <option v-for="status in availableStatuses" :key="status.id" :value="status.id">
             {{ status.name }}
           </option>
+        </select>
+      </div>
+      <div class="min-w-[150px]">
+        <label class="text-sm font-medium text-slate-700">預約時間</label>
+        <select
+          v-model="filter.hasDates"
+          class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          @change="loadData"
+        >
+          <option :value="undefined">全部</option>
+          <option :value="true">有預約時間</option>
+          <option :value="false">無預約時間</option>
         </select>
       </div>
       <div class="flex items-end">
@@ -63,8 +76,8 @@
             <th class="px-4 py-3">諮詢師</th>
             <th class="px-4 py-3">Type</th>
             <th class="px-4 py-3">Status</th>
-            <th class="px-4 py-3">開始日期</th>
-            <th class="px-4 py-3">結束日期</th>
+            <th class="px-4 py-3">預約開始</th>
+            <th class="px-4 py-3">預約結束</th>
             <th class="px-4 py-3 text-right">操作</th>
           </tr>
         </thead>
@@ -96,7 +109,12 @@
                 {{ req.requestStatusName || '—' }}
               </span>
             </td>
-            <td class="px-4 py-3 text-slate-600">{{ formatDate(req.startDate) }}</td>
+            <td class="px-4 py-3">
+              <span class="text-slate-600">{{ formatDate(req.startDate) }}</span>
+              <span v-if="req.startDate" class="ml-1 inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
+                已預約
+              </span>
+            </td>
             <td class="px-4 py-3 text-slate-600">{{ formatDate(req.closeDate) }}</td>
             <td class="px-4 py-3 text-right">
               <button
@@ -152,6 +170,7 @@ import {
   listRequests,
   listRequestTypes,
   listRequestStatuses,
+  getStatusesForRequestType,
   type Request,
   type RequestType,
   type RequestStatus,
@@ -163,13 +182,16 @@ const auth = useAuth()
 const requests = ref<Request[]>([])
 const requestTypes = ref<RequestType[]>([])
 const requestStatuses = ref<RequestStatus[]>([])
+const availableStatuses = ref<RequestStatus[]>([]) // 狀態選項根據類別變化
 const loading = ref(false)
+const loadingStatuses = ref(false)
 const error = ref<string | null>(null)
 
 const searchQuery = ref('')
 const filter = ref({
   requestTypeId: undefined as number | undefined,
   requestStatusId: undefined as number | undefined,
+  hasDates: undefined as boolean | undefined,
 })
 
 const currentPage = ref(1)
@@ -192,8 +214,44 @@ function getStatusColor(statusName?: string): string {
 
 function formatDate(dateStr?: string): string {
   if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()}`
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return '無效日期'
+    return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
+  } catch (e) {
+    console.error('Date parsing error:', dateStr, e)
+    return '格式錯誤'
+  }
+}
+
+// 處理 Request Type 變化，更新可用狀態
+async function onRequestTypeChange() {
+  if (!auth.token.value) return
+
+  // 清除當前狀態選擇
+  filter.value.requestStatusId = undefined
+
+  if (!filter.value.requestTypeId) {
+    // 如果沒有選擇類別，顯示所有狀態
+    availableStatuses.value = requestStatuses.value
+    await loadData()
+    return
+  }
+
+  loadingStatuses.value = true
+  try {
+    // 獲取該類別的特定狀態
+    const statuses = await getStatusesForRequestType(auth.token.value, filter.value.requestTypeId)
+    availableStatuses.value = statuses
+  } catch (e) {
+    console.error('Failed to load statuses for request type:', e)
+    // 如果載入失敗，回退到所有狀態
+    availableStatuses.value = requestStatuses.value
+  } finally {
+    loadingStatuses.value = false
+  }
+
+  await loadData()
 }
 
 async function loadData() {
@@ -208,6 +266,8 @@ async function loadData() {
       {
         requestTypeId: filter.value.requestTypeId,
         requestStatusId: filter.value.requestStatusId,
+        hasStartDate: filter.value.hasDates,
+        hasCloseDate: filter.value.hasDates,
       },
       { top: pageSize, skip: (currentPage.value - 1) * pageSize },
     )
@@ -256,6 +316,8 @@ onMounted(async () => {
   try {
     requestTypes.value = await listRequestTypes(auth.token.value)
     requestStatuses.value = await listRequestStatuses(auth.token.value)
+    // 初始化可用狀態為所有狀態
+    availableStatuses.value = requestStatuses.value
   } catch (e) {
     console.error('Failed to load request types/statuses:', e)
   }

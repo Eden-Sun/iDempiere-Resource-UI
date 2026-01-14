@@ -53,7 +53,8 @@ export async function getReceiptDocType(token: string): Promise<number> {
   const res = await apiFetch<any>(`${API_V1}/models/C_DocType`, {
     token,
     searchParams: {
-      $select: 'C_DocType_ID,Name,DocBaseType',
+      $select: 'C_DocType_ID,Name,DocBaseType,IsSOTrx',
+      $filter: "IsActive eq true", // 只取得啟用的單據類型
     },
   })
 
@@ -61,88 +62,114 @@ export async function getReceiptDocType(token: string): Promise<number> {
   const records = res.records ?? res ?? []
 
   if (!Array.isArray(records) || records.length === 0) {
-    // Return a common default - iDempiere standard MM Receipt is usually 122 or 143
-    // Try without DocType first (let iDempiere auto-assign)
-    return 0
+    throw new Error('找不到任何單據類型，請聯繫系統管理員')
   }
 
-  // Look for Material Receipt (MMR) first
+  // Look for Material Receipt (MMR) first - this is the standard for vendor receipts
   let doc = records.find((r: any) => r.DocBaseType === 'MMR')
   if (doc) return doc.id
 
-  // Look for Material Shipment (MMS) as fallback
-  doc = records.find((r: any) => r.DocBaseType === 'MMS')
-  if (doc) return doc.id
+  // Look for Material Receipt by name with various patterns
+  const receiptPatterns = [
+    (r: any) => r.Name?.toLowerCase()?.includes('material receipt'),
+    (r: any) => r.Name?.includes('收貨') || r.Name?.includes('收單'),
+    (r: any) => r.Name?.toLowerCase()?.includes('vendor receipt'),
+    (r: any) => r.Name?.toLowerCase()?.includes('purchase receipt'),
+    (r: any) => r.Name?.includes('MM') && !r.IsSOTrx, // Material Management, not Sales
+  ]
 
-  // Look by name
-  doc = records.find((r: any) =>
-    r.Name?.includes('Receipt') ||
-    r.Name?.includes('收貨') ||
-    r.Name?.includes('Vendor')
-  )
-  if (doc) return doc.id
+  for (const pattern of receiptPatterns) {
+    doc = records.find(pattern)
+    if (doc) return doc.id
+  }
 
-  // Return 0 to let iDempiere auto-assign
-  return 0
+  // Last resort: return first non-sales DocType as fallback
+  const nonSalesDoc = records.find((r: any) => !r.IsSOTrx)
+  if (nonSalesDoc) {
+    console.warn('使用非銷貨單據類型作為收貨單據:', nonSalesDoc.Name)
+    return nonSalesDoc.id
+  }
+
+  throw new Error('找不到適合的收貨單據類型，請聯繫系統管理員設定')
 }
 
 export async function createInOut(
   token: string,
   order: any,
   movementDate: string,
-  _docTypeId: number,
+  docTypeId: number,
 ): Promise<any> {
-  // Get the Purchase Order's DocType to find the Receipt DocType
-  const orderDocTypeId = order.C_DocType_ID?.id ?? order.C_DocType_ID ?? order.C_DocTypeTarget_ID?.id ?? order.C_DocTypeTarget_ID
+  // Always get a valid receipt DocType
+  const receiptDocTypeId = docTypeId > 0 ? docTypeId : await getReceiptDocType(token)
 
-  // Find the target receipt DocType from the order's DocType
-  let receiptDocTypeId = 0
-  if (orderDocTypeId) {
-    try {
-      const docTypeRes = await apiFetch<any>(`${API_V1}/models/C_DocType/${orderDocTypeId}`, { token })
-      receiptDocTypeId = docTypeRes?.C_DocTypeShipment_ID?.id ?? docTypeRes?.C_DocTypeShipment_ID ?? 0
-    } catch {
-      // Ignore - will try without DocType
+  // Extract and validate organization ID
+  // iDempiere may return org as object or plain ID
+  let orgId: number | undefined
+  if (order.AD_Org_ID) {
+    if (typeof order.AD_Org_ID === 'object') {
+      orgId = order.AD_Org_ID.id
+    } else if (typeof order.AD_Org_ID === 'string' || typeof order.AD_Org_ID === 'number') {
+      orgId = Number(order.AD_Org_ID)
     }
   }
 
-  // Build the body with required fields
+  if (!orgId || orgId <= 0) {
+    console.error('Missing or invalid AD_Org_ID in order:', order)
+    throw new Error('採購訂單缺少有效的組織資訊，無法建立收貨單')
+  }
+
+  // Helper function to extract ID from iDempiere response
+  const extractId = (field: any): number | undefined => {
+    if (!field) return undefined
+    if (typeof field === 'object') {
+      return field.id ? Number(field.id) : undefined
+    }
+    if (typeof field === 'string' || typeof field === 'number') {
+      return Number(field)
+    }
+    return undefined
+  }
+
+  // Extract other required fields with validation
+  const bpartnerId = extractId(order.C_BPartner_ID)
+  const warehouseId = extractId(order.M_Warehouse_ID)
+  const bpartnerLocationId = extractId(order.C_BPartner_Location_ID)
+
+  if (!bpartnerId || bpartnerId <= 0) {
+    throw new Error('採購訂單缺少有效的客戶資訊')
+  }
+  if (!warehouseId || warehouseId <= 0) {
+    throw new Error('採購訂單缺少有效的倉庫資訊')
+  }
+
+  // Build body with required fields - all fields must be explicitly set
   const body: Record<string, any> = {
-    'AD_Org_ID': order.AD_Org_ID?.id ?? order.AD_Org_ID,
-    'C_BPartner_ID': order.C_BPartner_ID?.id ?? order.C_BPartner_ID,
-    'C_BPartner_Location_ID': order.C_BPartner_Location_ID?.id ?? order.C_BPartner_Location_ID,
-    'M_Warehouse_ID': order.M_Warehouse_ID?.id ?? order.M_Warehouse_ID,
+    'AD_Org_ID': orgId,
+    'C_BPartner_ID': bpartnerId,
+    'C_BPartner_Location_ID': bpartnerLocationId,
+    'M_Warehouse_ID': warehouseId,
     'MovementDate': movementDate,
     'DateAcct': movementDate,
     'IsSOTrx': 'N',
+    'C_DocType_ID': receiptDocTypeId, // Always set DocType - it's required
+    'C_Order_ID': order.id, // Include order reference
   }
 
-  // Set DocType if found - this should auto-set MovementType
-  if (receiptDocTypeId > 0) {
-    body['C_DocType_ID'] = receiptDocTypeId
+  console.log('Creating M_InOut with body:', body)
+
+  try {
+    // Create M_InOut with all required fields
+    const res = await apiFetch<any>(`${API_V1}/models/M_InOut`, {
+      method: 'POST',
+      token,
+      json: body,
+    })
+
+    return res
+  } catch (error: any) {
+    console.error('Create M_InOut error:', error)
+    throw new Error(`建立收貨單失敗: ${error?.detail || error?.message || '未知錯誤'}`)
   }
-
-  // Create M_InOut first without C_Order_ID
-  const res = await apiFetch<any>(`${API_V1}/models/M_InOut`, {
-    method: 'POST',
-    token,
-    json: body,
-  })
-
-  // If successful and we have an ID, update with the order reference
-  if (res?.id) {
-    try {
-      await apiFetch<any>(`${API_V1}/models/M_InOut/${res.id}`, {
-        method: 'PUT',
-        token,
-        json: { 'C_Order_ID': order.id },
-      })
-    } catch {
-      // Continue even if update fails
-    }
-  }
-
-  return res
 }
 
 export async function getInOut(token: string, id: number): Promise<InOut> {
@@ -175,7 +202,7 @@ export async function getInOutLines(token: string, inOutId: number): Promise<InO
     inOutId: Number(r.M_InOut_ID?.id ?? r.M_InOut_ID ?? 0),
     orderLineId: Number(r.C_OrderLine_ID?.id ?? r.C_OrderLine_ID ?? 0),
     productId: Number(r.M_Product_ID?.id ?? r.M_Product_ID ?? 0),
-    productName: String(r.M_Product_ID?.identifier ?? r.M_Product_ID?.name ?? ''),
+    productName: String(r.M_Product_ID?.name ?? r.M_Product_ID?.identifier ?? ''),
     qtyOrdered: Number(r.QtyEntered ?? 0),
     movementQty: Number(r.MovementQty ?? 0),
   }))
@@ -185,79 +212,78 @@ export async function createInOutLine(
   token: string,
   inOutId: number,
   orderLine: any,
-  movementQty: number,
-  locatorId?: number,
+  quantity: number,
+  locatorId: number,
 ): Promise<any> {
+  const body = {
+    'M_InOut_ID': inOutId,
+    'C_OrderLine_ID': orderLine.id,
+    'M_Product_ID': orderLine.M_Product_ID?.id ?? orderLine.M_Product_ID,
+    'MovementQty': quantity,
+    'QtyEntered': quantity,
+    'M_Locator_ID': locatorId,
+  }
+
   return await apiFetch<any>(`${API_V1}/models/M_InOutLine`, {
     method: 'POST',
     token,
+    json: body,
+  })
+}
+
+export async function updateInOutLine(
+  token: string,
+  inOutLineId: number,
+  quantity: number,
+): Promise<any> {
+  return await apiFetch<any>(`${API_V1}/models/M_InOutLine/${inOutLineId}`, {
+    method: 'PUT',
+    token,
     json: {
-      'M_InOut_ID': inOutId,
-      'C_OrderLine_ID': orderLine.id,
-      'M_Product_ID': orderLine.M_Product_ID?.id ?? orderLine.M_Product_ID,
-      'M_Locator_ID': locatorId ?? 101, // Default locator - will be auto-assigned by iDempiere if not provided
-      'MovementQty': movementQty,
-      'C_UOM_ID': orderLine.C_UOM_ID?.id ?? orderLine.C_UOM_ID ?? 100, // Default UOM (Each)
+      'MovementQty': quantity,
+      'QtyEntered': quantity,
+    },
+  })
+}
+
+export async function completeInOut(token: string, inOutId: number): Promise<any> {
+  return await apiFetch<any>(`${API_V1}/models/M_InOut/${inOutId}`, {
+    method: 'PUT',
+    token,
+    json: {
+      'DocAction': 'CO',
     },
   })
 }
 
 export async function getDefaultLocator(token: string, warehouseId: number): Promise<number> {
-  const res = await apiFetch<{ records: any[] }>(`${API_V1}/models/M_Locator`, {
-    token,
-    searchParams: {
-      $select: 'M_Locator_ID',
-      $filter: `M_Warehouse_ID eq ${warehouseId} and IsDefault eq 'Y'`,
-      $top: 1,
-    },
-  })
-  if (res.records && res.records.length > 0) {
-    return res.records[0].id
-  }
-  // Fallback: get any locator from warehouse
-  const fallback = await apiFetch<{ records: any[] }>(`${API_V1}/models/M_Locator`, {
-    token,
-    searchParams: {
-      $select: 'M_Locator_ID',
-      $filter: `M_Warehouse_ID eq ${warehouseId}`,
-      $top: 1,
-    },
-  })
-  return fallback.records?.[0]?.id ?? 101
-}
-
-export async function updateInOutLine(
-  token: string,
-  id: number,
-  movementQty: number,
-): Promise<any> {
-  return await apiFetch<any>(`${API_V1}/models/M_InOutLine/${id}`, {
-    method: 'PUT',
-    token,
-    json: {
-      MovementQty: movementQty,
-    },
-  })
-}
-
-export async function completeInOut(token: string, id: number): Promise<any> {
-  // Try POST first (some iDempiere versions require POST)
   try {
-    return await apiFetch<any>(`${API_V1}/models/M_InOut/${id}/docaction`, {
-      method: 'POST',
+    const res = await apiFetch<any>(`${API_V1}/models/M_Locator`, {
       token,
-      json: {
-        docAction: 'CO', // Complete
+      searchParams: {
+        $select: 'M_Locator_ID',
+        $filter: `M_Warehouse_ID eq ${warehouseId} and IsDefault eq 'Y'`,
+        $top: 1,
       },
     })
-  } catch {
-    // Fallback to PUT
-    return await apiFetch<any>(`${API_V1}/models/M_InOut/${id}/docaction`, {
-      method: 'PUT',
+
+    if (res?.records?.length > 0) {
+      return res.records[0].id
+    }
+
+    // Fallback: get any locator for the warehouse
+    const fallbackRes = await apiFetch<any>(`${API_V1}/models/M_Locator`, {
       token,
-      json: {
-        docAction: 'CO', // Complete
+      searchParams: {
+        $select: 'M_Locator_ID',
+        $filter: `M_Warehouse_ID eq ${warehouseId}`,
+        $top: 1,
       },
     })
+
+    return fallbackRes?.records?.[0]?.id ?? 0
+  } catch (e) {
+    console.error('Failed to get default locator:', e)
+    return 0
   }
 }
