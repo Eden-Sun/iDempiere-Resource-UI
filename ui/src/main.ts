@@ -14,8 +14,8 @@ const permission = usePermission()
 auth.load()
 
 // 如果已登入，載入權限
-if (auth.isAuthenticated.value && auth.token.value && auth.roleId.value && auth.userId.value) {
-  permission.loadPermissions(auth.token.value, auth.roleId.value, auth.userId.value)
+if (auth.isAuthenticated.value && auth.token.value && auth.roleId.value && auth.userId.value && auth.clientId.value && auth.organizationId.value) {
+  permission.loadPermissions(auth.token.value, auth.roleId.value, auth.userId.value, auth.clientId.value, auth.organizationId.value)
 }
 
 const router = createRouter({

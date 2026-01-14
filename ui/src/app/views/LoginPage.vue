@@ -276,7 +276,7 @@ async function onSubmitParameters() {
     })
 
     // 載入權限
-    await permission.loadPermissions(res.token, roleId.value!, res.userId)
+    await permission.loadPermissions(res.token, roleId.value!, res.userId, clientId.value!, organizationId.value!)
 
     // 導向第一個可用選單
     const firstMenu = permission.visibleMenuItems.value[0]

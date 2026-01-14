@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen">
     <header class="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
-      <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+      <div class="mx-auto flex max-w-screen-2xl items-center justify-between px-4 py-3">
         <div class="flex items-center gap-3">
           <div class="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-white shadow-sm">
             <span class="text-sm font-semibold">Rx</span>
@@ -45,14 +45,17 @@
       </div>
     </header>
 
-    <main class="mx-auto max-w-6xl px-4 py-6">
+    <main class="mx-auto max-w-screen-2xl px-4 py-6">
+      <div v-if="errorMessage" class="alert alert-error mb-4 py-2 text-sm">
+        <span>{{ errorMessage }}</span>
+      </div>
       <RouterView />
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../features/auth/store'
 import { usePermission } from '../features/permission/store'
@@ -61,6 +64,7 @@ import { setTokenExpiredHandler } from '../shared/api/http'
 const router = useRouter()
 const auth = useAuth()
 const permission = usePermission()
+const errorMessage = ref<string | null>(null)
 
 const isAuthenticated = computed(() => auth.isAuthenticated.value)
 const isSystem = computed(() => permission.isSystem.value)
@@ -83,7 +87,10 @@ function logout(): void {
 function handleTokenExpired(): void {
   auth.clear()
   permission.resetPermissions()
-  alert('登入已過期，請重新登入')
+  errorMessage.value = '登入已過期，請重新登入'
+  setTimeout(() => {
+    errorMessage.value = null
+  }, 3000)
   router.push('/login')
 }
 
