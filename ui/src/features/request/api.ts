@@ -45,7 +45,7 @@ export async function listRequests(
   pagination?: { top?: number; skip?: number },
 ): Promise<{ records: Request[]; totalCount?: number }> {
   const searchParams: SearchParams = {
-    $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CompleteDate,Created',
+    $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created',
     $orderby: 'Created desc',
   }
 
@@ -58,11 +58,19 @@ export async function listRequests(
   if (filter?.salesRepId) filters.push(`SalesRep_ID eq ${filter.salesRepId}`)
   if (filter?.requestTypeId) filters.push(`R_RequestType_ID eq ${filter.requestTypeId}`)
   if (filter?.requestStatusId) filters.push(`R_Status_ID eq ${filter.requestStatusId}`)
-  if (filter?.hasStartDate !== undefined) {
-    filters.push(filter.hasStartDate ? 'StartDate ne null' : 'StartDate eq null')
+  // Note: API doesn't support 'ne' operator, so we filter null checks client-side
+  // For 'eq null' checks, we can still use server-side filtering
+  if (filter?.hasStartDate === false) {
+    filters.push('StartDate eq null')
   }
-  if (filter?.hasCloseDate !== undefined) {
-    filters.push(filter.hasCloseDate ? 'CompleteDate ne null' : 'CompleteDate eq null')
+  if (filter?.hasCloseDate === false) {
+    filters.push('CloseDate eq null')
+  }
+  
+  // Store filter flags for client-side filtering (ne null cases)
+  const needsClientFiltering = {
+    hasStartDate: filter?.hasStartDate === true,
+    hasCloseDate: filter?.hasCloseDate === true,
   }
   if (filter?.createdAfter) {
     const pad = (n: number) => String(n).padStart(2, '0')
@@ -79,7 +87,7 @@ export async function listRequests(
     { token, searchParams },
   )
 
-  const requests: Request[] = (res.records ?? []).map((r) => ({
+  let requests: Request[] = (res.records ?? []).map((r) => ({
     id: Number(r.id),
     name: r.Summary ? String(r.Summary) : undefined,
     description: r.Result ? String(r.Result) : undefined,
@@ -92,9 +100,17 @@ export async function listRequests(
     requestStatusId: r.R_Status_ID?.id ? Number(r.R_Status_ID.id) : undefined,
     requestStatusName: r.R_Status_ID?.name ? String(r.R_Status_ID.name) : undefined,
     startDate: r.StartDate ? String(r.StartDate) : undefined,
-    closeDate: r.CompleteDate ? String(r.CompleteDate) : undefined,
+    closeDate: r.CloseDate ? String(r.CloseDate) : undefined,
     created: String(r.Created),
   }))
+
+  // Client-side filtering for 'ne null' cases (API doesn't support 'ne' operator)
+  if (needsClientFiltering.hasStartDate) {
+    requests = requests.filter((r) => r.startDate != null)
+  }
+  if (needsClientFiltering.hasCloseDate) {
+    requests = requests.filter((r) => r.closeDate != null)
+  }
 
   return {
     records: requests,
@@ -106,7 +122,7 @@ export async function getRequest(token: string, id: number): Promise<Request> {
   const r = await apiFetch<any>(`${API_V1}/models/R_Request/${id}`, {
     token,
     searchParams: {
-      $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CompleteDate,Created',
+      $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created',
     },
   })
 
@@ -123,7 +139,7 @@ export async function getRequest(token: string, id: number): Promise<Request> {
     requestStatusId: r.R_Status_ID?.id ? Number(r.R_Status_ID.id) : undefined,
     requestStatusName: r.R_Status_ID?.name ? String(r.R_Status_ID.name) : undefined,
     startDate: r.StartDate ? String(r.StartDate) : undefined,
-    closeDate: r.CompleteDate ? String(r.CompleteDate) : undefined,
+    closeDate: r.CloseDate ? String(r.CloseDate) : undefined,
     created: String(r.Created),
   }
 }
@@ -154,7 +170,7 @@ export async function createRequest(
       R_RequestType_ID: input.requestTypeId || null,
       R_Status_ID: input.requestStatusId || null,
       StartDate: input.startDate ? toISO(input.startDate) : null,
-      CompleteDate: input.closeDate ? toISO(input.closeDate) : null,
+      CloseDate: input.closeDate ? toISO(input.closeDate) : null,
       IsSelfService: true,
     },
   })
@@ -182,7 +198,7 @@ export async function updateRequest(
   if (input.requestTypeId !== undefined) json.R_RequestType_ID = input.requestTypeId
   if (input.requestStatusId !== undefined) json.R_Status_ID = input.requestStatusId
   if (input.startDate !== undefined) json.StartDate = input.startDate ? toISO(input.startDate) : null
-  if (input.closeDate !== undefined) json.CompleteDate = input.closeDate ? toISO(input.closeDate) : null
+  if (input.closeDate !== undefined) json.CloseDate = input.closeDate ? toISO(input.closeDate) : null
 
   return await apiFetch<any>(`${API_V1}/models/R_Request/${id}`, {
     method: 'PUT',
