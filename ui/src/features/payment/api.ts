@@ -18,6 +18,29 @@ export type Payment = {
   docStatus: string
 }
 
+export type Request = {
+  id: number
+  name: string
+  description: string
+  bpartnerId: number
+  bpartnerName: string
+  salesRepId?: number
+  salesRepName?: string
+  requestTypeId?: number
+  requestTypeName?: string
+  requestStatusId?: number
+  requestStatusName?: string
+  startDate?: string
+  closeDate?: string
+  created: string
+  lastContactDate?: string      // 最後聯繫日期
+  daysSinceLastContact?: number   // 未聯繫天數
+  priorityLevel?: 'HIGH' | 'MEDIUM' | 'LOW'  // 優先級
+  nextFollowUpDate?: string   // 下次聯絡日期
+  taskStatus?: string          // 任務狀態
+  assignedConsultant?: number  // 分配的諮詢師
+}
+
 export type BankAccount = {
   id: number
   accountNo: string
@@ -52,7 +75,7 @@ export async function listPayments(
   } = {},
 ): Promise<{ records: Payment[]; totalCount: number }> {
   const searchParams: Record<string, string | number> = {
-    $select: 'C_Payment_ID,DocumentNo,C_BPartner_ID,DateTrx,PayAmt,TenderType,DocStatus',
+    $select: 'C_Payment_ID,DocumentNo,C_BPartner_ID,DateTrx,PayAmt,TenderType,DocStatus,C_BankAccount_ID',
     $orderby: 'DateTrx desc,DocumentNo desc',
     $filter: 'IsReceipt eq true',
   }
@@ -77,10 +100,20 @@ export async function listPayments(
   if (options.top) searchParams.$top = options.top
   if (options.skip) searchParams.$skip = options.skip
 
+  // Fetch payments
   const res = await apiFetch<{ records: any[]; 'row-count'?: number }>(`${API_V1}/models/C_Payment`, {
     token,
     searchParams,
   })
+
+  // Build bank account lookup map to help resolve AccountNo when the nested field isn't returned
+  let bankAccountNoLookup: Map<number, string> = new Map()
+  try {
+    const accounts = await listBankAccounts(token)
+    bankAccountNoLookup = new Map(accounts.map((a) => [a.id, a.accountNo]))
+  } catch {
+    // ignore lookup failures; fall back to blank values
+  }
 
   const records = (res.records ?? []).map((r) => ({
     id: Number(r.id),
@@ -88,7 +121,7 @@ export async function listPayments(
     bpartnerId: Number(r.C_BPartner_ID?.id ?? r.C_BPartner_ID ?? 0),
     bpartnerName: String(r.C_BPartner_ID?.identifier ?? r.C_BPartner_ID?.name ?? ''),
     bankAccountId: Number(r.C_BankAccount_ID?.id ?? r.C_BankAccount_ID ?? 0),
-    bankAccountNo: String(r.C_BankAccount_ID?.AccountNo ?? ''),
+    bankAccountNo: String(r.C_BankAccount_ID?.AccountNo ?? bankAccountNoLookup.get(Number(r.C_BankAccount_ID?.id ?? r.C_BankAccount_ID ?? 0)) ?? ''),
     bankName: String(r.C_BankAccount_ID?.identifier ?? r.C_BankAccount_ID?.name ?? ''),
     dateTrx: String(r.DateTrx ?? ''),
     payAmt: Number(r.PayAmt ?? 0),
@@ -301,6 +334,71 @@ export async function deletePayment(token: string, id: number): Promise<void> {
     method: 'DELETE',
     token,
   })
+}
+
+export async function updateRequestContactInfo(
+  token: string,
+  id: number,
+  data: {
+    lastContactDate?: string
+    daysSinceLastContact?: number
+    nextFollowUpDate?: string
+  }
+): Promise<any> {
+  const json: Record<string, any> = {}
+  if (data.lastContactDate !== undefined) json.lastContactDate = data.lastContactDate
+  if (data.daysSinceLastContact !== undefined) json.daysSinceLastContact = data.daysSinceLastContact
+  if (data.nextFollowUpDate !== undefined) json.nextFollowUpDate = data.nextFollowUpDate
+
+  return await apiFetch<any>(`${API_V1}/models/R_Request/${id}`, {
+    method: 'PUT',
+    token,
+    json,
+  })
+}
+
+export async function updateRequestStatus(
+  token: string,
+  id: number,
+  data: {
+    taskStatus?: string
+    priorityLevel?: 'HIGH' | 'MEDIUM' | 'LOW'
+    nextFollowUpDate?: string
+    assignedConsultant?: number
+  }
+): Promise<any> {
+  const json: Record<string, any> = {}
+  if (data.taskStatus !== undefined) json.R_Status_ID = getTaskStatusId(data.taskStatus)
+  if (data.priorityLevel !== undefined) json.Priority = data.priorityLevel
+  if (data.nextFollowUpDate !== undefined) json.NextFollowUpDate = data.nextFollowUpDate
+  if (data.assignedConsultant !== undefined) json.SalesRep_ID = data.assignedConsultant
+
+  return await apiFetch<any>(`${API_V1}/models/R_Request/${id}`, {
+    method: 'PUT',
+    token,
+    json,
+  })
+}
+
+// Helper function to get status ID from status name
+function getTaskStatusId(statusName: string): string {
+  const statusMap: Record<string, string> = {
+    'NEW': '1000001',
+    'IN_PROGRESS': '1000002', 
+    'COMPLETED': '1000003',
+    'CANCELLED': '1000004',
+  }
+  return statusMap[statusName] || '1000001'
+}
+
+// Helper function to get priority ID from priority name
+function getPriorityId(priorityName: string): string {
+  const priorityMap: Record<string, string> = {
+    'HIGH': '1000001',
+    'MEDIUM': '1000002',
+    'LOW': '1000003',
+  }
+  return priorityMap[priorityName] || '1000003'
 }
 
 export async function getCustomerBalance(
