@@ -223,9 +223,24 @@ export async function createPayment(
     throw new Error('Invalid DateTrx format. Expected YYYY-MM-DD format.')
   }
   
+  // Get currency ID from bank account, or use default
+  let currencyId: number
+  try {
+    const bankCurrencyId = await getBankAccountCurrency(token, payment.bankAccountId)
+    if (bankCurrencyId && bankCurrencyId > 0) {
+      currencyId = bankCurrencyId
+    } else {
+      currencyId = await getDefaultCurrency(token)
+    }
+  } catch (error) {
+    console.warn('Failed to get currency, using default:', error)
+    currencyId = await getDefaultCurrency(token)
+  }
+  
   const paymentData = {
     C_BPartner_ID: payment.bpartnerId,
     C_BankAccount_ID: payment.bankAccountId,
+    C_Currency_ID: currencyId,
     DateTrx: dateTrxISO,
     PayAmt: payment.payAmt,
     TenderType: payment.tenderType,
