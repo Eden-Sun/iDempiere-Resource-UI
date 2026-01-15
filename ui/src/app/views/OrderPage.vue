@@ -29,19 +29,8 @@
       </div>
     </div>
 
-    <div
-      v-if="error"
-      class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 whitespace-pre-line"
-    >
-      {{ error }}
-    </div>
-
-    <div
-      v-if="successMessage"
-      class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-    >
-      {{ successMessage }}
-    </div>
+    <ErrorMessage :message="error" />
+    <SuccessMessage :message="successMessage" />
 
     <div v-if="mode === 'list'" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div class="border-b border-slate-200 p-4">
@@ -93,12 +82,7 @@
               <td class="px-4 py-3 text-slate-600">{{ formatDate(record.dateOrdered) }}</td>
               <td class="px-4 py-3 text-slate-600">{{ formatMoney(record.grandTotal) }}</td>
               <td class="px-4 py-3">
-                <span
-                  :class="getStatusClass(record.docStatus)"
-                  class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-                >
-                  {{ getStatusText(record.docStatus) }}
-                </span>
+                <StatusBadge :status="record.docStatus" type="doc" />
               </td>
               <td class="px-4 py-3">
                 <button
@@ -114,30 +98,12 @@
         </table>
       </div>
 
-      <div class="flex items-center justify-between border-t border-slate-200 px-4 py-3">
-        <div class="text-sm text-slate-600">
-          共 {{ totalCount }} 筆
-        </div>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            :disabled="currentPage <= 1"
-            class="rounded-lg border border-slate-200 px-3 py-1 text-sm disabled:opacity-50"
-            @click="prevPage"
-          >
-            上一頁
-          </button>
-          <span class="px-3 py-1 text-sm text-slate-600">第 {{ currentPage }} 頁</span>
-          <button
-            type="button"
-            :disabled="!hasNextPage"
-            class="rounded-lg border border-slate-200 px-3 py-1 text-sm disabled:opacity-50"
-            @click="nextPage"
-          >
-            下一頁
-          </button>
-        </div>
-      </div>
+      <Pagination
+        :current-page="currentPage"
+        :total-count="totalCount"
+        :page-size="pageSize"
+        @update:current-page="currentPage = $event; loadList()"
+      />
     </div>
 
     <div v-if="mode === 'form'" class="space-y-6">
@@ -309,6 +275,11 @@ import { useRoute } from 'vue-router'
 import { listOrders, listProducts, listWarehouses, createOrder, getOrderLines } from '../../features/order/api'
 import { listBPartners, listBPartnerLocations, type BPartnerLocation } from '../../features/bpartner/api'
 import { useAuth } from '../../features/auth/store'
+import { formatDate, formatMoney } from '../../shared/utils/format'
+import ErrorMessage from '../../components/ErrorMessage.vue'
+import SuccessMessage from '../../components/SuccessMessage.vue'
+import StatusBadge from '../../components/StatusBadge.vue'
+import Pagination from '../../components/Pagination.vue'
 
 const route = useRoute()
 const auth = useAuth()
@@ -660,41 +631,6 @@ async function handleSubmit() {
   }
 }
 
-function formatDate(dateStr: string): string {
-  if (!dateStr) return ''
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
-}
-
-function formatMoney(amount: number): string {
-  return new Intl.NumberFormat('zh-TW', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
-}
-
-function getStatusClass(status: string): string {
-  switch (status) {
-    case 'CO':
-      return 'bg-emerald-100 text-emerald-700'
-    case 'DR':
-      return 'bg-amber-100 text-amber-700'
-    case 'VO':
-      return 'bg-rose-100 text-rose-700'
-    default:
-      return 'bg-slate-100 text-slate-500'
-  }
-}
-
-function getStatusText(status: string): string {
-  switch (status) {
-    case 'CO':
-      return '完成'
-    case 'DR':
-      return '草稿'
-    case 'VO':
-      return '作廢'
-    default:
-      return status
-  }
-}
 
 watch(() => route.path, () => {
   loadList()

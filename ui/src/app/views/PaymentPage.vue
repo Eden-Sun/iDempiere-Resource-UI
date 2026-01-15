@@ -29,19 +29,8 @@
       </div>
     </div>
 
-    <div
-      v-if="error"
-      class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 whitespace-pre-line"
-    >
-      {{ error }}
-    </div>
-
-    <div
-      v-if="successMessage"
-      class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-    >
-      {{ successMessage }}
-    </div>
+    <ErrorMessage :message="error" />
+    <SuccessMessage :message="successMessage" />
 
     <div v-if="mode === 'list'" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div class="border-b border-slate-200 p-4">
@@ -167,12 +156,7 @@
               <td class="px-4 py-3 text-slate-600">{{ formatMoney(record.payAmt) }}</td>
               <td class="px-4 py-3 text-slate-600">{{ getTenderTypeName(record.tenderType) }}</td>
               <td class="px-4 py-3">
-                <span
-                  :class="getStatusClass(record.docStatus)"
-                  class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-                >
-                  {{ getStatusText(record.docStatus) }}
-                </span>
+                <StatusBadge :status="record.docStatus" type="doc" />
               </td>
               <td class="px-4 py-3">
                 <button
@@ -188,30 +172,12 @@
         </table>
       </div>
 
-      <div class="flex items-center justify-between border-t border-slate-200 px-4 py-3">
-        <div class="text-sm text-slate-600">
-          共 {{ totalCount }} 筆
-        </div>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            :disabled="currentPage <= 1"
-            class="rounded-lg border border-slate-200 px-3 py-1 text-sm disabled:opacity-50"
-            @click="prevPage"
-          >
-            上一頁
-          </button>
-          <span class="px-3 py-1 text-sm text-slate-600">第 {{ currentPage }} 頁</span>
-          <button
-            type="button"
-            :disabled="!hasNextPage"
-            class="rounded-lg border border-slate-200 px-3 py-1 text-sm disabled:opacity-50"
-            @click="nextPage"
-          >
-            下一頁
-          </button>
-        </div>
-      </div>
+      <Pagination
+        :current-page="currentPage"
+        :total-count="totalCount"
+        :page-size="pageSize"
+        @update:current-page="currentPage = $event; loadList()"
+      />
     </div>
 
     <div v-if="mode === 'form'" class="space-y-6">
@@ -229,9 +195,62 @@
               <option v-for="bp in customers" :key="bp.id" :value="bp.id">{{ bp.name }}</option>
             </select>
             <div v-if="customerBalance && formData.bpartnerId" class="mt-1 text-xs text-slate-600">
-              未結清: {{ formatMoney(customerBalance.totalOutstanding) }} / 
-              信用額度: {{ formatMoney(customerBalance.creditLimit) }}
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">銀行帳戶 <span class="text-rose-500">*</span></label>
+                <select
+                  v-model="formData.bankAccountId"
+                  class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                  @change="onBankAccountChange"
+                >
+                  <option value="">請選擇...</option>
+                  <option v-for="account in bankAccounts" :key="account.id" :value="account.id">
+                    {{ account.accountNo }} - {{ account.bankName }}
+                  </option>
+                </select>
+              </div>
             </div>
+            <div v-if="customerBalance && formData.bpartnerId" class="mt-1 text-xs text-slate-600">
+              <div :class="customerBalance.availableCredit < 0 ? 'text-rose-600 font-medium' : 'text-slate-600'">
+                未結清: {{ formatMoney(customerBalance.totalOutstanding) }} / 
+                信用額度: {{ formatMoney(customerBalance.creditLimit) }}
+              </div>
+              <div v-if="customerBalance.availableCredit < 0" class="text-rose-600 text-xs mt-1">
+                ⚠️ 可用餘額: {{ formatMoney(customerBalance.availableCredit) }} (超額)
+              </div>
+              <div v-else class="text-emerald-600 text-xs mt-1">
+                可用餘額: {{ formatMoney(customerBalance.availableCredit) }}
+              </div>
+              <div v-if="customerBalance.availableCredit < 0" class="text-rose-600 text-xs mt-1">
+                ⚠️ 可用餘額: {{ formatMoney(customerBalance.availableCredit) }} (超額)
+              </div>
+              <div v-else class="text-emerald-600 text-xs mt-1">
+                可用餘額: {{ formatMoney(customerBalance.availableCredit) }}
+              </div>
+            </div>
+            <div v-if="customerBalance && formData.bpartnerId && customerBalance.availableCredit < 0" class="mt-2 p-3 bg-rose-50 border border-rose-200 rounded-lg">
+              <div class="flex items-center gap-2">
+                <svg class="h-5 w-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 2.502-3.237 0-.467-.013-.933-.04-1.398m-12.258 0c-.467-.027-.933-.04-1.398 0-1.57 1.667-3.237 2.502-3.237.467 0 .933.013 1.398.04 1.398M4 7h16m0 0l-4 4m0-4l4 4" />
+                </svg>
+                <div>
+                  <div class="font-medium text-rose-800">信用額度警告</div>
+                  <div class="text-sm text-rose-700">目前可用餘額為 {{ formatMoney(customerBalance.availableCredit) }}，繼續操作可能超出信用額度。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">銀行帳戶 <span class="text-rose-500">*</span></label>
+            <select
+              v-model="formData.bankAccountId"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              @change="onBankAccountChange"
+            >
+              <option value="">請選擇...</option>
+              <option v-for="account in bankAccounts" :key="account.id" :value="account.id">
+                {{ account.accountNo }} - {{ account.bankName }}
+              </option>
+            </select>
           </div>
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">收款日期 <span class="text-rose-500">*</span></label>
@@ -320,6 +339,16 @@
           >
             {{ submitting ? '更新中...' : '更新' }}
           </button>
+          <!-- 管理員強制提交選項 -->
+          <button
+            v-if="editingRecord?.docStatus === 'DR' && hasCreditWarning"
+            type="button"
+            class="rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-sm font-medium text-orange-700 hover:bg-orange-100"
+            @click="handleForceSubmit"
+            :disabled="submitting"
+          >
+            {{ submitting ? '處理中...' : '強制完成' }}
+          </button>
         </template>
       </div>
     </div>
@@ -335,11 +364,18 @@ import {
   updatePaymentStatus, 
   deletePayment, 
   getCustomerBalance,
+  listBankAccounts,
   TENDER_TYPES, 
-  type TenderType 
+  type TenderType,
+  type BankAccount
 } from '../../features/payment/api'
 import { listBPartners } from '../../features/bpartner/api'
 import { useAuth } from '../../features/auth/store'
+import { formatDate, formatMoney } from '../../shared/utils/format'
+import ErrorMessage from '../../components/ErrorMessage.vue'
+import SuccessMessage from '../../components/SuccessMessage.vue'
+import StatusBadge from '../../components/StatusBadge.vue'
+import Pagination from '../../components/Pagination.vue'
 
 const auth = useAuth()
 
@@ -360,6 +396,7 @@ const successMessage = ref<string | null>(null)
 const submitting = ref(false)
 
 const customers = ref<any[]>([])
+const bankAccounts = ref<BankAccount[]>([])
 const customerBalance = ref<{
   totalOutstanding: number
   creditLimit: number
@@ -376,6 +413,7 @@ const filter = ref({
 
 const formData = ref({
   bpartnerId: 0,
+  bankAccountId: 0,
   dateTrx: new Date().toISOString().split('T')[0],
   payAmt: 0,
   tenderType: '',
@@ -384,6 +422,10 @@ const formData = ref({
 
 const hasNextPage = computed(() => {
   return currentPage.value * pageSize < totalCount.value
+})
+
+const hasCreditWarning = computed(() => {
+  return customerBalance.value && customerBalance.value.availableCredit < 0 && formData.value.payAmt > 0
 })
 
 async function loadList() {
@@ -404,29 +446,15 @@ async function loadList() {
     } = {
       top: pageSize,
       skip: (currentPage.value - 1) * pageSize,
+      tenderType: filter.value.tenderType || undefined,
+      docStatus: filter.value.docStatus || undefined,
+      dateFrom: filter.value.dateFrom || undefined,
+      dateTo: filter.value.dateTo || undefined,
     }
 
-    // Build filter string
-    let filterParts = ['IsReceipt eq true']
-    
+    // Add text search filter
     if (searchQuery.value.trim()) {
-      filterParts.push(`contains(DocumentNo,'${searchQuery.value.trim()}') or contains(C_BPartner_ID/identifier,'${searchQuery.value.trim()}')`)
-    }
-
-    if (filter.value.tenderType) {
-      searchParams.tenderType = filter.value.tenderType
-    }
-
-    if (filter.value.docStatus) {
-      searchParams.docStatus = filter.value.docStatus
-    }
-
-    if (filter.value.dateFrom) {
-      searchParams.dateFrom = filter.value.dateFrom
-    }
-
-    if (filter.value.dateTo) {
-      searchParams.dateTo = filter.value.dateTo
+      searchParams.filter = `contains(DocumentNo,'${searchQuery.value.trim()}') or contains(C_BPartner_ID/identifier,'${searchQuery.value.trim()}')`
     }
 
     const result = await listPayments(auth.token.value, searchParams)
@@ -443,10 +471,14 @@ async function loadDropdownData() {
   if (!auth.token.value) return
 
   try {
-    const bpData = await listBPartners(auth.token.value)
+    const [bpData, bankData] = await Promise.all([
+      listBPartners(auth.token.value),
+      listBankAccounts(auth.token.value),
+    ])
     customers.value = bpData.filter((bp) => bp.isCustomer)
+    bankAccounts.value = bankData
   } catch (e: any) {
-    console.error('Failed to load customers:', e)
+    console.error('Failed to load dropdown data:', e)
   }
 }
 
@@ -470,12 +502,20 @@ function startCreate() {
   successMessage.value = null
   formData.value = {
     bpartnerId: 0,
+    bankAccountId: 0,
     dateTrx: new Date().toISOString().split('T')[0],
     payAmt: 0,
     tenderType: '',
     description: '',
   }
   mode.value = 'form'
+}
+
+function onBankAccountChange() {
+  // Reload customer balance when bank account changes
+  if (formData.value.bpartnerId) {
+    onCustomerChange()
+  }
 }
 
 function startEdit(record: any) {
@@ -485,6 +525,7 @@ function startEdit(record: any) {
   successMessage.value = null
   formData.value = {
     bpartnerId: record.C_BPartner_ID?.id || record.bpartnerId || 0,
+    bankAccountId: record.C_BankAccount_ID?.id || record.bankAccountId || 0,
     dateTrx: record.DateTrx?.split('T')[0] || new Date().toISOString().split('T')[0],
     payAmt: record.PayAmt || record.payAmt || 0,
     tenderType: record.TenderType || record.tenderType || '',
@@ -537,8 +578,14 @@ function validatePayment(): string[] {
   // Customer credit validation
   if (customerBalance.value && formData.value.payAmt > 0) {
     if (customerBalance.value.availableCredit < 0) {
-      errors.push('客戶信用額度不足')
+      const deficit = Math.abs(customerBalance.value.availableCredit)
+      errors.push(`客戶信用額度不足，尚缺 ${formatMoney(deficit)} 元`)
     }
+  }
+
+  // Bank account validation
+  if (!formData.value.bankAccountId) {
+    errors.push('請選擇銀行帳戶')
   }
 
   // Amount validation for different tender types
@@ -567,6 +614,7 @@ async function handleSubmit() {
   try {
     await createPayment(auth.token.value, {
       bpartnerId: formData.value.bpartnerId,
+      bankAccountId: formData.value.bankAccountId,
       dateTrx: formData.value.dateTrx,
       payAmt: formData.value.payAmt,
       tenderType: formData.value.tenderType,
@@ -585,45 +633,9 @@ async function handleSubmit() {
   }
 }
 
-function formatDate(dateStr: string): string {
-  if (!dateStr) return ''
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
-}
-
-function formatMoney(amount: number): string {
-  return new Intl.NumberFormat('zh-TW', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
-}
-
 function getTenderTypeName(tenderType: string): string {
   const type = TENDER_TYPES.find((t) => t.code === tenderType)
   return type?.name || tenderType
-}
-
-function getStatusClass(status: string): string {
-  switch (status) {
-    case 'CO':
-      return 'bg-emerald-100 text-emerald-700'
-    case 'DR':
-      return 'bg-amber-100 text-amber-700'
-    case 'VO':
-      return 'bg-rose-100 text-rose-700'
-    default:
-      return 'bg-slate-100 text-slate-500'
-  }
-}
-
-function getStatusText(status: string): string {
-  switch (status) {
-    case 'CO':
-      return '完成'
-    case 'DR':
-      return '草稿'
-    case 'VO':
-      return '作廢'
-    default:
-      return status
-  }
 }
 
 async function onCustomerChange() {
@@ -742,6 +754,30 @@ async function handleVoid() {
     }, 1000)
   } catch (e: any) {
     error.value = e?.detail || e?.title || e?.message || '作廢失敗'
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function handleForceSubmit() {
+  if (!auth.token.value || !editingId.value) return
+
+  if (!confirm('確定要強制完成此付款單嗎？此操作無法復原。')) {
+    return
+  }
+
+  error.value = null
+  submitting.value = true
+
+  try {
+    await updatePaymentStatus(auth.token.value, editingId.value, 'CO')
+
+    successMessage.value = '付款單已強制完成'
+    setTimeout(() => {
+      backToList()
+    }, 1000)
+  } catch (e: any) {
+    error.value = e?.detail || e?.title || e?.message || '強制完成失敗'
   } finally {
     submitting.value = false
   }

@@ -11,10 +11,7 @@
       </button>
     </div>
 
-    <!-- Error -->
-    <div v-if="error" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-      {{ error }}
-    </div>
+    <ErrorMessage :message="error" />
 
     <!-- Customer List -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -170,6 +167,7 @@ import {
   type RequestType,
   type RequestStatus,
 } from '../../features/request/api'
+import ErrorMessage from '../../components/ErrorMessage.vue'
 
 const auth = useAuth()
 

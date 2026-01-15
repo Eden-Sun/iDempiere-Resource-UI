@@ -9,19 +9,8 @@
       </div>
     </div>
 
-    <div
-      v-if="error"
-      class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 whitespace-pre-line"
-    >
-      {{ error }}
-    </div>
-
-    <div
-      v-if="successMessage"
-      class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-    >
-      {{ successMessage }}
-    </div>
+    <ErrorMessage :message="error" />
+    <SuccessMessage :message="successMessage" />
 
     <div v-if="mode === 'list'" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div class="border-b border-slate-200 p-4">
@@ -91,12 +80,7 @@
               <td class="px-4 py-3 text-slate-600">{{ formatDate(order.DateOrdered) }}</td>
               <td class="px-4 py-3 text-slate-600">{{ formatMoney(order.GrandTotal) }}</td>
               <td class="px-4 py-3">
-                <span
-                  :class="getStatusClass(order.DocStatus)"
-                  class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-                >
-                  {{ getStatusText(order.DocStatus) }}
-                </span>
+                <StatusBadge :status="getDocStatus(order)" type="doc" />
               </td>
               <td class="px-4 py-3">
                 <button
@@ -369,6 +353,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { getOrdersForProduction, listProductions, createProduction, updateProduction, getProductionLines } from '../../features/production/api'
 import { getOrderLines } from '../../features/order/api'
 import { useAuth } from '../../features/auth/store'
+import { formatDate, formatMoney, getDocStatusClass, getDocStatusText } from '../../shared/utils/format'
+import ErrorMessage from '../../components/ErrorMessage.vue'
+import SuccessMessage from '../../components/SuccessMessage.vue'
+import StatusBadge from '../../components/StatusBadge.vue'
+import Pagination from '../../components/Pagination.vue'
 
 const auth = useAuth()
 
@@ -583,40 +572,8 @@ function backToList() {
   loadList()
 }
 
-function formatDate(dateStr: string): string {
-  if (!dateStr) return ''
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
-}
-
-function formatMoney(amount: number): string {
-  return new Intl.NumberFormat('zh-TW', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)
-}
-
-function getStatusClass(status: string): string {
-  switch (status) {
-    case 'CO':
-      return 'bg-emerald-100 text-emerald-700'
-    case 'DR':
-      return 'bg-amber-100 text-amber-700'
-    case 'VO':
-      return 'bg-rose-100 text-rose-700'
-    default:
-      return 'bg-slate-100 text-slate-500'
-  }
-}
-
-function getStatusText(status: string): string {
-  switch (status) {
-    case 'CO':
-      return '完成'
-    case 'DR':
-      return '草稿'
-    case 'VO':
-      return '作廢'
-    default:
-      return status
-  }
+function getDocStatus(order: any): string {
+  return order.DocStatus?.id ?? order.DocStatus ?? ''
 }
 
 watch(activeTab, () => {

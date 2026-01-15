@@ -17,10 +17,7 @@
       </select>
     </div>
 
-    <!-- Error -->
-    <div v-if="error" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-      {{ error }}
-    </div>
+    <ErrorMessage :message="error" />
 
     <!-- Customer Requests -->
     <div v-if="selectedBPartnerId && !loading && requests.length > 0" class="space-y-2">
@@ -53,12 +50,7 @@
                 </span>
               </td>
               <td class="px-4 py-3">
-                <span
-                  :class="getStatusColor(req.requestStatusName)"
-                  class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-                >
-                  {{ req.requestStatusName || '—' }}
-                </span>
+                <StatusBadge :status="req.requestStatusName" type="request" />
               </td>
               <td class="px-4 py-3 text-slate-600">{{ formatDate(req.created) }}</td>
               <td class="px-4 py-3 text-slate-600">{{ formatDate(req.startDate) }}</td>
@@ -88,6 +80,9 @@ import {
   getRequestsByCustomer,
   type Request,
 } from '../../features/request/api'
+import { formatDate, getRequestStatusClass } from '../../shared/utils/format'
+import ErrorMessage from '../../components/ErrorMessage.vue'
+import StatusBadge from '../../components/StatusBadge.vue'
 
 const auth = useAuth()
 
@@ -97,21 +92,6 @@ const requests = ref<Request[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-function getStatusColor(statusName?: string): string {
-  const map: Record<string, string> = {
-    '開啟': 'bg-emerald-100 text-emerald-700',
-    '進行中': 'bg-blue-100 text-blue-700',
-    '已關閉': 'bg-slate-100 text-slate-700',
-    '待處理': 'bg-amber-100 text-amber-700',
-  }
-  return map[statusName || ''] || 'bg-slate-100 text-slate-700'
-}
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()}`
-}
 
 async function loadCustomers() {
   if (!auth.token.value) return

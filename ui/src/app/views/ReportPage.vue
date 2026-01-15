@@ -9,9 +9,7 @@
       </div>
     </div>
 
-    <div v-if="error" class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-      {{ error }}
-    </div>
+    <ErrorMessage :message="error" />
 
     <div class="grid gap-6 md:grid-cols-3">
       <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -26,7 +24,7 @@
         <div class="text-sm font-medium text-slate-500">今日收款</div>
         <div class="mt-2 text-3xl font-bold text-emerald-600">
           <span v-if="loading">...</span>
-          <span v-else>${{ todayPayment.toFixed(2) }}</span>
+          <span v-else>${{ formatMoney(todayPayment) }}</span>
         </div>
       </div>
 
@@ -50,6 +48,8 @@
 import { ref, onMounted } from 'vue'
 import { useAuth } from '../../features/auth/store'
 import { apiFetch } from '../../shared/api/http'
+import { formatMoney } from '../../shared/utils/format'
+import ErrorMessage from '../../components/ErrorMessage.vue'
 
 const auth = useAuth()
 
