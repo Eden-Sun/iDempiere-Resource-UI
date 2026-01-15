@@ -299,22 +299,32 @@ async function onSubmitLogin() {
     let finalRoleId = roleId.value
     let finalOrgId = organizationId.value
     let finalWarehouseId = warehouseId.value
+    let finalClientName: string | undefined
+    let finalRoleName: string | undefined
 
     if (!selectRole.value) {
       // Auto-select first client
       const availableClients = tempRes.clients ?? []
       if (availableClients.length === 0) throw new Error('無可用的客戶')
       finalClientId = availableClients[0].id
+      finalClientName = availableClients[0].name
 
       // Get roles for first client
       const availableRoles = await getRoles(finalClientId, tempRes.token)
       if (availableRoles.length === 0) throw new Error('無可用的角色')
       finalRoleId = availableRoles[0].id
+      finalRoleName = availableRoles[0].name
 
       // Get organizations for first role
       const availableOrgs = await getOrganizations(finalClientId, finalRoleId, tempRes.token)
       if (availableOrgs.length === 0) throw new Error('無可用的組織')
       finalOrgId = availableOrgs[0].id
+    } else {
+      // Find names from selected options
+      const selectedClient = clients.value.find(c => c.id === finalClientId)
+      finalClientName = selectedClient?.name
+      const selectedRole = roles.value.find(r => r.id === finalRoleId)
+      finalRoleName = selectedRole?.name
     }
 
     if (finalClientId == null || finalRoleId == null || finalOrgId == null) {
@@ -343,8 +353,10 @@ async function onSubmitLogin() {
       refreshToken: finalRes.refresh_token,
       userId: finalRes.userId,
       clientId: finalClientId,
+      clientName: finalClientName,
       organizationId: finalOrgId,
       roleId: finalRoleId,
+      roleName: finalRoleName,
       warehouseId: finalWarehouseId ?? undefined,
       language: finalRes.language || language.value,
     })

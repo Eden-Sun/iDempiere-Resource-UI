@@ -28,7 +28,8 @@
           <div v-if="isAuthenticated" class="ml-2 flex items-center gap-3 border-l border-slate-200 pl-3">
             <div class="text-right">
               <div class="text-sm font-medium text-slate-900">{{ userDisplayName }}</div>
-              <div class="text-xs text-slate-500">{{ userRole }}</div>
+              <div v-if="roleDisplay" class="text-xs text-slate-500">{{ roleDisplay }}</div>
+              <div v-if="clientDisplay" class="text-xs text-slate-500">{{ clientDisplay }}</div>
             </div>
             <button
               class="rounded-md border border-slate-200 bg-white px-3 py-2 font-medium text-slate-700 hover:bg-slate-50"
@@ -72,12 +73,22 @@ const isAuthenticated = computed(() => auth.isAuthenticated.value)
 const isSystem = computed(() => permission.isSystem.value)
 const visibleMenuItems = computed(() => permission.visibleMenuItems.value)
 const userDisplayName = computed(() => auth.userName.value || `User #${auth.userId.value}`)
-const userRole = computed(() => {
-  const parts: string[] = []
-  if (isSystem.value) parts.push('System')
-  if (auth.roleId.value) parts.push(`Role: ${auth.roleId.value}`)
-  if (auth.clientId.value) parts.push(`Client: ${auth.clientId.value}`)
-  return parts.length > 0 ? parts.join(' • ') : 'User'
+const roleDisplay = computed(() => {
+  if (isSystem.value) return 'System'
+  if (auth.roleName.value) {
+    return `Role: ${auth.roleName.value}`
+  } else if (auth.roleId.value) {
+    return `Role: ${auth.roleId.value}`
+  }
+  return null
+})
+const clientDisplay = computed(() => {
+  if (auth.clientName.value) {
+    return `Client: ${auth.clientName.value}`
+  } else if (auth.clientId.value) {
+    return `Client: ${auth.clientId.value}`
+  }
+  return null
 })
 
 function logout(): void {

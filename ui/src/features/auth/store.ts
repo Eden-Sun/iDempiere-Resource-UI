@@ -31,8 +31,10 @@ export function useAuth() {
     return (payload?.sub as string) ?? null
   })
   const clientId = computed(() => session.value?.clientId ?? null)
+  const clientName = computed(() => session.value?.clientName ?? null)
   const organizationId = computed(() => session.value?.organizationId ?? null)
   const roleId = computed(() => session.value?.roleId ?? null)
+  const roleName = computed(() => session.value?.roleName ?? null)
   const language = computed(() => session.value?.language ?? 'en_US')
 
   function load() {
@@ -63,8 +65,10 @@ export function useAuth() {
     userId,
     userName,
     clientId,
+    clientName,
     organizationId,
     roleId,
+    roleName,
     language,
     load,
     set,

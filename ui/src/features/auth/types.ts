@@ -30,8 +30,10 @@ export type Session = {
   userId: number
   userName?: string  // Decoded from JWT token
   clientId: number
+  clientName?: string  // Client name for display
   organizationId: number
   roleId?: number
+  roleName?: string  // Role name for display
   warehouseId?: number
   language?: string
 }
