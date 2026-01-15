@@ -23,4 +23,7 @@ services:
     working_dir: /app
     environment:
       - NODE_ENV=development
+      - VITE_API_IP=192.168.1.47
+      - VITE_DEFAULT_USER=i7eadmin
+      - VITE_DEFAULT_PASS=i7eadmin
     command: opencode web --hostname 0.0.0.0 --port 5555
