@@ -241,6 +241,7 @@ export async function createOrder(
     dateOrdered: string
     warehouseId: number // 改为必填字段
     bpartnerLocationId?: number // 业务伙伴收货地点
+    orgId: number // AD_Org_ID - 组织ID (必填)
     description?: string
   },
   lines: Array<{ productId: number; qtyEntered: number; priceEntered: number; taxId?: number }>,
@@ -249,6 +250,7 @@ export async function createOrder(
   const bpartnerId = ensureNumberId(order.bpartnerId)
   const warehouseId = ensureNumberId(order.warehouseId) // 仓库现在是必填的
   const bpartnerLocationId = order.bpartnerLocationId ? ensureNumberId(order.bpartnerLocationId) : null
+  const orgId = ensureNumberId(order.orgId)
 
   if (!bpartnerId || bpartnerId <= 0) {
     throw new Error('客戶/供應商ID無效')
