@@ -88,16 +88,16 @@
               class="hover:bg-slate-50 cursor-pointer"
               @click="startEdit(record)"
             >
-              <td class="px-4 py-3 font-medium text-slate-900">{{ record.DocumentNo }}</td>
+              <td class="px-4 py-3 font-medium text-slate-900">{{ record.documentNo }}</td>
               <td class="px-4 py-3 text-slate-600">{{ record.bpartnerName }}</td>
-              <td class="px-4 py-3 text-slate-600">{{ formatDate(record.DateOrdered) }}</td>
-              <td class="px-4 py-3 text-slate-600">{{ formatMoney(record.GrandTotal) }}</td>
+              <td class="px-4 py-3 text-slate-600">{{ formatDate(record.dateOrdered) }}</td>
+              <td class="px-4 py-3 text-slate-600">{{ formatMoney(record.grandTotal) }}</td>
               <td class="px-4 py-3">
                 <span
-                  :class="getStatusClass(record.DocStatus)"
+                  :class="getStatusClass(record.docStatus)"
                   class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
                 >
-                  {{ getStatusText(record.DocStatus) }}
+                  {{ getStatusText(record.docStatus) }}
                 </span>
               </td>
               <td class="px-4 py-3">
@@ -152,7 +152,7 @@
               :disabled="!!editingId"
             >
               <option value="">請選擇...</option>
-              <option v-for="bp in bpartners" :key="bp.id" :value="bp.id">{{ bp.Name }}</option>
+              <option v-for="bp in bpartners" :key="bp.id" :value="bp.id">{{ bp.name }}</option>
             </select>
           </div>
           <div v-if="isPurchase">
@@ -435,10 +435,16 @@ async function startEdit(record: any) {
   editingId.value = record.id
   error.value = null
   successMessage.value = null
+  
+  // 确保下拉数据已加载
+  if (bpartners.value.length === 0) {
+    await loadDropdownData()
+  }
+  
   formData.value = {
-    bpartnerId: record.C_BPartner_ID?.id || record.bpartnerId || 0,
-    warehouseId: record.M_Warehouse_ID?.id || 0,
-    dateOrdered: record.DateOrdered?.split('T')[0] || new Date().toISOString().split('T')[0],
+    bpartnerId: record.bpartnerId || 0,
+    warehouseId: record.warehouseId || 0,
+    dateOrdered: record.dateOrdered?.split('T')[0] || new Date().toISOString().split('T')[0],
   }
   await loadOrderLines(record.id)
   mode.value = 'form'
@@ -507,12 +513,53 @@ async function handleSubmit() {
   submitting.value = true
 
   try {
+    // 确保所有ID和数值字段都是数字类型
+    // 使用严格的数值转换，移除任何非数字字符
+    const parseId = (val: any): number => {
+      if (!val) return 0
+      if (typeof val === 'number') return isNaN(val) ? 0 : Math.floor(Math.abs(val))
+      if (typeof val === 'string') {
+        const cleaned = val.replace(/[^\d]/g, '')
+        const num = cleaned ? parseInt(cleaned, 10) : 0
+        return isNaN(num) ? 0 : num
+      }
+      return 0
+    }
+
+    const parseNumber = (val: any): number => {
+      if (val === undefined || val === null || val === '') return 0
+      if (typeof val === 'number') return isNaN(val) ? 0 : val
+      if (typeof val === 'string') {
+        const cleaned = val.replace(/[^\d.-]/g, '')
+        const num = cleaned ? parseFloat(cleaned) : 0
+        return isNaN(num) ? 0 : num
+      }
+      return 0
+    }
+
+    const bpartnerId = parseId(formData.value.bpartnerId)
+    const warehouseId = isPurchase.value ? parseId(formData.value.warehouseId) : undefined
+
+    if (!bpartnerId || bpartnerId <= 0) {
+      error.value = isPurchase.value ? '請選擇有效的供應商' : '請選擇有效的客戶'
+      submitting.value = false
+      return
+    }
+
+    // 清理订单行数据，确保所有数值都是正确的类型
+    const cleanedLines = orderLines.value.map(line => ({
+      productId: parseId(line.productId),
+      qtyEntered: parseNumber(line.qtyEntered),
+      priceEntered: parseNumber(line.priceEntered),
+      taxId: line.taxId ? parseId(line.taxId) : undefined,
+    }))
+
     await createOrder(auth.token.value, {
-      bpartnerId: formData.value.bpartnerId,
+      bpartnerId,
       isSOTrx: !isPurchase.value,
       dateOrdered: formData.value.dateOrdered,
-      warehouseId: isPurchase.value ? formData.value.warehouseId : undefined,
-    }, orderLines.value)
+      warehouseId: warehouseId && warehouseId > 0 ? warehouseId : undefined,
+    }, cleanedLines)
 
     successMessage.value = isPurchase.value ? '採購訂單已建立' : '銷售訂單已建立'
 

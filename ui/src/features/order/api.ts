@@ -64,17 +64,30 @@ export async function listOrders(
     searchParams,
   })
 
-  const records = (res.records ?? []).map((r) => ({
-    id: Number(r.id),
-    documentNo: String(r.DocumentNo ?? ''),
-    bpartnerId: Number(r.C_BPartner_ID?.id ?? r.C_BPartner_ID ?? 0),
-    bpartnerName: String(r.C_BPartner_ID?.identifier ?? r.C_BPartner_ID?.name ?? ''),
-    isSOTrx: r.IsSOTrx === true || r.IsSOTrx === 'Y',
-    dateOrdered: String(r.DateOrdered ?? ''),
-    grandTotal: Number(r.GrandTotal ?? 0),
-    docStatus: String(r.DocStatus ?? ''),
-    warehouseId: r.M_Warehouse_ID?.id ? Number(r.M_Warehouse_ID.id) : undefined,
-  }))
+  const records = (res.records ?? []).map((r) => {
+    // 处理 DocStatus，可能是对象或字符串
+    let docStatus = ''
+    if (r.DocStatus) {
+      if (typeof r.DocStatus === 'object' && r.DocStatus !== null) {
+        // 对象可能有 id、value、name 等属性
+        docStatus = String(r.DocStatus.id ?? r.DocStatus.value ?? r.DocStatus.name ?? r.DocStatus.identifier ?? '')
+      } else {
+        docStatus = String(r.DocStatus)
+      }
+    }
+
+    return {
+      id: Number(r.id),
+      documentNo: String(r.DocumentNo ?? ''),
+      bpartnerId: Number(r.C_BPartner_ID?.id ?? r.C_BPartner_ID ?? 0),
+      bpartnerName: String(r.C_BPartner_ID?.identifier ?? r.C_BPartner_ID?.name ?? ''),
+      isSOTrx: r.IsSOTrx === true || r.IsSOTrx === 'Y',
+      dateOrdered: String(r.DateOrdered ?? ''),
+      grandTotal: Number(r.GrandTotal ?? 0),
+      docStatus,
+      warehouseId: r.M_Warehouse_ID?.id ? Number(r.M_Warehouse_ID.id) : undefined,
+    }
+  })
 
   return {
     records,
@@ -84,6 +97,18 @@ export async function listOrders(
 
 export async function getOrder(token: string, id: number): Promise<Order> {
   const res = await apiFetch<any>(`${API_V1}/models/C_Order/${id}`, { token })
+  
+  // 处理 DocStatus，可能是对象或字符串
+  let docStatus = ''
+  if (res.DocStatus) {
+    if (typeof res.DocStatus === 'object' && res.DocStatus !== null) {
+      // 对象可能有 id、value、name 等属性
+      docStatus = String(res.DocStatus.id ?? res.DocStatus.value ?? res.DocStatus.name ?? res.DocStatus.identifier ?? '')
+    } else {
+      docStatus = String(res.DocStatus)
+    }
+  }
+
   return {
     id: Number(res.id),
     documentNo: String(res.DocumentNo ?? ''),
@@ -92,7 +117,7 @@ export async function getOrder(token: string, id: number): Promise<Order> {
     isSOTrx: res.IsSOTrx === true || res.IsSOTrx === 'Y',
     dateOrdered: String(res.DateOrdered ?? ''),
     grandTotal: Number(res.GrandTotal ?? 0),
-    docStatus: String(res.DocStatus ?? ''),
+    docStatus,
     warehouseId: res.M_Warehouse_ID?.id ? Number(res.M_Warehouse_ID.id) : undefined,
   }
 }
@@ -172,6 +197,42 @@ export async function listTaxes(token: string): Promise<Tax[]> {
   }))
 }
 
+// 辅助函数：确保ID字段是纯数字（整数）
+function ensureNumberId(value: number | string | undefined | null): number | null {
+  if (value === undefined || value === null || value === '' || value === 0) {
+    return null
+  }
+  if (typeof value === 'number') {
+    return isNaN(value) ? null : Math.floor(Math.abs(value))
+  }
+  if (typeof value === 'string') {
+    // 只保留数字字符，移除所有非数字字符（包括小数点、负号等）
+    const cleaned = value.replace(/[^\d]/g, '')
+    if (!cleaned || cleaned.length === 0) {
+      return null
+    }
+    const num = parseInt(cleaned, 10)
+    return isNaN(num) || num <= 0 ? null : num
+  }
+  return null
+}
+
+// 辅助函数：确保数值字段是纯数字
+function ensureNumber(value: number | string | undefined | null): number {
+  if (value === undefined || value === null || value === '') {
+    return 0
+  }
+  if (typeof value === 'number') {
+    return isNaN(value) ? 0 : value
+  }
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^\d.-]/g, '')
+    const num = parseFloat(cleaned)
+    return isNaN(num) ? 0 : num
+  }
+  return 0
+}
+
 export async function createOrder(
   token: string,
   order: {
@@ -183,18 +244,40 @@ export async function createOrder(
   },
   lines: Array<{ productId: number; qtyEntered: number; priceEntered: number; taxId?: number }>,
 ): Promise<any> {
+  // 确保所有ID字段都是纯数字
+  const bpartnerId = ensureNumberId(order.bpartnerId)
+  const warehouseId = order.warehouseId ? ensureNumberId(order.warehouseId) : null
+
+  if (!bpartnerId || bpartnerId <= 0) {
+    throw new Error('客戶/供應商ID無效')
+  }
+
+  // 构建请求体，只包含非null的字段，并确保所有类型正确
+  const orderBody: Record<string, any> = {
+    C_BPartner_ID: Number(bpartnerId), // 确保是数字类型
+    IsSOTrx: order.isSOTrx ? 'Y' : 'N', // iDempiere expects 'Y'/'N' string, not boolean
+    DateOrdered: String(order.dateOrdered), // 确保是字符串
+    DocStatus: 'DR',
+    DocAction: 'CO',
+  }
+
+  // 只在有值时才添加可选字段（避免发送 null）
+  if (warehouseId && warehouseId > 0) {
+    orderBody.M_Warehouse_ID = Number(warehouseId) // 确保是数字类型
+  }
+  if (order.description && order.description.trim()) {
+    orderBody.Description = String(order.description.trim()) // 确保是字符串
+  }
+
+  // 调试：在开发环境中打印请求体
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Creating C_Order with body:', JSON.stringify(orderBody, null, 2))
+  }
+
   const orderRes = await apiFetch<any>(`${API_V1}/models/C_Order`, {
     method: 'POST',
     token,
-    json: {
-      C_BPartner_ID: order.bpartnerId,
-      IsSOTrx: order.isSOTrx,
-      DateOrdered: order.dateOrdered,
-      M_Warehouse_ID: order.warehouseId || null,
-      Description: order.description || null,
-      DocStatus: 'DR',
-      DocAction: 'CO',
-    },
+    json: orderBody,
   })
 
   const orderId = orderRes.id || orderRes.C_Order_ID
@@ -203,17 +286,53 @@ export async function createOrder(
     throw new Error('Failed to create order: no ID returned')
   }
 
+  // 确保orderId是数字
+  const numericOrderId = ensureNumberId(orderId)
+  if (!numericOrderId) {
+    throw new Error('訂單ID無效')
+  }
+
   for (const line of lines) {
+    // 确保所有数值字段都是纯数字
+    const productId = ensureNumberId(line.productId)
+    const qtyEntered = ensureNumber(line.qtyEntered)
+    const priceEntered = ensureNumber(line.priceEntered)
+    const taxId = line.taxId ? ensureNumberId(line.taxId) : null
+
+    if (!productId || productId <= 0) {
+      throw new Error('商品ID無效')
+    }
+
+    if (qtyEntered <= 0) {
+      throw new Error('數量必須大於0')
+    }
+
+    if (priceEntered < 0) {
+      throw new Error('單價不能為負數')
+    }
+    
+    // 构建订单行请求体，只包含非null的字段，并确保所有类型正确
+    const lineBody: Record<string, any> = {
+      C_Order_ID: Number(numericOrderId), // 确保是数字类型
+      M_Product_ID: Number(productId), // 确保是数字类型
+      QtyEntered: Number(qtyEntered), // 确保是数字类型
+      PriceEntered: Number(priceEntered), // 确保是数字类型
+    }
+
+    // 只在有值时才添加税ID（避免发送 null）
+    if (taxId && taxId > 0) {
+      lineBody.C_Tax_ID = Number(taxId) // 确保是数字类型
+    }
+
+    // 调试：在开发环境中打印请求体
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Creating C_OrderLine with body:', JSON.stringify(lineBody, null, 2))
+    }
+
     await apiFetch<any>(`${API_V1}/models/C_OrderLine`, {
       method: 'POST',
       token,
-      json: {
-        C_Order_ID: orderId,
-        M_Product_ID: line.productId,
-        QtyEntered: line.qtyEntered,
-        PriceEntered: line.priceEntered,
-        C_Tax_ID: line.taxId || null,
-      },
+      json: lineBody,
     })
   }
 
