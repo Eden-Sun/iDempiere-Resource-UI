@@ -66,12 +66,14 @@
               </td>
               <td class="px-4 py-3">
                 <button
+                  v-if="!isOrderFullyDelivered(order.id)"
                   type="button"
                   class="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700"
                   @click="viewOrder(order)"
                 >
                   收貨
                 </button>
+                <span v-else class="text-xs text-slate-500">已完成</span>
               </td>
             </tr>
           </tbody>
@@ -114,30 +116,36 @@
               <tr>
                 <th class="px-4 py-3">商品</th>
                 <th class="px-4 py-3">訂購數量</th>
-                <th class="px-4 py-3">收貨數量</th>
+                <th class="px-4 py-3">已交付</th>
+                <th class="px-4 py-3">可收貨</th>
+                <th class="px-4 py-3">本次收貨</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-200">
               <tr v-if="linesLoading">
-                <td colspan="3" class="px-4 py-8 text-center text-slate-500">載入中...</td>
+                <td colspan="5" class="px-4 py-8 text-center text-slate-500">載入中...</td>
               </tr>
               <tr v-else-if="orderLines.length === 0">
-                <td colspan="3" class="px-4 py-8 text-center text-slate-500">無明細資料</td>
+                <td colspan="5" class="px-4 py-8 text-center text-slate-500">無明細資料</td>
               </tr>
               <tr v-for="line in orderLines" :key="line.id">
                 <td class="px-4 py-3 text-slate-900">{{ line.M_Product_ID?.identifier || line.M_Product_ID?.name }}</td>
-                <td class="px-4 py-3 text-slate-600">{{ line.QtyEntered }}</td>
+                <td class="px-4 py-3 text-slate-600">{{ line.qtyEntered }}</td>
+                <td class="px-4 py-3 text-slate-600">{{ line.qtyDelivered }}</td>
+                <td class="px-4 py-3 font-medium text-slate-900">{{ line.qtyAvailable }}</td>
                 <td class="px-4 py-3">
                   <input
                     v-model.number="line.qtyToReceive"
                     type="number"
-                    :max="line.QtyEntered"
+                    :max="line.qtyAvailable"
                     :min="0"
                     step="0.01"
+                    :disabled="line.qtyAvailable <= 0"
                     @blur="validateQty(line)"
-                    class="w-32 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                    class="w-32 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
                   />
                   <span v-if="line.qtyError" class="block text-xs text-rose-600">{{ line.qtyError }}</span>
+                  <span v-else-if="line.qtyAvailable <= 0" class="block text-xs text-slate-500">已全部收貨</span>
                 </td>
               </tr>
             </tbody>
@@ -185,6 +193,7 @@ const orders = ref<any[]>([])
 const currentOrder = ref<any>(null)
 const orderLines = ref<any[]>([])
 const movementDate = ref(new Date().toISOString().split('T')[0])
+const orderFullyDeliveredMap = ref<Map<number, boolean>>(new Map())
 
 function formatDate(dateStr?: string): string {
   if (!dateStr) return '-'
@@ -207,16 +216,50 @@ function getDocStatusText(status: string): string {
   return statusMap[status] || status
 }
 
+async function checkOrderFullyDelivered(orderId: number): Promise<boolean> {
+  try {
+    const lines = await InOutAPI.getOrderLines(token.value, orderId)
+    if (lines.length === 0) return false
+    
+    // 检查所有订单行是否都已完全交付
+    return lines.every((line) => {
+      const qtyEntered = Number(line.QtyEntered || 0)
+      const qtyDelivered = Number(line.QtyDelivered || 0)
+      return qtyEntered > 0 && qtyDelivered >= qtyEntered
+    })
+  } catch (e) {
+    console.error('检查订单交付状态失败:', e)
+    return false
+  }
+}
+
 async function loadOrders(): Promise<void> {
   loading.value = true
   error.value = ''
   try {
-    orders.value = await InOutAPI.getPendingPurchaseOrders(token.value)
+    const fetchedOrders = await InOutAPI.getPendingPurchaseOrders(token.value)
+    orders.value = fetchedOrders
+    
+    // 并行检查每个订单的交付状态
+    orderFullyDeliveredMap.value.clear()
+    const checkPromises = fetchedOrders.map(async (order) => {
+      const isFullyDelivered = await checkOrderFullyDelivered(order.id)
+      return { orderId: order.id, isFullyDelivered }
+    })
+    
+    const results = await Promise.all(checkPromises)
+    results.forEach(({ orderId, isFullyDelivered }) => {
+      orderFullyDeliveredMap.value.set(orderId, isFullyDelivered)
+    })
   } catch (e: any) {
     error.value = `載入失敗: ${e?.detail || e?.title || e?.message || '未知錯誤'}`
   } finally {
     loading.value = false
   }
+}
+
+function isOrderFullyDelivered(orderId: number): boolean {
+  return orderFullyDeliveredMap.value.get(orderId) ?? false
 }
 
 async function viewOrder(order: any): Promise<void> {
@@ -231,11 +274,19 @@ async function loadOrderLines(orderId: number): Promise<void> {
   error.value = ''
   try {
     const lines = await InOutAPI.getOrderLines(token.value, orderId)
-    orderLines.value = lines.map((l) => ({
-      ...l,
-      qtyToReceive: l.QtyEntered,
-      qtyError: '',
-    }))
+    orderLines.value = lines.map((l) => {
+      const qtyEntered = Number(l.QtyEntered || 0)
+      const qtyDelivered = Number(l.QtyDelivered || 0)
+      const qtyAvailable = Math.max(0, qtyEntered - qtyDelivered)
+      return {
+        ...l,
+        qtyEntered,
+        qtyDelivered,
+        qtyAvailable,
+        qtyToReceive: qtyAvailable, // 默认可收货数量
+        qtyError: '',
+      }
+    })
   } catch (e: any) {
     error.value = `載入明細失敗: ${e?.detail || e?.title || e?.message || '未知錯誤'}`
   } finally {
@@ -247,9 +298,9 @@ function validateQty(line: any): void {
   if (line.qtyToReceive < 0) {
     line.qtyError = '不能小於 0'
     line.qtyToReceive = 0
-  } else if (line.qtyToReceive > line.QtyEntered) {
-    line.qtyError = '不能超過訂購數量'
-    line.qtyToReceive = line.QtyEntered
+  } else if (line.qtyToReceive > line.qtyAvailable) {
+    line.qtyError = `不能超過可收貨數量 (${line.qtyAvailable})`
+    line.qtyToReceive = line.qtyAvailable
   } else {
     line.qtyError = ''
   }

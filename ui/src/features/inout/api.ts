@@ -40,7 +40,7 @@ export async function getOrderLines(token: string, orderId: number): Promise<any
   const res = await apiFetch<{ records: any[] }>(`${API_V1}/models/C_OrderLine`, {
     token,
     searchParams: {
-      $select: 'C_OrderLine_ID,C_Order_ID,M_Product_ID,QtyEntered,PriceEntered,LineNetAmt,C_Tax_ID,C_UOM_ID',
+      $select: 'C_OrderLine_ID,C_Order_ID,M_Product_ID,QtyEntered,QtyDelivered,PriceEntered,LineNetAmt,C_Tax_ID,C_UOM_ID',
       $filter: `C_Order_ID eq ${orderId}`,
       $orderby: 'Line',
     },
