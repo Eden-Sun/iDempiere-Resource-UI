@@ -252,27 +252,43 @@ export async function createOrder(
     throw new Error('客戶/供應商ID無效')
   }
 
+  // 最终验证：确保 bpartnerId 是有效的数字
+  const finalBpartnerId = Number(bpartnerId)
+  if (isNaN(finalBpartnerId) || finalBpartnerId <= 0) {
+    throw new Error(`无效的客户/供应商ID: ${bpartnerId} (类型: ${typeof bpartnerId})`)
+  }
+
   // 构建请求体，只包含非null的字段，并确保所有类型正确
+  // 注意：DocAction 可能在创建时不应该设置，让后端使用默认值
   const orderBody: Record<string, any> = {
-    C_BPartner_ID: Number(bpartnerId), // 确保是数字类型
+    C_BPartner_ID: finalBpartnerId, // 确保是数字类型
     IsSOTrx: order.isSOTrx ? 'Y' : 'N', // iDempiere expects 'Y'/'N' string, not boolean
     DateOrdered: String(order.dateOrdered), // 确保是字符串
-    DocStatus: 'DR',
-    DocAction: 'CO',
+    DocStatus: 'DR', // 草稿状态
+    // 不设置 DocAction，让后端使用默认值
   }
 
   // 只在有值时才添加可选字段（避免发送 null）
   if (warehouseId && warehouseId > 0) {
-    orderBody.M_Warehouse_ID = Number(warehouseId) // 确保是数字类型
+    const finalWarehouseId = Number(warehouseId)
+    if (!isNaN(finalWarehouseId) && finalWarehouseId > 0) {
+      orderBody.M_Warehouse_ID = finalWarehouseId // 确保是数字类型
+    }
   }
   if (order.description && order.description.trim()) {
     orderBody.Description = String(order.description.trim()) // 确保是字符串
   }
 
-  // 调试：在开发环境中打印请求体
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Creating C_Order with body:', JSON.stringify(orderBody, null, 2))
+  // 最终验证：确保所有数值字段都是有效的数字
+  for (const [key, value] of Object.entries(orderBody)) {
+    if (key.includes('_ID') && typeof value !== 'number') {
+      throw new Error(`字段 ${key} 必须是数字类型，但得到: ${typeof value} (值: ${value})`)
+    }
   }
+
+  // 调试：在开发环境中打印请求体
+  console.log('Creating C_Order with body:', JSON.stringify(orderBody, null, 2))
+  console.log('Body types:', Object.entries(orderBody).map(([k, v]) => `${k}: ${typeof v}`).join(', '))
 
   const orderRes = await apiFetch<any>(`${API_V1}/models/C_Order`, {
     method: 'POST',

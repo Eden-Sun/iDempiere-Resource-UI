@@ -155,8 +155,8 @@
               <option v-for="bp in bpartners" :key="bp.id" :value="bp.id">{{ bp.name }}</option>
             </select>
           </div>
-          <div v-if="isPurchase">
-            <label class="block text-sm font-medium text-slate-700 mb-1">入庫倉 <span class="text-rose-500">*</span></label>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">{{ isPurchase ? '入庫倉' : '出庫倉' }} <span class="text-rose-500">*</span></label>
             <select
               v-model="formData.warehouseId"
               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
@@ -483,8 +483,8 @@ async function handleSubmit() {
     return
   }
 
-  if (isPurchase.value && !formData.value.warehouseId) {
-    error.value = '請選擇入庫倉'
+  if (!formData.value.warehouseId) {
+    error.value = isPurchase.value ? '請選擇入庫倉' : '請選擇出庫倉'
     return
   }
 
