@@ -73,6 +73,7 @@
           <tr>
             <th class="px-4 py-3">諮詢單</th>
             <th class="px-4 py-3">客戶</th>
+            <th class="px-4 py-3">最後聯繫</th>
             <th class="px-4 py-3">諮詢師</th>
             <th class="px-4 py-3">Type</th>
             <th class="px-4 py-3">Status</th>
@@ -108,6 +109,11 @@
                 </div>
               </td>
               <td class="px-4 py-3 text-slate-600">{{ req.bPartnerName || '—' }}</td>
+              <td class="px-4 py-3">
+                <span class="text-slate-600" title="最後聯絡客戶的日期">
+                  {{ req.lastContactDate ? formatDate(req.lastContactDate) : '—' }}
+                </span>
+              </td>
               <td class="px-4 py-3 text-slate-600">{{ req.salesRepName || '—' }}</td>
               <td class="px-4 py-3">
                 <span class="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
@@ -116,18 +122,13 @@
               </td>
               <td class="px-4 py-3">
                 <span
-                  :class="getStatusColor(req.requestStatusName)"
+                  :class="getStatusClass(req.requestStatusName)"
                   class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
                 >
                   {{ req.requestStatusName || '—' }}
                 </span>
               </td>
-              <td class="px-4 py-3">
-                <span class="text-slate-600">{{ formatDate(req.startDate) }}</span>
-                <span v-if="req.startDate" class="ml-1 inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
-                  已預約
-                </span>
-              </td>
+              <td class="px-4 py-3 text-slate-600">{{ formatDate(req.startDate) }}</td>
               <td class="px-4 py-3 text-slate-600">{{ formatDate(req.closeDate) }}</td>
               <td class="px-4 py-3 text-right" @click.stop>
                 <div class="flex items-center justify-end gap-2">
