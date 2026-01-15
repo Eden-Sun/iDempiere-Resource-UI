@@ -524,7 +524,7 @@ export async function getStatusesForRequestType(token: string, requestTypeId: nu
 }
 
 /**
- * 取得待接應客戶（還沒有開過諮詢單的客戶）
+ * 取得待接應客戶（所有客戶，同一個客戶可以有多個 request）
  */
 export async function getPendingCustomers(token: string): Promise<{ id: number; name: string }[]> {
   try {
@@ -545,25 +545,8 @@ export async function getPendingCustomers(token: string): Promise<{ id: number; 
       name: String(r.Name ?? ''),
     }))
 
-    // 取得已有諮詢單的客戶 ID
-    const requestsRes = await apiFetch<{ records: any[] }>(
-      `${API_V1}/models/R_Request`,
-      {
-        token,
-        searchParams: {
-          $select: 'C_BPartner_ID',
-        } satisfies SearchParams,
-      },
-    )
-
-    const customerIdsWithRequests = new Set(
-      (requestsRes.records ?? [])
-        .map((r) => Number(r.C_BPartner_ID?.id ?? r.C_BPartner_ID))
-        .filter((id) => !isNaN(id) && id > 0)
-    )
-
-    // 過濾出還沒有諮詢單的客戶
-    return allCustomers.filter((c) => !customerIdsWithRequests.has(c.id))
+    // 返回所有客戶，不排除已有諮詢單的客戶（同一個客戶可以有多個 request）
+    return allCustomers
   } catch (error) {
     console.error('Failed to get pending customers:', error)
     return []

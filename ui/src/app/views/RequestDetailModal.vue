@@ -7,7 +7,7 @@
     >
       <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <div class="flex items-center justify-between">
-          <h3 class="text-lg font-semibold text-slate-900">{{ isEditing ? '編輯諮詢單' : '諮詢單詳情' }}</h3>
+          <h3 class="text-lg font-semibold text-slate-900">編輯諮詢單</h3>
           <button
             class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             @click="closeModal"
@@ -33,8 +33,7 @@
             <input
               v-model="form.name"
               type="text"
-              :disabled="!isEditing"
-              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-600"
+              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
               placeholder="諮詢單名稱"
             />
           </div>
@@ -42,8 +41,7 @@
             <label class="text-sm font-medium text-slate-700">說明</label>
             <textarea
               v-model="form.description"
-              :disabled="!isEditing"
-              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-600"
+              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
               rows="3"
               placeholder="需求說明..."
             />
@@ -61,8 +59,7 @@
             <label class="text-sm font-medium text-slate-700">Request Type</label>
             <select
               v-model="form.requestTypeId"
-              :disabled="!isEditing"
-              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-600"
+              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
             >
               <option :value="undefined">未選擇</option>
               <option v-for="type in requestTypes" :key="type.id" :value="type.id">
@@ -74,8 +71,7 @@
             <label class="text-sm font-medium text-slate-700">Status</label>
             <select
               v-model="form.requestStatusId"
-              :disabled="!isEditing"
-              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-600"
+              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
             >
               <option :value="undefined">未選擇</option>
               <option v-for="status in requestStatuses" :key="status.id" :value="status.id">
@@ -89,8 +85,7 @@
               <input
                 v-model="form.startDate"
                 type="datetime-local"
-                :disabled="!isEditing"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-600"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
               />
             </div>
             <div>
@@ -98,8 +93,7 @@
               <input
                 v-model="form.closeDate"
                 type="datetime-local"
-                :disabled="!isEditing"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-600"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
               />
             </div>
           </div>
@@ -109,68 +103,22 @@
         </div>
 
         <div class="mt-6 flex gap-3">
-          <template v-if="isEditing">
-            <button
-              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-              :disabled="submitting"
-              @click="submitUpdate"
-            >
-              {{ submitting ? '儲存中…' : '儲存' }}
-            </button>
-            <button
-              class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              @click="cancelEdit"
-            >
-              取消
-            </button>
-          </template>
-          <template v-else>
-            <button
-              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
-              @click="startEdit"
-            >
-              編輯
-            </button>
-            <button
-              class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-100"
-              @click="confirmDelete"
-            >
-              刪除
-            </button>
-          </template>
+          <button
+            class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+            :disabled="submitting"
+            @click="submitUpdate"
+          >
+            {{ submitting ? '儲存中…' : '儲存' }}
+          </button>
+          <button
+            class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            @click="closeModal"
+          >
+            取消
+          </button>
         </div>
       </div>
     </div>
-
-    <Teleport to="body">
-      <div
-        v-if="showDeleteConfirm"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
-        @click.self="cancelDelete"
-      >
-        <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-          <h3 class="text-lg font-semibold text-slate-900">確認刪除</h3>
-          <p class="mt-2 text-sm text-slate-600">
-            確定要刪除此諮詢單嗎？此操作無法復原。
-          </p>
-          <div class="mt-6 flex gap-3">
-            <button
-              class="flex-1 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
-              :disabled="deleting"
-              @click="deleteRequest"
-            >
-              {{ deleting ? '刪除中…' : '確認刪除' }}
-            </button>
-            <button
-              class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              @click="cancelDelete"
-            >
-              取消
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </Teleport>
 </template>
 
@@ -180,7 +128,6 @@ import { useAuth } from '../../features/auth/store'
 import {
   getRequest,
   updateRequest,
-  deleteRequest as deleteRequestAPI,
   listRequestTypes,
   listRequestStatuses,
   type Request,
@@ -191,12 +138,14 @@ import {
 const props = defineProps<{
   showModal: boolean
   requestId?: number
+  initialEditMode?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:showModal': [value: boolean]
   updated: []
   deleted: []
+  close: []
 }>()
 
 const auth = useAuth()
@@ -206,9 +155,6 @@ const requestTypes = ref<RequestType[]>([])
 const requestStatuses = ref<RequestStatus[]>([])
 const loading = ref(false)
 const submitting = ref(false)
-const deleting = ref(false)
-
-const isEditing = ref(false)
 
 const form = ref({
   name: '',
@@ -219,7 +165,6 @@ const form = ref({
   closeDate: '',
 })
 
-const showDeleteConfirm = ref(false)
 
 function formatDateTime(dateStr?: string): string {
   if (!dateStr) return '—'
@@ -248,23 +193,6 @@ async function loadRequest() {
   }
 }
 
-function startEdit() {
-  isEditing.value = true
-}
-
-function cancelEdit() {
-  isEditing.value = false
-  if (request.value) {
-    form.value = {
-      name: request.value.name || '',
-      description: request.value.description || '',
-      requestTypeId: request.value.requestTypeId,
-      requestStatusId: request.value.requestStatusId,
-      startDate: request.value.startDate ? request.value.startDate.slice(0, 16) : '',
-      closeDate: request.value.closeDate ? request.value.closeDate.slice(0, 16) : '',
-    }
-  }
-}
 
 async function submitUpdate() {
   if (!auth.token.value || !props.requestId) return
@@ -279,9 +207,9 @@ async function submitUpdate() {
       startDate: form.value.startDate ? new Date(form.value.startDate) : undefined,
       closeDate: form.value.closeDate ? new Date(form.value.closeDate) : undefined,
     })
-    isEditing.value = false
     await loadRequest()
     emit('updated')
+    closeModal()
   } catch (e) {
     console.error('Failed to update request:', e)
   } finally {
@@ -289,34 +217,20 @@ async function submitUpdate() {
   }
 }
 
-function confirmDelete() {
-  showDeleteConfirm.value = true
-}
-
-function cancelDelete() {
-  showDeleteConfirm.value = false
-}
-
-async function deleteRequest() {
-  if (!auth.token.value || !props.requestId) return
-
-  deleting.value = true
-  try {
-    await deleteRequestAPI(auth.token.value, props.requestId)
-    showDeleteConfirm.value = false
-    closeModal()
-    emit('deleted')
-  } catch (e) {
-    console.error('Failed to delete request:', e)
-  } finally {
-    deleting.value = false
-  }
-}
-
 function closeModal() {
   emit('update:showModal', false)
-  isEditing.value = false
-  showDeleteConfirm.value = false
+  emit('close')
+  // 重置表单
+  if (request.value) {
+    form.value = {
+      name: request.value.name || '',
+      description: request.value.description || '',
+      requestTypeId: request.value.requestTypeId,
+      requestStatusId: request.value.requestStatusId,
+      startDate: request.value.startDate ? request.value.startDate.slice(0, 16) : '',
+      closeDate: request.value.closeDate ? request.value.closeDate.slice(0, 16) : '',
+    }
+  }
 }
 
 watch(() => props.showModal, async (show) => {

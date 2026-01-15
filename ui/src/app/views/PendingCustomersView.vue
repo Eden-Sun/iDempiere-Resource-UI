@@ -43,7 +43,7 @@
 
     <!-- Empty State -->
     <div v-if="!loading && customers.length === 0" class="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
-      <p class="text-sm text-slate-600">所有客戶都已建立諮詢單 🎉</p>
+      <p class="text-sm text-slate-600">暫無可用客戶</p>
     </div>
 
     <!-- Create Request Modal -->
@@ -118,6 +118,24 @@
                 </option>
               </select>
             </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-sm font-medium text-slate-700">開始日期</label>
+                <input
+                  v-model="form.startDate"
+                  type="datetime-local"
+                  class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                />
+              </div>
+              <div>
+                <label class="text-sm font-medium text-slate-700">結束日期</label>
+                <input
+                  v-model="form.closeDate"
+                  type="datetime-local"
+                  class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                />
+              </div>
+            </div>
           </div>
 
           <div class="mt-6 flex gap-3">
@@ -170,6 +188,8 @@ const form = ref({
   description: '',
   requestTypeId: undefined as number | undefined,
   requestStatusId: undefined as number | undefined,
+  startDate: '' as string,
+  closeDate: '' as string,
 })
 
 async function loadData() {
@@ -194,6 +214,8 @@ function openNewRequest(customer: { id: number; name: string }) {
     description: '',
     requestTypeId: undefined,
     requestStatusId: undefined,
+    startDate: '',
+    closeDate: '',
   }
   showModal.value = true
 }
@@ -206,6 +228,8 @@ function closeModal() {
     description: '',
     requestTypeId: undefined,
     requestStatusId: undefined,
+    startDate: '',
+    closeDate: '',
   }
 }
 
@@ -227,6 +251,8 @@ async function submitRequest() {
       description: form.value.description || undefined,
       requestTypeId: form.value.requestTypeId,
       requestStatusId: form.value.requestStatusId,
+      startDate: form.value.startDate ? new Date(form.value.startDate) : undefined,
+      closeDate: form.value.closeDate ? new Date(form.value.closeDate) : undefined,
     })
 
     closeModal()

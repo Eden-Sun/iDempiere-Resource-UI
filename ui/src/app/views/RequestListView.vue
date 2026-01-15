@@ -88,43 +88,75 @@
           <tr v-else-if="requests.length === 0">
             <td colspan="8" class="px-4 py-8 text-center text-slate-500">無資料</td>
           </tr>
-          <tr
-            v-for="req in requests"
-            :key="req.id"
-            class="hover:bg-slate-50"
-          >
-            <td class="px-4 py-3 font-medium text-slate-900">{{ req.name || '—' }}</td>
-            <td class="px-4 py-3 text-slate-600">{{ req.bPartnerName || '—' }}</td>
-            <td class="px-4 py-3 text-slate-600">{{ req.salesRepName || '—' }}</td>
-            <td class="px-4 py-3">
-              <span class="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                {{ req.requestTypeName || '—' }}
-              </span>
-            </td>
-            <td class="px-4 py-3">
-              <span
-                :class="getStatusColor(req.requestStatusName)"
-                class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-              >
-                {{ req.requestStatusName || '—' }}
-              </span>
-            </td>
-            <td class="px-4 py-3">
-              <span class="text-slate-600">{{ formatDate(req.startDate) }}</span>
-              <span v-if="req.startDate" class="ml-1 inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
-                已預約
-              </span>
-            </td>
-            <td class="px-4 py-3 text-slate-600">{{ formatDate(req.closeDate) }}</td>
-            <td class="px-4 py-3 text-right">
-              <button
-                class="text-brand-600 hover:text-brand-700 font-medium"
-                @click="openDetail(req)"
-              >
-                查看詳情
-              </button>
-            </td>
-          </tr>
+          <template v-for="req in requests" :key="req.id">
+            <tr
+              class="hover:bg-slate-50 cursor-pointer"
+              @click="toggleExpand(req.id)"
+            >
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <svg
+                    class="h-4 w-4 text-slate-400 transition-transform"
+                    :class="{ 'rotate-90': expandedRows.has(req.id) }"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span class="font-medium text-slate-900">{{ req.name || '—' }}</span>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-slate-600">{{ req.bPartnerName || '—' }}</td>
+              <td class="px-4 py-3 text-slate-600">{{ req.salesRepName || '—' }}</td>
+              <td class="px-4 py-3">
+                <span class="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                  {{ req.requestTypeName || '—' }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                <span
+                  :class="getStatusColor(req.requestStatusName)"
+                  class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+                >
+                  {{ req.requestStatusName || '—' }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                <span class="text-slate-600">{{ formatDate(req.startDate) }}</span>
+                <span v-if="req.startDate" class="ml-1 inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
+                  已預約
+                </span>
+              </td>
+              <td class="px-4 py-3 text-slate-600">{{ formatDate(req.closeDate) }}</td>
+              <td class="px-4 py-3 text-right" @click.stop>
+                <div class="flex items-center justify-end gap-2">
+                  <button
+                    class="text-brand-600 hover:text-brand-700 font-medium"
+                    @click="openEdit(req)"
+                  >
+                    編輯
+                  </button>
+                  <button
+                    class="text-rose-600 hover:text-rose-700 font-medium"
+                    @click="confirmDelete(req.id)"
+                  >
+                    刪除
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="expandedRows.has(req.id)" class="bg-slate-50">
+              <td colspan="8" class="px-4 py-4">
+                <div class="space-y-2">
+                  <div class="flex items-start gap-2">
+                    <span class="text-xs font-medium text-slate-500 min-w-[60px]">說明：</span>
+                    <p class="text-sm text-slate-700 flex-1 whitespace-pre-wrap">{{ req.description || '無說明' }}</p>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
@@ -157,9 +189,42 @@
     <RequestDetailModal
       v-model:show-modal="showDetailModal"
       :request-id="selectedRequestId"
+      :initial-edit-mode="editMode"
       @updated="onRequestUpdated"
       @deleted="onRequestDeleted"
+      @close="editMode = false"
     />
+
+    <!-- Delete Confirm Dialog -->
+    <Teleport to="body">
+      <div
+        v-if="showDeleteConfirm"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
+        @click.self="cancelDelete"
+      >
+        <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+          <h3 class="text-lg font-semibold text-slate-900">確認刪除</h3>
+          <p class="mt-2 text-sm text-slate-600">
+            確定要刪除此諮詢單嗎？此操作無法復原。
+          </p>
+          <div class="mt-6 flex gap-3">
+            <button
+              class="flex-1 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+              :disabled="deleting"
+              @click="handleDelete"
+            >
+              {{ deleting ? '刪除中…' : '確認刪除' }}
+            </button>
+            <button
+              class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              @click="cancelDelete"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -171,6 +236,7 @@ import {
   listRequestTypes,
   listRequestStatuses,
   getStatusesForRequestType,
+  deleteRequest,
   type Request,
   type RequestType,
   type RequestStatus,
@@ -201,6 +267,11 @@ const totalCount = ref(0)
 const hasNextPage = ref(false)
 const showDetailModal = ref(false)
 const selectedRequestId = ref<number | undefined>(undefined)
+const expandedRows = ref(new Set<number>())
+const editMode = ref(false)
+const showDeleteConfirm = ref(false)
+const deletingRequestId = ref<number | undefined>(undefined)
+const deleting = ref(false)
 
 function getStatusColor(statusName?: string): string {
   const map: Record<string, string> = {
@@ -307,8 +378,17 @@ function nextPage() {
   }
 }
 
-function openDetail(req: Request) {
+function toggleExpand(requestId: number) {
+  if (expandedRows.value.has(requestId)) {
+    expandedRows.value.delete(requestId)
+  } else {
+    expandedRows.value.add(requestId)
+  }
+}
+
+function openEdit(req: Request) {
   selectedRequestId.value = req.id
+  editMode.value = true
   showDetailModal.value = true
 }
 
@@ -319,6 +399,37 @@ function onRequestUpdated() {
 function onRequestDeleted() {
   currentPage.value = 1
   loadData()
+}
+
+function confirmDelete(requestId: number) {
+  deletingRequestId.value = requestId
+  showDeleteConfirm.value = true
+}
+
+function cancelDelete() {
+  showDeleteConfirm.value = false
+  deletingRequestId.value = undefined
+}
+
+async function handleDelete() {
+  if (!auth.token.value || !deletingRequestId.value) return
+
+  deleting.value = true
+  try {
+    await deleteRequest(auth.token.value, deletingRequestId.value)
+    showDeleteConfirm.value = false
+    deletingRequestId.value = undefined
+    // 如果删除后当前页没有数据了，回到上一页
+    if (requests.value.length === 1 && currentPage.value > 1) {
+      currentPage.value--
+    }
+    await loadData()
+  } catch (e: any) {
+    error.value = e?.detail || e?.title || e?.message || '刪除失敗'
+    console.error('Failed to delete request:', e)
+  } finally {
+    deleting.value = false
+  }
 }
 
 onMounted(async () => {
