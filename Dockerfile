@@ -1,23 +1,32 @@
 FROM ubuntu:24.04
 
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV NODE_ENV=development
+
 WORKDIR /app
 
-# 安装必要的依赖
+# 安装必要的依赖和 Node.js
 RUN apt-get update && \
-    apt-get install -y curl unzip && \
+    apt-get install -y curl wget gnupg software-properties-common unzip && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
 # 安装 Bun
 RUN curl -fsSL https://bun.sh/install | bash
 
-# 将 Bun 添加到 PATH
-ENV PATH="/root/.bun/bin:${PATH}"
-
 # Install opencode using official install script
 RUN curl -fsSL https://opencode.ai/install | bash
 
-# Fix: use POSIX-compatible command for sourcing .bashrc
-RUN . ~/.bashrc || true
+# Set up PATH for bun and opencode
+ENV PATH="/root/.bun/bin:/root/.opencode/bin:$PATH"
 
-# Default command (will be overridden by docker-compose)
-CMD ["bun", "--version"]
+SHELL ["/bin/bash", "-c"]
+
+RUN source ~/.bashrc
+
+# Copy package files from ui directory
+COPY ui/package*.json ./
+
+CMD ["bun", "version"]
