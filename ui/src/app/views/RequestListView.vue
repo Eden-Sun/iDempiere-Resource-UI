@@ -271,7 +271,7 @@ const showDeleteConfirm = ref(false)
 const deletingRequestId = ref<number | undefined>(undefined)
 const deleting = ref(false)
 
-function getStatusColor(statusName?: string): string {
+function getStatusClass(statusName?: string): string {
   const map: Record<string, string> = {
     '開啟': 'bg-emerald-100 text-emerald-700',
     '進行中': 'bg-blue-100 text-blue-700',
