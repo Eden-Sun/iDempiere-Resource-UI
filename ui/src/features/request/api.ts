@@ -500,13 +500,13 @@ export async function getStatusesForRequestType(token: string, requestTypeId: nu
     const typeRes = await apiFetch<any>(`${API_V1}/models/R_RequestType/${requestTypeId}`, {
       token,
       searchParams: {
-        $select: 'R_Status_ID_ID,R_StatusCategory_ID',
+        $select: 'R_Status_ID,R_StatusCategory_ID',
       },
     })
 
     // 如果 Request Type 有關聯的預設狀態，返回該狀態
-    if (typeRes.R_Status_ID_ID?.id) {
-      const defaultStatusId = Number(typeRes.R_Status_ID_ID.id)
+    if (typeRes.R_Status_ID?.id) {
+      const defaultStatusId = Number(typeRes.R_Status_ID.id)
       const allStatuses = await listRequestStatuses(token)
       const defaultStatus = allStatuses.find(s => s.id === defaultStatusId)
       
