@@ -214,8 +214,10 @@ export async function createInOutLine(
   orderLine: any,
   quantity: number,
   locatorId: number,
+  orgId: number,
 ): Promise<any> {
   const body = {
+    'AD_Org_ID': orgId,
     'M_InOut_ID': inOutId,
     'C_OrderLine_ID': orderLine.id,
     'M_Product_ID': orderLine.M_Product_ID?.id ?? orderLine.M_Product_ID,
@@ -247,11 +249,13 @@ export async function updateInOutLine(
 }
 
 export async function completeInOut(token: string, inOutId: number): Promise<any> {
+  // Use 'doc-action' field per iDempiere REST API
+  // https://groups.google.com/g/idempiere/c/SUSZZDxPvXM
   return await apiFetch<any>(`${API_V1}/models/M_InOut/${inOutId}`, {
     method: 'PUT',
     token,
     json: {
-      'DocAction': 'CO',
+      'doc-action': 'CO',
     },
   })
 }

@@ -290,8 +290,9 @@ async function confirmReceipt(): Promise<void> {
     }
 
     // Step 3: Create M_InOutLine for each order line
+    const orgId = currentOrder.value.AD_Org_ID?.id ?? currentOrder.value.AD_Org_ID
     for (const line of linesToReceive) {
-      await InOutAPI.createInOutLine(token.value, inOutId, line, line.qtyToReceive, locatorId)
+      await InOutAPI.createInOutLine(token.value, inOutId, line, line.qtyToReceive, locatorId, orgId)
     }
 
     // Step 4: Complete the InOut
