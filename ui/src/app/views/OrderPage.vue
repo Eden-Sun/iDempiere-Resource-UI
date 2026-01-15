@@ -150,10 +150,27 @@
               v-model="formData.bpartnerId"
               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
               :disabled="!!editingId"
+              @change="onBPartnerChange"
             >
               <option value="">請選擇...</option>
               <option v-for="bp in bpartners" :key="bp.id" :value="bp.id">{{ bp.name }}</option>
             </select>
+          </div>
+          <div v-if="formData.bpartnerId">
+            <label class="block text-sm font-medium text-slate-700 mb-1">{{ isPurchase ? '供應商地址' : '客戶地址' }} <span class="text-rose-500">*</span></label>
+            <select
+              v-model="formData.bpartnerLocationId"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              :disabled="!!editingId || loadingLocations"
+            >
+              <option value="">{{ loadingLocations ? '載入中...' : '請選擇...' }}</option>
+              <option v-for="loc in bpartnerLocations" :key="loc.id" :value="loc.id">
+                {{ formatLocation(loc) }}
+              </option>
+            </select>
+            <p v-if="bpartnerLocations.length === 0 && !loadingLocations && formData.bpartnerId" class="mt-1 text-xs text-amber-600">
+              此{{ isPurchase ? '供應商' : '客戶' }}沒有設定地址，請先在業務夥伴管理中新增地址
+            </p>
           </div>
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">{{ isPurchase ? '入庫倉' : '出庫倉' }} <span class="text-rose-500">*</span></label>
@@ -290,7 +307,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { listOrders, listProducts, listWarehouses, createOrder, getOrderLines } from '../../features/order/api'
-import { listBPartners } from '../../features/bpartner/api'
+import { listBPartners, listBPartnerLocations, type BPartnerLocation } from '../../features/bpartner/api'
 import { useAuth } from '../../features/auth/store'
 
 const route = useRoute()
@@ -322,9 +339,12 @@ const submitting = ref(false)
 const bpartners = ref<any[]>([])
 const products = ref<any[]>([])
 const warehouses = ref<any[]>([])
+const bpartnerLocations = ref<BPartnerLocation[]>([])
+const loadingLocations = ref(false)
 
 const formData = ref({
   bpartnerId: 0,
+  bpartnerLocationId: 0,
   warehouseId: 0,
   dateOrdered: new Date().toISOString().split('T')[0],
 })
@@ -385,6 +405,45 @@ async function loadDropdownData() {
   }
 }
 
+async function loadBPartnerLocations(bpartnerId: number) {
+  if (!auth.token.value || !bpartnerId) {
+    bpartnerLocations.value = []
+    return
+  }
+
+  loadingLocations.value = true
+  try {
+    const locations = await listBPartnerLocations(auth.token.value, bpartnerId)
+    bpartnerLocations.value = locations
+    
+    // 如果只有一个地址，自动选择
+    if (locations.length === 1 && !formData.value.bpartnerLocationId) {
+      formData.value.bpartnerLocationId = locations[0].id
+    }
+  } catch (e: any) {
+    console.error('Failed to load bpartner locations:', e)
+    bpartnerLocations.value = []
+  } finally {
+    loadingLocations.value = false
+  }
+}
+
+async function onBPartnerChange() {
+  formData.value.bpartnerLocationId = 0
+  bpartnerLocations.value = []
+  if (formData.value.bpartnerId) {
+    await loadBPartnerLocations(formData.value.bpartnerId)
+  }
+}
+
+function formatLocation(loc: BPartnerLocation): string {
+  const parts: string[] = []
+  if (loc.address1) parts.push(loc.address1)
+  if (loc.city) parts.push(loc.city)
+  if (loc.postalCode) parts.push(loc.postalCode)
+  return parts.length > 0 ? parts.join(', ') : `地址 #${loc.id}`
+}
+
 async function loadOrderLines(orderId: number) {
   if (!auth.token.value) return
 
@@ -423,8 +482,10 @@ function startCreate() {
   error.value = null
   successMessage.value = null
   orderLines.value = []
+  bpartnerLocations.value = []
   formData.value = {
     bpartnerId: 0,
+    bpartnerLocationId: 0,
     warehouseId: 0,
     dateOrdered: new Date().toISOString().split('T')[0],
   }
@@ -443,9 +504,16 @@ async function startEdit(record: any) {
   
   formData.value = {
     bpartnerId: record.bpartnerId || 0,
+    bpartnerLocationId: 0, // 编辑时暂不加载，因为订单已创建
     warehouseId: record.warehouseId || 0,
     dateOrdered: record.dateOrdered?.split('T')[0] || new Date().toISOString().split('T')[0],
   }
+  
+  // 如果有业务伙伴ID，加载其地址列表
+  if (formData.value.bpartnerId) {
+    await loadBPartnerLocations(formData.value.bpartnerId)
+  }
+  
   await loadOrderLines(record.id)
   mode.value = 'form'
 }
@@ -480,6 +548,11 @@ async function handleSubmit() {
 
   if (!formData.value.bpartnerId) {
     error.value = isPurchase.value ? '請選擇供應商' : '請選擇客戶'
+    return
+  }
+
+  if (!formData.value.bpartnerLocationId) {
+    error.value = isPurchase.value ? '請選擇供應商地址' : '請選擇客戶地址'
     return
   }
 
@@ -538,10 +611,16 @@ async function handleSubmit() {
     }
 
     const bpartnerId = parseId(formData.value.bpartnerId)
-    const warehouseId = isPurchase.value ? parseId(formData.value.warehouseId) : undefined
+    const warehouseId = parseId(formData.value.warehouseId)
 
     if (!bpartnerId || bpartnerId <= 0) {
       error.value = isPurchase.value ? '請選擇有效的供應商' : '請選擇有效的客戶'
+      submitting.value = false
+      return
+    }
+
+    if (!warehouseId || warehouseId <= 0) {
+      error.value = isPurchase.value ? '請選擇有效的入庫倉' : '請選擇有效的出庫倉'
       submitting.value = false
       return
     }
@@ -554,11 +633,19 @@ async function handleSubmit() {
       taxId: line.taxId ? parseId(line.taxId) : undefined,
     }))
 
+    const bpartnerLocationId = parseId(formData.value.bpartnerLocationId)
+    if (!bpartnerLocationId || bpartnerLocationId <= 0) {
+      error.value = isPurchase.value ? '請選擇有效的供應商地址' : '請選擇有效的客戶地址'
+      submitting.value = false
+      return
+    }
+
     await createOrder(auth.token.value, {
       bpartnerId,
       isSOTrx: !isPurchase.value,
       dateOrdered: formData.value.dateOrdered,
-      warehouseId: warehouseId && warehouseId > 0 ? warehouseId : undefined,
+      warehouseId: warehouseId, // 销售订单和采购订单都需要仓库
+      bpartnerLocationId: bpartnerLocationId, // 业务伙伴收货地点
     }, cleanedLines)
 
     successMessage.value = isPurchase.value ? '採購訂單已建立' : '銷售訂單已建立'

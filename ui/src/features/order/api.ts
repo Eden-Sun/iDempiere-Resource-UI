@@ -239,17 +239,23 @@ export async function createOrder(
     bpartnerId: number
     isSOTrx: boolean
     dateOrdered: string
-    warehouseId?: number
+    warehouseId: number // 改为必填字段
+    bpartnerLocationId?: number // 业务伙伴收货地点
     description?: string
   },
   lines: Array<{ productId: number; qtyEntered: number; priceEntered: number; taxId?: number }>,
 ): Promise<any> {
   // 确保所有ID字段都是纯数字
   const bpartnerId = ensureNumberId(order.bpartnerId)
-  const warehouseId = order.warehouseId ? ensureNumberId(order.warehouseId) : null
+  const warehouseId = ensureNumberId(order.warehouseId) // 仓库现在是必填的
+  const bpartnerLocationId = order.bpartnerLocationId ? ensureNumberId(order.bpartnerLocationId) : null
 
   if (!bpartnerId || bpartnerId <= 0) {
     throw new Error('客戶/供應商ID無效')
+  }
+
+  if (!warehouseId || warehouseId <= 0) {
+    throw new Error('倉庫ID無效，必須填寫倉庫')
   }
 
   // 最终验证：确保 bpartnerId 是有效的数字
@@ -260,19 +266,25 @@ export async function createOrder(
 
   // 构建请求体，只包含非null的字段，并确保所有类型正确
   // 注意：DocAction 可能在创建时不应该设置，让后端使用默认值
+  const finalWarehouseId = Number(warehouseId)
+  if (isNaN(finalWarehouseId) || finalWarehouseId <= 0) {
+    throw new Error(`无效的仓库ID: ${warehouseId} (类型: ${typeof warehouseId})`)
+  }
+
   const orderBody: Record<string, any> = {
     C_BPartner_ID: finalBpartnerId, // 确保是数字类型
     IsSOTrx: order.isSOTrx ? 'Y' : 'N', // iDempiere expects 'Y'/'N' string, not boolean
     DateOrdered: String(order.dateOrdered), // 确保是字符串
+    M_Warehouse_ID: finalWarehouseId, // 仓库是必填字段
     DocStatus: 'DR', // 草稿状态
     // 不设置 DocAction，让后端使用默认值
   }
 
-  // 只在有值时才添加可选字段（避免发送 null）
-  if (warehouseId && warehouseId > 0) {
-    const finalWarehouseId = Number(warehouseId)
-    if (!isNaN(finalWarehouseId) && finalWarehouseId > 0) {
-      orderBody.M_Warehouse_ID = finalWarehouseId // 确保是数字类型
+  // 如果有业务伙伴收货地点，添加到请求中
+  if (bpartnerLocationId && bpartnerLocationId > 0) {
+    const finalBpartnerLocationId = Number(bpartnerLocationId)
+    if (!isNaN(finalBpartnerLocationId) && finalBpartnerLocationId > 0) {
+      orderBody.C_BPartner_Location_ID = finalBpartnerLocationId
     }
   }
   if (order.description && order.description.trim()) {
