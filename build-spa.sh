@@ -122,7 +122,7 @@ build_ui_if_possible() {
     build_cmd="bun run build"
   elif has_cmd npm; then
     pkg_manager="npm"
-    install_cmd="npm ci"
+    install_cmd="npm install"
     build_cmd="npm run build"
   else
     echo "Neither bun nor npm found; skipping UI build"
