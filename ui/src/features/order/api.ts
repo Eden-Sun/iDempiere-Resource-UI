@@ -37,6 +37,7 @@ export type Product = {
 export type Warehouse = {
   id: number
   name: string
+  orgId: number // AD_Org_ID
 }
 
 export type Tax = {
@@ -170,7 +171,7 @@ export async function listWarehouses(token: string): Promise<Warehouse[]> {
   const res = await apiFetch<{ records: any[] }>(`${API_V1}/models/M_Warehouse`, {
     token,
     searchParams: {
-      $select: 'M_Warehouse_ID,Name',
+      $select: 'M_Warehouse_ID,Name,AD_Org_ID',
       $orderby: 'Name',
     },
   })
@@ -178,6 +179,7 @@ export async function listWarehouses(token: string): Promise<Warehouse[]> {
   return (res.records ?? []).map((r) => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
+    orgId: Number(r.AD_Org_ID?.id ?? r.AD_Org_ID ?? 0),
   }))
 }
 
@@ -260,6 +262,10 @@ export async function createOrder(
     throw new Error('倉庫ID無效，必須填寫倉庫')
   }
 
+  if (!orgId || orgId <= 0) {
+    throw new Error('組織ID無效')
+  }
+
   // 最终验证：确保 bpartnerId 是有效的数字
   const finalBpartnerId = Number(bpartnerId)
   if (isNaN(finalBpartnerId) || finalBpartnerId <= 0) {
@@ -273,7 +279,13 @@ export async function createOrder(
     throw new Error(`无效的仓库ID: ${warehouseId} (类型: ${typeof warehouseId})`)
   }
 
+  const finalOrgId = Number(orgId)
+  if (isNaN(finalOrgId) || finalOrgId <= 0) {
+    throw new Error(`无效的组织ID: ${orgId} (类型: ${typeof orgId})`)
+  }
+
   const orderBody: Record<string, any> = {
+    AD_Org_ID: finalOrgId, // 组织ID (必填)
     C_BPartner_ID: finalBpartnerId, // 确保是数字类型
     IsSOTrx: order.isSOTrx ? 'Y' : 'N', // iDempiere expects 'Y'/'N' string, not boolean
     DateOrdered: String(order.dateOrdered), // 确保是字符串

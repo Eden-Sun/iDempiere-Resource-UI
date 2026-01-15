@@ -611,12 +611,21 @@ async function handleSubmit() {
       return
     }
 
+    // 获取组织ID：优先使用用户的组织，如果是0则从仓库获取
+    let orgId = auth.organizationId.value ?? 0
+    if (!orgId || orgId <= 0) {
+      // 从选中的仓库获取组织ID
+      const selectedWarehouse = warehouses.value.find(w => w.id === warehouseId)
+      orgId = selectedWarehouse?.orgId ?? 0
+    }
+
     await createOrder(auth.token.value, {
       bpartnerId,
       isSOTrx: !isPurchase.value,
       dateOrdered: formData.value.dateOrdered,
       warehouseId: warehouseId, // 销售订单和采购订单都需要仓库
       bpartnerLocationId: bpartnerLocationId, // 业务伙伴收货地点
+      orgId, // AD_Org_ID 组织ID (从用户或仓库获取)
     }, cleanedLines)
 
     successMessage.value = isPurchase.value ? '採購訂單已建立' : '銷售訂單已建立'
