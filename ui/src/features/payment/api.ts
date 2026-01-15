@@ -103,3 +103,94 @@ export async function createPayment(
     },
   })
 }
+
+export async function updatePayment(
+  token: string,
+  id: number,
+  payment: {
+    payAmt?: number
+    tenderType?: string
+    description?: string
+  },
+): Promise<any> {
+  const json: Record<string, any> = {}
+  if (payment.payAmt !== undefined) json.PayAmt = payment.payAmt
+  if (payment.tenderType !== undefined) json.TenderType = payment.tenderType
+  if (payment.description !== undefined) json.Description = payment.description
+
+  return await apiFetch<any>(`${API_V1}/models/C_Payment/${id}`, {
+    method: 'PUT',
+    token,
+    json,
+  })
+}
+
+export async function updatePaymentStatus(
+  token: string,
+  id: number,
+  docAction: 'CO' | 'VO' | 'RE', // Complete, Void, Reverse
+  description?: string,
+): Promise<any> {
+  const json: Record<string, any> = { DocAction: docAction }
+  if (description) json.Description = description
+
+  return await apiFetch<any>(`${API_V1}/models/C_Payment/${id}`, {
+    method: 'PUT',
+    token,
+    json,
+  })
+}
+
+export async function deletePayment(token: string, id: number): Promise<void> {
+  await apiFetch<any>(`${API_V1}/models/C_Payment/${id}`, {
+    method: 'DELETE',
+    token,
+  })
+}
+
+export async function getCustomerBalance(
+  token: string,
+  bpartnerId: number,
+): Promise<{
+  totalOutstanding: number
+  creditLimit: number
+  availableCredit: number
+}> {
+  try {
+    // Get outstanding invoices
+    const invoiceRes = await apiFetch<{ records: any[] }>(`${API_V1}/models/C_Invoice`, {
+      token,
+      searchParams: {
+        $select: 'GrandTotal,OpenAmt',
+        $filter: `C_BPartner_ID eq ${bpartnerId} and IsPaid eq false and IsSOTrx eq true`,
+      },
+    })
+
+    const totalOutstanding = invoiceRes.records?.reduce((sum: number, inv: any) => 
+      sum + Number(inv.OpenAmt || 0), 0) || 0
+
+    // Get customer info for credit limit
+    const bpRes = await apiFetch<any>(`${API_V1}/models/C_BPartner/${bpartnerId}`, {
+      token,
+      searchParams: {
+        $select: 'SO_CreditLimit',
+      },
+    })
+
+    const creditLimit = Number(bpRes.SO_CreditLimit || 0)
+    const availableCredit = creditLimit - totalOutstanding
+
+    return {
+      totalOutstanding,
+      creditLimit,
+      availableCredit,
+    }
+  } catch (error) {
+    console.error('Failed to get customer balance:', error)
+    return {
+      totalOutstanding: 0,
+      creditLimit: 0,
+      availableCredit: 0,
+    }
+  }
+}

@@ -176,6 +176,29 @@ export async function createBPartnerContact(
   })
 }
 
+export async function listBPartnerLocations(token: string, bPartnerId: number): Promise<BPartnerLocation[]> {
+  const res = await apiFetch<{ records: any[] }>(
+    `${API_V1}/models/C_BPartner_Location`,
+    {
+      token,
+      searchParams: {
+        $select: 'C_BPartner_Location_ID,C_BPartner_ID,C_Location_ID',
+        $filter: `C_BPartner_ID eq ${bPartnerId} and IsActive eq true`,
+        $expand: 'C_Location_ID($select=C_Location_ID,Address1,City,Postal)',
+        $orderby: 'C_BPartner_Location_ID',
+      } satisfies SearchParams,
+    },
+  )
+
+  return (res.records ?? []).map((r) => ({
+    id: Number(r.id),
+    bPartnerId: Number(r.C_BPartner_ID?.id ?? r.C_BPartner_ID ?? 0),
+    address1: r.C_Location_ID?.Address1 ? String(r.C_Location_ID.Address1) : undefined,
+    city: r.C_Location_ID?.City ? String(r.C_Location_ID.City) : undefined,
+    postalCode: r.C_Location_ID?.Postal ? String(r.C_Location_ID.Postal) : undefined,
+  }))
+}
+
 export async function createBPartnerLocation(
   token: string,
   input: {

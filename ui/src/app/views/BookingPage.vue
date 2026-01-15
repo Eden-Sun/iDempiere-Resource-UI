@@ -59,9 +59,35 @@
         >
           <span class="font-semibold" :style="{ color: getResourceColor(res.id) }">{{ res.name }}：</span>
           <span class="font-medium">營業時段：</span>
-          {{ formatTime(resourceTypes.get(res.id)?.timeSlotStart) }} - {{ formatTime(resourceTypes.get(res.id)?.timeSlotEnd) }}
+          <template v-if="hasBusinessHours(res.id)">
+            {{ formatTime(resourceTypes.get(res.id)?.timeSlotStart) }} - {{ formatTime(resourceTypes.get(res.id)?.timeSlotEnd) }}
+          </template>
+          <template v-else>
+            <span class="text-rose-600 font-semibold">--:-- - --:-- (未配置)</span>
+          </template>
           <span class="ml-3 font-medium">營業日：</span>
           <span>{{ getAvailableDaysText(res.id) }}</span>
+        </div>
+      </div>
+
+      <!-- 營業時段未配置警告 -->
+      <div
+        v-if="selectedResources.length > 0 && !hasAllBusinessHours"
+        class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700"
+      >
+        <div class="flex items-start gap-2">
+          <svg class="h-5 w-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <p class="font-semibold">部分資源未配置營業時段</p>
+            <p class="mt-1 text-xs">
+              以下資源尚未配置營業時段，無法進行時間選擇：{{ getResourcesWithoutHours().map(r => r.name).join('、') }}
+            </p>
+            <p class="mt-2 text-xs">
+              請聯繫管理員在系統中配置這些資源的營業時段（TimeSlotStart 和 TimeSlotEnd）。
+            </p>
+          </div>
         </div>
       </div>
 
@@ -76,8 +102,19 @@
         </template>
       </div>
 
+      <!-- 無營業時段提示 -->
+      <div v-else-if="selectedResources.length > 0 && !hasAllBusinessHours" class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
+        <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="mt-4 text-sm font-semibold text-slate-700">無法顯示預約日曆</p>
+        <p class="mt-2 text-xs text-slate-600">
+          所選資源尚未配置營業時段，請先配置營業時段後再進行預約。
+        </p>
+      </div>
+
       <!-- Google Calendar Style Grid -->
-      <div v-if="selectedResources.length > 0 && commonResourceType" class="mt-6">
+      <div v-if="selectedResources.length > 0 && commonResourceType && hasAllBusinessHours" class="mt-6">
         <div class="mb-3 flex items-center justify-between">
           <div class="text-sm font-semibold text-slate-900">本週時段</div>
           <div class="flex items-center gap-3">
@@ -852,6 +889,20 @@ function getAvailableDaysText(resourceId: number): string {
   if (rt.onSaturday) days.push('六')
   if (rt.onSunday) days.push('日')
   return days.length ? days.join('、') : '無'
+}
+
+function hasBusinessHours(resourceId: number): boolean {
+  const rt = resourceTypes.value.get(resourceId)
+  return !!(rt?.timeSlotStart && rt?.timeSlotEnd)
+}
+
+const hasAllBusinessHours = computed(() => {
+  if (selectedResourceIds.value.length === 0) return true
+  return selectedResourceIds.value.every(resId => hasBusinessHours(resId))
+})
+
+function getResourcesWithoutHours(): Resource[] {
+  return selectedResources.value.filter(res => !hasBusinessHours(res.id))
 }
 
 const selectedResources = computed(() =>
