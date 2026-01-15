@@ -189,10 +189,8 @@
     <RequestDetailModal
       v-model:show-modal="showDetailModal"
       :request-id="selectedRequestId"
-      :initial-edit-mode="editMode"
       @updated="onRequestUpdated"
       @deleted="onRequestDeleted"
-      @close="editMode = false"
     />
 
     <!-- Delete Confirm Dialog -->
@@ -268,7 +266,6 @@ const hasNextPage = ref(false)
 const showDetailModal = ref(false)
 const selectedRequestId = ref<number | undefined>(undefined)
 const expandedRows = ref(new Set<number>())
-const editMode = ref(false)
 const showDeleteConfirm = ref(false)
 const deletingRequestId = ref<number | undefined>(undefined)
 const deleting = ref(false)
@@ -388,7 +385,6 @@ function toggleExpand(requestId: number) {
 
 function openEdit(req: Request) {
   selectedRequestId.value = req.id
-  editMode.value = true
   showDetailModal.value = true
 }
 

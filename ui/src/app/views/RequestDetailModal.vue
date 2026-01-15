@@ -138,7 +138,6 @@ import {
 const props = defineProps<{
   showModal: boolean
   requestId?: number
-  initialEditMode?: boolean
 }>()
 
 const emit = defineEmits<{
