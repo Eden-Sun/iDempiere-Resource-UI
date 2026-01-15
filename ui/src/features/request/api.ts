@@ -48,6 +48,7 @@ export async function listRequests(
 ): Promise<{ records: Request[]; totalCount?: number }> {
   const searchParams: SearchParams = {
     $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created',
+    $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)',
     $orderby: 'Created desc',
   }
 
@@ -94,13 +95,13 @@ export async function listRequests(
     name: r.Summary ? String(r.Summary) : undefined,
     description: r.Result ? String(r.Result) : undefined,
     bPartnerId: Number(r.C_BPartner_ID?.id ?? r.C_BPartner_ID ?? 0),
-    bPartnerName: r.C_BPartner_ID?.name ? String(r.C_BPartner_ID.name) : undefined,
+    bPartnerName: r.C_BPartner_ID?.name ? String(r.C_BPartner_ID.name) : (r.C_BPartner_ID?.identifier ? String(r.C_BPartner_ID.identifier) : undefined),
     salesRepId: r.SalesRep_ID?.id ? Number(r.SalesRep_ID.id) : undefined,
-    salesRepName: r.SalesRep_ID?.name ? String(r.SalesRep_ID.name) : undefined,
+    salesRepName: r.SalesRep_ID?.name ? String(r.SalesRep_ID.name) : (r.SalesRep_ID?.identifier ? String(r.SalesRep_ID.identifier) : undefined),
     requestTypeId: r.R_RequestType_ID?.id ? Number(r.R_RequestType_ID.id) : undefined,
-    requestTypeName: r.R_RequestType_ID?.name ? String(r.R_RequestType_ID.name) : undefined,
+    requestTypeName: r.R_RequestType_ID?.name ? String(r.R_RequestType_ID.name) : (r.R_RequestType_ID?.identifier ? String(r.R_RequestType_ID.identifier) : undefined),
     requestStatusId: r.R_Status_ID?.id ? Number(r.R_Status_ID.id) : undefined,
-    requestStatusName: r.R_Status_ID?.name ? String(r.R_Status_ID.name) : undefined,
+    requestStatusName: r.R_Status_ID?.name ? String(r.R_Status_ID.name) : (r.R_Status_ID?.identifier ? String(r.R_Status_ID.identifier) : undefined),
     startDate: r.StartDate ? String(r.StartDate) : undefined,
     closeDate: r.CloseDate ? String(r.CloseDate) : undefined,
     created: String(r.Created),
@@ -114,6 +115,150 @@ export async function listRequests(
     requests = requests.filter((r) => r.closeDate != null)
   }
 
+  // 查询客户名称（使用 Name 字段替换 identifier）
+  const bPartnerIds = Array.from(new Set(requests.filter((r) => r.bPartnerId > 0).map((r) => r.bPartnerId)))
+  if (bPartnerIds.length > 0) {
+    try {
+      const bpFilter = bPartnerIds.map((id) => `C_BPartner_ID eq ${id}`).join(' or ')
+      const bpRes = await apiFetch<{ records: any[] }>(
+        `${API_V1}/models/C_BPartner`,
+        {
+          token,
+          searchParams: {
+            $select: 'C_BPartner_ID,Name',
+            $filter: bpFilter,
+          },
+        },
+      )
+
+      const bpNameMap = new Map<number, string>()
+      for (const bp of bpRes.records ?? []) {
+        const id = Number(bp.id)
+        const name = String(bp.Name || '')
+        if (id > 0 && name) {
+          bpNameMap.set(id, name)
+        }
+      }
+
+      // 更新请求中的客户名称（使用 Name 字段替换 identifier）
+      for (const req of requests) {
+        if (req.bPartnerId > 0 && bpNameMap.has(req.bPartnerId)) {
+          req.bPartnerName = bpNameMap.get(req.bPartnerId)
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load business partner names:', e)
+    }
+  }
+
+  // 查询咨询师名称（使用 Name 字段替换 identifier）
+  const salesRepIds = Array.from(new Set(requests.filter((r) => r.salesRepId && r.salesRepId > 0).map((r) => r.salesRepId!)))
+  if (salesRepIds.length > 0) {
+    try {
+      const userFilter = salesRepIds.map((id) => `AD_User_ID eq ${id}`).join(' or ')
+      const userRes = await apiFetch<{ records: any[] }>(
+        `${API_V1}/models/AD_User`,
+        {
+          token,
+          searchParams: {
+            $select: 'AD_User_ID,Name',
+            $filter: userFilter,
+          },
+        },
+      )
+
+      const userNameMap = new Map<number, string>()
+      for (const user of userRes.records ?? []) {
+        const id = Number(user.id)
+        const name = String(user.Name || '')
+        if (id > 0 && name) {
+          userNameMap.set(id, name)
+        }
+      }
+
+      // 更新请求中的咨询师名称（使用 Name 字段替换 identifier）
+      for (const req of requests) {
+        if (req.salesRepId && userNameMap.has(req.salesRepId)) {
+          req.salesRepName = userNameMap.get(req.salesRepId)
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load sales rep names:', e)
+    }
+  }
+
+  // 查询请求类型名称（使用 Name 字段替换 identifier）
+  const requestTypeIds = Array.from(new Set(requests.filter((r) => r.requestTypeId && r.requestTypeId > 0).map((r) => r.requestTypeId!)))
+  if (requestTypeIds.length > 0) {
+    try {
+      const typeFilter = requestTypeIds.map((id) => `R_RequestType_ID eq ${id}`).join(' or ')
+      const typeRes = await apiFetch<{ records: any[] }>(
+        `${API_V1}/models/R_RequestType`,
+        {
+          token,
+          searchParams: {
+            $select: 'R_RequestType_ID,Name',
+            $filter: typeFilter,
+          },
+        },
+      )
+
+      const typeNameMap = new Map<number, string>()
+      for (const type of typeRes.records ?? []) {
+        const id = Number(type.id)
+        const name = String(type.Name || '')
+        if (id > 0 && name) {
+          typeNameMap.set(id, name)
+        }
+      }
+
+      // 更新请求中的类型名称（使用 Name 字段替换 identifier）
+      for (const req of requests) {
+        if (req.requestTypeId && typeNameMap.has(req.requestTypeId)) {
+          req.requestTypeName = typeNameMap.get(req.requestTypeId)
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load request type names:', e)
+    }
+  }
+
+  // 查询请求状态名称（使用 Name 字段替换 identifier）
+  const requestStatusIds = Array.from(new Set(requests.filter((r) => r.requestStatusId && r.requestStatusId > 0).map((r) => r.requestStatusId!)))
+  if (requestStatusIds.length > 0) {
+    try {
+      const statusFilter = requestStatusIds.map((id) => `R_Status_ID eq ${id}`).join(' or ')
+      const statusRes = await apiFetch<{ records: any[] }>(
+        `${API_V1}/models/R_Status`,
+        {
+          token,
+          searchParams: {
+            $select: 'R_Status_ID,Name',
+            $filter: statusFilter,
+          },
+        },
+      )
+
+      const statusNameMap = new Map<number, string>()
+      for (const status of statusRes.records ?? []) {
+        const id = Number(status.id)
+        const name = String(status.Name || '')
+        if (id > 0 && name) {
+          statusNameMap.set(id, name)
+        }
+      }
+
+      // 更新请求中的状态名称（使用 Name 字段替换 identifier）
+      for (const req of requests) {
+        if (req.requestStatusId && statusNameMap.has(req.requestStatusId)) {
+          req.requestStatusName = statusNameMap.get(req.requestStatusId)
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load request status names:', e)
+    }
+  }
+
   return {
     records: requests,
     totalCount: res['row-count'] ?? requests.length,
@@ -125,25 +270,96 @@ export async function getRequest(token: string, id: number): Promise<Request> {
     token,
     searchParams: {
       $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created',
+      $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)',
     },
   })
 
-  return {
+  const request: Request = {
     id: Number(r.id),
     name: r.Summary ? String(r.Summary) : undefined,
     description: r.Result ? String(r.Result) : undefined,
     bPartnerId: Number(r.C_BPartner_ID?.id ?? r.C_BPartner_ID ?? 0),
-    bPartnerName: r.C_BPartner_ID?.name ? String(r.C_BPartner_ID.name) : undefined,
+    bPartnerName: r.C_BPartner_ID?.name ? String(r.C_BPartner_ID.name) : (r.C_BPartner_ID?.identifier ? String(r.C_BPartner_ID.identifier) : undefined),
     salesRepId: r.SalesRep_ID?.id ? Number(r.SalesRep_ID.id) : undefined,
-    salesRepName: r.SalesRep_ID?.name ? String(r.SalesRep_ID.name) : undefined,
+    salesRepName: r.SalesRep_ID?.name ? String(r.SalesRep_ID.name) : (r.SalesRep_ID?.identifier ? String(r.SalesRep_ID.identifier) : undefined),
     requestTypeId: r.R_RequestType_ID?.id ? Number(r.R_RequestType_ID.id) : undefined,
-    requestTypeName: r.R_RequestType_ID?.name ? String(r.R_RequestType_ID.name) : undefined,
+    requestTypeName: r.R_RequestType_ID?.name ? String(r.R_RequestType_ID.name) : (r.R_RequestType_ID?.identifier ? String(r.R_RequestType_ID.identifier) : undefined),
     requestStatusId: r.R_Status_ID?.id ? Number(r.R_Status_ID.id) : undefined,
-    requestStatusName: r.R_Status_ID?.name ? String(r.R_Status_ID.name) : undefined,
+    requestStatusName: r.R_Status_ID?.name ? String(r.R_Status_ID.name) : (r.R_Status_ID?.identifier ? String(r.R_Status_ID.identifier) : undefined),
     startDate: r.StartDate ? String(r.StartDate) : undefined,
     closeDate: r.CloseDate ? String(r.CloseDate) : undefined,
     created: String(r.Created),
   }
+
+  // 查询客户名称（使用 Name 字段替换 identifier）
+  if (request.bPartnerId > 0) {
+    try {
+      const bpRes = await apiFetch<any>(`${API_V1}/models/C_BPartner/${request.bPartnerId}`, {
+        token,
+        searchParams: {
+          $select: 'C_BPartner_ID,Name',
+        },
+      })
+      if (bpRes.Name) {
+        request.bPartnerName = String(bpRes.Name)
+      }
+    } catch (e) {
+      console.warn('Failed to load business partner name:', e)
+    }
+  }
+
+  // 查询咨询师名称（使用 Name 字段替换 identifier）
+  if (request.salesRepId) {
+    try {
+      const userRes = await apiFetch<any>(`${API_V1}/models/AD_User/${request.salesRepId}`, {
+        token,
+        searchParams: {
+          $select: 'AD_User_ID,Name',
+        },
+      })
+      if (userRes.Name) {
+        request.salesRepName = String(userRes.Name)
+      }
+    } catch (e) {
+      console.warn('Failed to load sales rep name:', e)
+    }
+  }
+
+  // 查询请求类型名称（使用 Name 字段替换 identifier）
+  if (request.requestTypeId) {
+    try {
+      const typeRes = await apiFetch<any>(`${API_V1}/models/R_RequestType/${request.requestTypeId}`, {
+        token,
+        searchParams: {
+          $select: 'R_RequestType_ID,Name',
+        },
+      })
+      if (typeRes.Name) {
+        request.requestTypeName = String(typeRes.Name)
+      }
+    } catch (e) {
+      console.warn('Failed to load request type name:', e)
+    }
+  }
+
+  // 查询请求状态名称（使用 Name 字段替换 identifier）
+  if (request.requestStatusId) {
+    try {
+      const statusRes = await apiFetch<any>(`${API_V1}/models/R_Status/${request.requestStatusId}`, {
+        token,
+        searchParams: {
+          $select: 'R_Status_ID,Name',
+        },
+      })
+      if (statusRes.Name) {
+        request.requestStatusName = String(statusRes.Name)
+      }
+    } catch (e) {
+      console.warn('Failed to load request status name:', e)
+    }
+  }
+
+  return request
 }
 
 export async function createRequest(

@@ -272,8 +272,19 @@ async function loadData() {
       { top: pageSize, skip: (currentPage.value - 1) * pageSize },
     )
 
-    requests.value = result.records
-    totalCount.value = result.totalCount || 0
+    // 客户端搜索过滤（按客户名称或咨询单名称）
+    let filteredRecords = result.records
+    if (searchQuery.value.trim()) {
+      const query = searchQuery.value.trim().toLowerCase()
+      filteredRecords = result.records.filter((req) => {
+        const nameMatch = req.name?.toLowerCase().includes(query) ?? false
+        const customerMatch = req.bPartnerName?.toLowerCase().includes(query) ?? false
+        return nameMatch || customerMatch
+      })
+    }
+
+    requests.value = filteredRecords
+    totalCount.value = searchQuery.value.trim() ? filteredRecords.length : (result.totalCount || 0)
     hasNextPage.value = currentPage.value * pageSize < totalCount.value
   } catch (e: any) {
     error.value = e?.detail || e?.title || e?.message || '載入失敗'
