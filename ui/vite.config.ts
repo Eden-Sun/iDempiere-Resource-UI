@@ -1,4 +1,3 @@
-import process from 'node:process'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig, loadEnv } from 'vite'
 

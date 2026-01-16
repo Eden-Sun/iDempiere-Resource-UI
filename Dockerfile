@@ -1,33 +1,33 @@
-FROM ubuntu:24.04
+FROM oven/bun:latest
 
-# Set environment variables
+# Set environment
 ENV DEBIAN_FRONTEND=noninteractive
 ENV NODE_ENV=development
 
 WORKDIR /app
 
-# 安装必要的依赖和 git
+# Install system dependencies (git, curl for opencode)
 RUN apt-get update && \
-    apt-get install -y curl wget gnupg software-properties-common unzip git && \
+    apt-get install -y curl git ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# 安装 Bun
-RUN curl -fsSL https://bun.sh/install | bash
-
-# Install opencode using official install script
+# Install opencode
 RUN curl -fsSL https://opencode.ai/install | bash
 
-# Set up PATH for bun and opencode
+# Set up PATH
 ENV PATH="/root/.bun/bin:/root/.opencode/bin:$PATH"
 
-SHELL ["/bin/bash", "-c"]
+# Copy package files (not lockfile, as arch differs between dev/prod)
+COPY ui/package.json ./
 
-RUN source ~/.bashrc
-
-# Copy package files from ui directory
-COPY ui/package*.json ./
-
-# Install dependencies
+# Install dependencies with bun
 RUN bun install
 
-CMD ["bun", "version"]
+# Copy source code
+COPY ui/ ./
+
+# Expose ports
+EXPOSE 5173 8888 5555
+
+# Default command (can be overridden by docker-compose)
+CMD ["bun", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
