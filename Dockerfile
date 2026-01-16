@@ -17,6 +17,11 @@ RUN curl -fsSL https://opencode.ai/install | bash
 # Set up PATH
 ENV PATH="/root/.bun/bin:/root/.opencode/bin:$PATH"
 
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
 # Copy package files (not lockfile, as arch differs between dev/prod)
 COPY ui/package.json ./
 

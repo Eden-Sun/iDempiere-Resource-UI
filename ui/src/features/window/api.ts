@@ -227,7 +227,17 @@ export async function getTabFieldsWithMeta(
   tabSlug: string,
   language?: string,
 ): Promise<TabField[]> {
-  const fields = await getTabFields(token, windowSlug, tabSlug, language)
+  let fields: TabField[] = []
+  
+  // Handle custom window slugs
+  if (windowSlug === 'request-consultation') {
+    // Use custom request field logic
+    const { getRequestTabFields } = await import('../request/window-api')
+    fields = await getRequestTabFields(token, language)
+  } else {
+    // Use regular window field logic
+    fields = await getTabFields(token, windowSlug, tabSlug, language)
+  }
 
   // Fetch column metadata in parallel, but handle individual failures gracefully
   const columnPromises = fields
@@ -333,6 +343,21 @@ export async function getWindowRecord(
   tabSlug: string,
   recordId: number,
 ): Promise<any> {
+  // Handle custom window slugs
+  if (windowSlug === 'request-consultation') {
+    // Use direct model access for R_Request
+    return await apiFetch<any>(
+      `${API_V1}/models/R_Request/${recordId}`,
+      {
+        token,
+        searchParams: {
+          $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created,Updated',
+          $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)'
+        }
+      }
+    )
+  }
+  
   return await apiFetch<any>(
     `${API_V1}/windows/${windowSlug}/tabs/${tabSlug}/${recordId}`,
     { token },
@@ -552,7 +577,7 @@ export function isLookupField(referenceId: number): boolean {
     ReferenceType.TableDirect,
     ReferenceType.Search,
     ReferenceType.ChosenMultipleSelectionList,
-  ].includes(referenceId)
+  ].includes(referenceId as any)
 }
 
 /**

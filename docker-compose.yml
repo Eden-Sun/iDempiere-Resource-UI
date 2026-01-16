@@ -32,7 +32,6 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
-      - GIT_SSH_COMMAND=ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=accept-new
     command: opencode web --hostname 0.0.0.0 --port 5555
     restart: unless-stopped
 

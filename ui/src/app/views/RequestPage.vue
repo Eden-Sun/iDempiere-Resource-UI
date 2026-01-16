@@ -5,11 +5,12 @@ import { onMounted, ref } from 'vue'
 import { useAuth } from '../../features/auth/store'
 import { listBPartners } from '../../features/bpartner/api'
 import {
-  createRequest,
+  createRequestFromDynamicForm,
   listRequestStatuses,
   listRequestTypes,
 
 } from '../../features/request/api'
+import DynamicForm from '../../components/DynamicForm.vue'
 import CustomerDetailView from './CustomerDetailView.vue'
 import GanttChartView from './GanttChartView.vue'
 import KanbanBoardView from './KanbanBoardView.vue'
@@ -37,96 +38,49 @@ const showModal = ref(false)
 const customers = ref<BPartner[]>([])
 const requestTypes = ref<RequestType[]>([])
 const requestStatuses = ref<RequestStatus[]>([])
-const submitting = ref(false)
-
-const form = ref({
-  bPartnerId: undefined as number | undefined,
-  name: '',
-  description: '',
-  requestTypeId: undefined as number | undefined,
-  requestStatusId: undefined as number | undefined,
-  startDate: '' as string,
-  closeDate: '' as string,
-})
+const dynamicFormRef = ref<InstanceType<typeof DynamicForm>>()
 
 function openModal() {
-  form.value = {
-    bPartnerId: undefined,
-    name: '',
-    description: '',
-    requestTypeId: undefined,
-    requestStatusId: undefined,
-    startDate: '',
-    closeDate: '',
-  }
   showModal.value = true
 }
 
 function closeModal() {
   showModal.value = false
-  form.value = {
-    bPartnerId: undefined,
-    name: '',
-    description: '',
-    requestTypeId: undefined,
-    requestStatusId: undefined,
-    startDate: '',
-    closeDate: '',
-  }
 }
 
-async function submitRequest() {
-  if (!auth.token.value || !form.value.bPartnerId || !form.value.name.trim())
-    return
-  if (!auth.userId.value) {
+async function submitDynamicForm(formData: Record<string, unknown>) {
+  if (!auth.token.value || !auth.userId.value) {
     alert('無法取得使用者資訊，請重新登入')
     return
   }
 
-  submitting.value = true
+  // Set the sales representative to current user
+  formData.SalesRep_ID = auth.userId.value
 
   try {
-    await createRequest(auth.token.value, {
-      bPartnerId: form.value.bPartnerId,
-      salesRepId: auth.userId.value,
-      name: form.value.name.trim(),
-      description: form.value.description || undefined,
-      requestTypeId: form.value.requestTypeId,
-      requestStatusId: form.value.requestStatusId,
-      startDate: form.value.startDate ? new Date(form.value.startDate) : undefined,
-      closeDate: form.value.closeDate ? new Date(form.value.closeDate) : undefined,
-    })
-
+    await createRequestFromDynamicForm(auth.token.value, formData)
     closeModal()
     window.location.reload()
   }
   catch (e: any) {
-    alert(`建立失敗：${e?.detail || e?.title || e?.message || '未知錯誤'}`)
-  }
-  finally {
-    submitting.value = false
+    const errorMsg = e?.detail || e?.title || e?.message || '未知錯誤'
+    
+    // Try to extract missing mandatory fields from error
+    if (dynamicFormRef.value && errorMsg.includes('mandatory')) {
+      const missingFields = dynamicFormRef.value.getMissingMandatoryFields()
+      if (missingFields.length > 0) {
+        alert(`建立失敗：缺少必填欄位\n\n${missingFields.join('\n')}\n\n錯誤詳情：${errorMsg}`)
+        return
+      }
+    }
+    
+    alert(`建立失敗：${errorMsg}`)
   }
 }
 
 onMounted(async () => {
-  if (!auth.token.value)
-    return
-
-  try {
-    const allCustomers = await listBPartners(auth.token.value)
-    customers.value = allCustomers.filter(c => c.isCustomer)
-  }
-  catch (e) {
-    console.error('Failed to load customers:', e)
-  }
-
-  try {
-    requestTypes.value = await listRequestTypes(auth.token.value)
-    requestStatuses.value = await listRequestStatuses(auth.token.value)
-  }
-  catch (e) {
-    console.error('Failed to load request types/statuses:', e)
-  }
+  // DynamicForm handles its own data loading
+  // No need to pre-load customers, request types, and statuses here
 })
 </script>
 
@@ -208,7 +162,7 @@ onMounted(async () => {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
         @click.self="closeModal"
       >
-        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
           <div class="flex items-center justify-between">
             <h3 class="text-lg font-semibold text-slate-900">
               新增諮詢單
@@ -223,101 +177,19 @@ onMounted(async () => {
             </button>
           </div>
 
-          <div class="mt-4 space-y-4">
-            <div>
-              <label class="text-sm font-medium text-slate-700">客戶</label>
-              <select
-                v-model="form.bPartnerId"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              >
-                <option :value="undefined">
-                  請選擇客戶
-                </option>
-                <option v-for="customer in customers" :key="customer.id" :value="customer.id">
-                  {{ customer.name }}
-                </option>
-              </select>
-            </div>
-            <div>
-              <label class="text-sm font-medium text-slate-700">諮詢單名稱</label>
-              <input
-                v-model="form.name"
-                type="text"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                placeholder="例如：諮詢需求"
-              >
-            </div>
-            <div>
-              <label class="text-sm font-medium text-slate-700">說明</label>
-              <textarea
-                v-model="form.description"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                rows="3"
-                placeholder="選填：需求說明..."
-              />
-            </div>
-            <div>
-              <label class="text-sm font-medium text-slate-700">Request Type</label>
-              <select
-                v-model="form.requestTypeId"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              >
-                <option :value="undefined">
-                  未選擇
-                </option>
-                <option v-for="type in requestTypes" :key="type.id" :value="type.id">
-                  {{ type.name }}
-                </option>
-              </select>
-            </div>
-            <div>
-              <label class="text-sm font-medium text-slate-700">Status</label>
-              <select
-                v-model="form.requestStatusId"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              >
-                <option :value="undefined">
-                  未選擇
-                </option>
-                <option v-for="status in requestStatuses" :key="status.id" :value="status.id">
-                  {{ status.name }}
-                </option>
-              </select>
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="text-sm font-medium text-slate-700">諮詢開始</label>
-                <input
-                  v-model="form.startDate"
-                  type="datetime-local"
-                  class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                >
-              </div>
-              <div>
-                <label class="text-sm font-medium text-slate-700">諮詢結束</label>
-                <input
-                  v-model="form.closeDate"
-                  type="datetime-local"
-                  class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                >
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-6 flex gap-3">
-            <button
-              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-              :disabled="submitting || !form.name.trim() || !form.bPartnerId"
-              @click="submitRequest"
-            >
-              {{ submitting ? '建立中…' : '建立' }}
-            </button>
-            <button
-              class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              @click="closeModal"
-            >
-              取消
-            </button>
+          <div class="mt-4">
+            <DynamicForm
+              ref="dynamicFormRef"
+              window-slug="request-consultation"
+              tab-slug="request"
+              :default-values="{ SalesRep_ID: auth.userId }"
+              :exclude-fields="[]"
+              submit-label="建立"
+              :show-cancel="true"
+              :show-help="true"
+              @submit="submitDynamicForm"
+              @cancel="closeModal"
+            />
           </div>
         </div>
       </div>

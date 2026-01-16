@@ -424,6 +424,74 @@ export async function createRequest(
   })
 }
 
+/**
+ * Create request from dynamic form data
+ * Handles any field that might come from the dynamic form
+ */
+export async function createRequestFromDynamicForm(
+  token: string,
+  formData: Record<string, any>,
+): Promise<any> {
+  const toISO = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+  const json: Record<string, any> = {
+    IsSelfService: true,
+  }
+
+  // Map all form fields to database columns
+  for (const [key, value] of Object.entries(formData)) {
+    // Skip empty values
+    if (value === null || value === undefined || value === '') {
+      continue
+    }
+
+    switch (key) {
+      case 'C_BPartner_ID':
+        json.C_BPartner_ID = value
+        break
+      case 'SalesRep_ID':
+        json.SalesRep_ID = value
+        break
+      case 'Summary':
+        json.Summary = value
+        break
+      case 'Result':
+        json.Result = value
+        break
+      case 'R_RequestType_ID':
+        json.R_RequestType_ID = value
+        break
+      case 'R_Status_ID':
+        json.R_Status_ID = value
+        break
+      case 'StartDate':
+        json.StartDate = value instanceof Date ? toISO(value) : value
+        break
+      case 'CloseDate':
+        json.CloseDate = value instanceof Date ? toISO(value) : value
+        break
+      case 'DateNextAction':
+        json.DateNextAction = value instanceof Date ? toISO(value) : value
+        break
+      case 'ConfidentialType':
+      case 'Priority':
+      case 'DueType':
+        json[key] = value
+        break
+      default:
+        // For any other fields, pass them through
+        json[key] = value
+        break
+    }
+  }
+
+  return await apiFetch<any>(`${API_V1}/models/R_Request`, {
+    method: 'POST',
+    token,
+    json,
+  })
+}
+
 export async function updateRequest(
   token: string,
   id: number,
