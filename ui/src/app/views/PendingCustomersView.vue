@@ -259,7 +259,7 @@ onMounted(async () => {
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="text-sm font-medium text-slate-700">開始日期</label>
+                <label class="text-sm font-medium text-slate-700">諮詢開始</label>
                 <input
                   v-model="form.startDate"
                   type="datetime-local"
@@ -267,7 +267,7 @@ onMounted(async () => {
                 >
               </div>
               <div>
-                <label class="text-sm font-medium text-slate-700">結束日期</label>
+                <label class="text-sm font-medium text-slate-700">諮詢結束</label>
                 <input
                   v-model="form.closeDate"
                   type="datetime-local"

@@ -332,10 +332,10 @@ onMounted(async () => {
               Status
             </th>
             <th class="px-4 py-3">
-              預約開始
+              諮詢開始
             </th>
             <th class="px-4 py-3">
-              預約結束
+              諮詢結束
             </th>
             <th class="px-4 py-3 text-right">
               操作
