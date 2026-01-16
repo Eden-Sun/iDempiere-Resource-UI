@@ -6,11 +6,9 @@ ENV NODE_ENV=development
 
 WORKDIR /app
 
-# 安装必要的依赖和 Node.js
+# 安装必要的依赖和 git
 RUN apt-get update && \
-    apt-get install -y curl wget gnupg software-properties-common unzip && \
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs && \
+    apt-get install -y curl wget gnupg software-properties-common unzip git && \
     rm -rf /var/lib/apt/lists/*
 
 # 安装 Bun
