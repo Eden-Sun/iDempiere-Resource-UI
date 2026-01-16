@@ -1,15 +1,61 @@
-## UI Build Config（Vite）
+## iDempiere Resource UI
 
-此資料夾提供 **前端 UI build 設定範本**，用於把 Vue/React/Vite 產物部署到 `tw.mxp.emui` 插件下（路徑 `/emui`）。
+診所預約管理系統前端，連接 iDempiere ERP REST API。
 
-### Source 架構（建議分層）
+### 技術棧
 
-目標：讓「入口/頁面」與「功能域」與「共用基礎」分離，避免 `ui/` 這種含糊命名，後續擴充（更多頁面/功能）也更好放。
+- **Framework**: Vue 3 (Composition API + `<script setup>`)
+- **Language**: TypeScript
+- **Build**: Vite (base: `/emui/`)
+- **UI**: daisyUI (Tailwind CSS)
+- **Runtime**: Bun
+
+---
+
+## 快速開始
+
+### 本地開發
+
+```bash
+# 安裝依賴
+bun install
+
+# 啟動開發伺服器
+bun run dev
+```
+
+開發伺服器：http://localhost:5173/emui/
+
+### Docker 開發
+
+```bash
+# 啟動開發環境
+docker compose up -d
+
+# 查看日誌
+docker compose logs -f dev-server
+```
+
+服務端點：
+- **dev-server**: http://localhost:8888/emui/ - 前端開發伺服器
+- **opencode-web**: http://localhost:5555 - OpenCode Web UI
+
+### 建置生產版本
+
+```bash
+bun run build
+```
+
+輸出目錄：`../web-content/`
+
+---
+
+## Source 架構
 
 ```
 src/
   main.ts                  # 入口：建立 Router / 掛載 App
-  app/                     # App shell + routes + pages（只處理 UI/導航）
+  app/                     # App shell + routes + pages
     App.vue
     routes.ts
     styles.css
@@ -17,48 +63,77 @@ src/
       LoginPage.vue
       BookingPage.vue
       AdminCalendarPage.vue
-  features/                # 依功能域分組（可被多個 page 使用）
+      OrderPage.vue
+      RequestListView.vue
+  features/                # 依功能域分組
     auth/
       api.ts
       store.ts
-      types.ts
     resource/
       api.ts
-  shared/                  # 跨 feature 共用的基礎設施（HTTP、utils、types）
+    order/
+      api.ts
+    request/
+      api.ts
+  shared/                  # 跨 feature 共用基礎
     api/
       http.ts
-  vite-env.d.ts
 ```
 
-小規則：
+分層原則：
+- **app/**: 路由、頁面、版型、全域樣式
+- **features/**: 業務功能（auth、resource、order、request）
+- **shared/**: 共用基礎設施（HTTP client、utils）
 
-- **app/**：只放「路由/頁面/版型/全域樣式」，不要塞 API 呼叫細節
-- **features/**：以業務功能切（例如 `auth`、`resource`），對外輸出清楚的 API/型別
-- **shared/**：放所有 features 都可能共用的基礎（例如 `apiFetch`）
+---
+
+## Vite 設定
 
 ### 重點設定
 
-- **base**：必須是 `/emui/`
-  - 否則 build 後的資源引用會是 `/assets/...`，在 iDempiere 下會 404。
-- **outDir**：建議輸出到 `../web-content`
-  - 減少一層 `dist/`，`web-content/` 就是最終打包進 JAR 的 web root。
-  - 此目錄已在 `.gitignore` 內排除（不提交 build 產物），只保留 `.gitkeep`。
+| 設定 | 值 | 說明 |
+|------|-----|------|
+| `base` | `/emui/` | iDempiere 部署路徑 |
+| `build.outDir` | `../web-content` | 輸出到插件 web root |
 
-### 使用方式（範例）
+### Router 設定
 
-在您的 Vite 專案中套用本範本設定（或複製 `vite.config.js` 的設定片段）：
+- **Vue Router**: `createWebHistory('/emui/')`
+- **React Router**: `<BrowserRouter basename="/emui">`
 
-- `base: '/emui/'`
-- `build.outDir: '../web-content'`
+---
 
-完成 `npm run build` 後，再執行：
+## 環境變數
+
+| 變數 | 說明 | 預設值 |
+|------|------|--------|
+| `VITE_API_IP` | iDempiere API 伺服器 IP | `192.168.1.47` |
+| `VITE_DEFAULT_USER` | 預設登入帳號 | - |
+| `VITE_DEFAULT_PASS` | 預設登入密碼 | - |
+
+---
+
+## Docker Compose 服務
+
+```yaml
+services:
+  dev-server:      # 前端開發伺服器 (port 8888)
+    restart: on-failure
+
+  opencode-web:    # OpenCode Web UI (port 5555)
+    restart: on-failure
+```
+
+兩個服務皆設定 `restart: on-failure`，當程序異常退出時自動重啟。
+
+---
+
+## 部署
+
+完成 build 後執行：
 
 ```bash
 ../build-spa.sh
 ```
 
-### Router（如果有）
-
-- **Vue Router**：`createWebHistory('/emui/')`
-- **React Router**：`<BrowserRouter basename="/emui">`
-
+將產物打包進 JAR 部署到 iDempiere。
