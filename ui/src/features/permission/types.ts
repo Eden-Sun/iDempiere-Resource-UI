@@ -6,29 +6,29 @@
 export type UserType = 'System' | 'User'
 
 // 選單項目定義
-export type MenuItem = {
-  id: string           // 唯一識別碼 (A, B, C, ...)
-  name: string         // 顯示名稱
-  tableName: string    // 主要資料表
-  path: string         // 路由路徑
-  icon?: string        // 圖示（可選）
+export interface MenuItem {
+  id: string // 唯一識別碼 (A, B, C, ...)
+  name: string // 顯示名稱
+  tableName: string // 主要資料表
+  path: string // 路由路徑
+  icon?: string // 圖示（可選）
   description?: string // 說明
 }
 
 // 選單權限設定（存在 AD_SysConfig）
-export type MenuPermission = {
-  menuId: string       // MenuItem.id
-  userId: number       // AD_User_ID
-  enabled: boolean     // 是否啟用
+export interface MenuPermission {
+  menuId: string // MenuItem.id
+  userId: number // AD_User_ID
+  enabled: boolean // 是否啟用
 }
 
 // 欄位可見性設定
-export type FieldVisibility = {
-  tableName: string    // 資料表名稱
-  fieldName: string    // 欄位名稱
-  visible: boolean     // 是否可見
-  clientId: number     // AD_Client_ID
-  orgId: number        // AD_Org_ID
+export interface FieldVisibility {
+  tableName: string // 資料表名稱
+  fieldName: string // 欄位名稱
+  visible: boolean // 是否可見
+  clientId: number // AD_Client_ID
+  orgId: number // AD_Org_ID
 }
 
 // 固定選單清單（寫死）

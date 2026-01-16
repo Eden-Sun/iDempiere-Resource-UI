@@ -4,7 +4,7 @@ const API_V1 = '/api/v1'
 
 type SearchParams = Record<string, string | number | boolean | undefined>
 
-export type Request = {
+export interface Request {
   id: number
   name?: string
   description?: string
@@ -21,12 +21,12 @@ export type Request = {
   created: string
 }
 
-export type RequestType = {
+export interface RequestType {
   id: number
   name: string
 }
 
-export type RequestStatus = {
+export interface RequestStatus {
   id: number
   name: string
   isActive?: boolean
@@ -44,23 +44,29 @@ export async function listRequests(
     hasCloseDate?: boolean
     createdAfter?: Date
   },
-  pagination?: { top?: number; skip?: number },
-): Promise<{ records: Request[]; totalCount?: number }> {
+  pagination?: { top?: number, skip?: number },
+): Promise<{ records: Request[], totalCount?: number }> {
   const searchParams: SearchParams = {
     $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created',
     $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)',
     $orderby: 'Created desc',
   }
 
-  if (pagination?.top) searchParams.$top = pagination.top
-  if (pagination?.skip) searchParams.$skip = pagination.skip
+  if (pagination?.top)
+    searchParams.$top = pagination.top
+  if (pagination?.skip)
+    searchParams.$skip = pagination.skip
 
   const filters: string[] = []
 
-  if (filter?.bPartnerId) filters.push(`C_BPartner_ID eq ${filter.bPartnerId}`)
-  if (filter?.salesRepId) filters.push(`SalesRep_ID eq ${filter.salesRepId}`)
-  if (filter?.requestTypeId) filters.push(`R_RequestType_ID eq ${filter.requestTypeId}`)
-  if (filter?.requestStatusId) filters.push(`R_Status_ID eq ${filter.requestStatusId}`)
+  if (filter?.bPartnerId)
+    filters.push(`C_BPartner_ID eq ${filter.bPartnerId}`)
+  if (filter?.salesRepId)
+    filters.push(`SalesRep_ID eq ${filter.salesRepId}`)
+  if (filter?.requestTypeId)
+    filters.push(`R_RequestType_ID eq ${filter.requestTypeId}`)
+  if (filter?.requestStatusId)
+    filters.push(`R_Status_ID eq ${filter.requestStatusId}`)
   // Note: API doesn't support 'ne' operator, so we filter null checks client-side
   // For 'eq null' checks, we can still use server-side filtering
   if (filter?.hasStartDate === false) {
@@ -69,7 +75,7 @@ export async function listRequests(
   if (filter?.hasCloseDate === false) {
     filters.push('CloseDate eq null')
   }
-  
+
   // Store filter flags for client-side filtering (ne null cases)
   const needsClientFiltering = {
     hasStartDate: filter?.hasStartDate === true,
@@ -85,12 +91,12 @@ export async function listRequests(
     searchParams.$filter = filters.join(' and ')
   }
 
-  const res = await apiFetch<{ records: any[]; 'row-count'?: number }>(
+  const res = await apiFetch<{ 'records': any[], 'row-count'?: number }>(
     `${API_V1}/models/R_Request`,
     { token, searchParams },
   )
 
-  let requests: Request[] = (res.records ?? []).map((r) => ({
+  let requests: Request[] = (res.records ?? []).map(r => ({
     id: Number(r.id),
     name: r.Summary ? String(r.Summary) : undefined,
     description: r.Result ? String(r.Result) : undefined,
@@ -109,17 +115,17 @@ export async function listRequests(
 
   // Client-side filtering for 'ne null' cases (API doesn't support 'ne' operator)
   if (needsClientFiltering.hasStartDate) {
-    requests = requests.filter((r) => r.startDate != null)
+    requests = requests.filter(r => r.startDate != null)
   }
   if (needsClientFiltering.hasCloseDate) {
-    requests = requests.filter((r) => r.closeDate != null)
+    requests = requests.filter(r => r.closeDate != null)
   }
 
   // 查询客户名称（使用 Name 字段替换 identifier）
-  const bPartnerIds = Array.from(new Set(requests.filter((r) => r.bPartnerId > 0).map((r) => r.bPartnerId)))
+  const bPartnerIds = Array.from(new Set(requests.filter(r => r.bPartnerId > 0).map(r => r.bPartnerId)))
   if (bPartnerIds.length > 0) {
     try {
-      const bpFilter = bPartnerIds.map((id) => `C_BPartner_ID eq ${id}`).join(' or ')
+      const bpFilter = bPartnerIds.map(id => `C_BPartner_ID eq ${id}`).join(' or ')
       const bpRes = await apiFetch<{ records: any[] }>(
         `${API_V1}/models/C_BPartner`,
         {
@@ -146,16 +152,17 @@ export async function listRequests(
           req.bPartnerName = bpNameMap.get(req.bPartnerId)
         }
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.warn('Failed to load business partner names:', e)
     }
   }
 
   // 查询咨询师名称（使用 Name 字段替换 identifier）
-  const salesRepIds = Array.from(new Set(requests.filter((r) => r.salesRepId && r.salesRepId > 0).map((r) => r.salesRepId!)))
+  const salesRepIds = Array.from(new Set(requests.filter(r => r.salesRepId && r.salesRepId > 0).map(r => r.salesRepId!)))
   if (salesRepIds.length > 0) {
     try {
-      const userFilter = salesRepIds.map((id) => `AD_User_ID eq ${id}`).join(' or ')
+      const userFilter = salesRepIds.map(id => `AD_User_ID eq ${id}`).join(' or ')
       const userRes = await apiFetch<{ records: any[] }>(
         `${API_V1}/models/AD_User`,
         {
@@ -182,16 +189,17 @@ export async function listRequests(
           req.salesRepName = userNameMap.get(req.salesRepId)
         }
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.warn('Failed to load sales rep names:', e)
     }
   }
 
   // 查询请求类型名称（使用 Name 字段替换 identifier）
-  const requestTypeIds = Array.from(new Set(requests.filter((r) => r.requestTypeId && r.requestTypeId > 0).map((r) => r.requestTypeId!)))
+  const requestTypeIds = Array.from(new Set(requests.filter(r => r.requestTypeId && r.requestTypeId > 0).map(r => r.requestTypeId!)))
   if (requestTypeIds.length > 0) {
     try {
-      const typeFilter = requestTypeIds.map((id) => `R_RequestType_ID eq ${id}`).join(' or ')
+      const typeFilter = requestTypeIds.map(id => `R_RequestType_ID eq ${id}`).join(' or ')
       const typeRes = await apiFetch<{ records: any[] }>(
         `${API_V1}/models/R_RequestType`,
         {
@@ -218,16 +226,17 @@ export async function listRequests(
           req.requestTypeName = typeNameMap.get(req.requestTypeId)
         }
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.warn('Failed to load request type names:', e)
     }
   }
 
   // 查询请求状态名称（使用 Name 字段替换 identifier）
-  const requestStatusIds = Array.from(new Set(requests.filter((r) => r.requestStatusId && r.requestStatusId > 0).map((r) => r.requestStatusId!)))
+  const requestStatusIds = Array.from(new Set(requests.filter(r => r.requestStatusId && r.requestStatusId > 0).map(r => r.requestStatusId!)))
   if (requestStatusIds.length > 0) {
     try {
-      const statusFilter = requestStatusIds.map((id) => `R_Status_ID eq ${id}`).join(' or ')
+      const statusFilter = requestStatusIds.map(id => `R_Status_ID eq ${id}`).join(' or ')
       const statusRes = await apiFetch<{ records: any[] }>(
         `${API_V1}/models/R_Status`,
         {
@@ -254,7 +263,8 @@ export async function listRequests(
           req.requestStatusName = statusNameMap.get(req.requestStatusId)
         }
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.warn('Failed to load request status names:', e)
     }
   }
@@ -303,7 +313,8 @@ export async function getRequest(token: string, id: number): Promise<Request> {
       if (bpRes.Name) {
         request.bPartnerName = String(bpRes.Name)
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.warn('Failed to load business partner name:', e)
     }
   }
@@ -320,7 +331,8 @@ export async function getRequest(token: string, id: number): Promise<Request> {
       if (userRes.Name) {
         request.salesRepName = String(userRes.Name)
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.warn('Failed to load sales rep name:', e)
     }
   }
@@ -337,7 +349,8 @@ export async function getRequest(token: string, id: number): Promise<Request> {
       if (typeRes.Name) {
         request.requestTypeName = String(typeRes.Name)
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.warn('Failed to load request type name:', e)
     }
   }
@@ -354,7 +367,8 @@ export async function getRequest(token: string, id: number): Promise<Request> {
       if (statusRes.Name) {
         request.requestStatusName = String(statusRes.Name)
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.warn('Failed to load request status name:', e)
     }
   }
@@ -426,13 +440,20 @@ export async function updateRequest(
   const toISO = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z')
 
   const json: Record<string, any> = {}
-  if (input.name !== undefined) json.Summary = input.name
-  if (input.description !== undefined) json.Result = input.description
-  if (input.salesRepId !== undefined) json.SalesRep_ID = input.salesRepId
-  if (input.requestTypeId !== undefined) json.R_RequestType_ID = input.requestTypeId
-  if (input.requestStatusId !== undefined) json.R_Status_ID = input.requestStatusId
-  if (input.startDate !== undefined) json.StartDate = input.startDate ? toISO(input.startDate) : null
-  if (input.closeDate !== undefined) json.CloseDate = input.closeDate ? toISO(input.closeDate) : null
+  if (input.name !== undefined)
+    json.Summary = input.name
+  if (input.description !== undefined)
+    json.Result = input.description
+  if (input.salesRepId !== undefined)
+    json.SalesRep_ID = input.salesRepId
+  if (input.requestTypeId !== undefined)
+    json.R_RequestType_ID = input.requestTypeId
+  if (input.requestStatusId !== undefined)
+    json.R_Status_ID = input.requestStatusId
+  if (input.startDate !== undefined)
+    json.StartDate = input.startDate ? toISO(input.startDate) : null
+  if (input.closeDate !== undefined)
+    json.CloseDate = input.closeDate ? toISO(input.closeDate) : null
 
   return await apiFetch<any>(`${API_V1}/models/R_Request/${id}`, {
     method: 'PUT',
@@ -464,7 +485,7 @@ export async function listRequestTypes(token: string): Promise<RequestType[]> {
     },
   )
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
   }))
@@ -482,7 +503,7 @@ export async function listRequestStatuses(token: string): Promise<RequestStatus[
     },
   )
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
     isActive: Boolean(r.IsActive ?? true),
@@ -509,7 +530,7 @@ export async function getStatusesForRequestType(token: string, requestTypeId: nu
       const defaultStatusId = Number(typeRes.R_Status_ID.id)
       const allStatuses = await listRequestStatuses(token)
       const defaultStatus = allStatuses.find(s => s.id === defaultStatusId)
-      
+
       if (defaultStatus) {
         return [defaultStatus]
       }
@@ -517,7 +538,8 @@ export async function getStatusesForRequestType(token: string, requestTypeId: nu
 
     // 如果沒有特定狀態關聯，返回所有狀態
     return await listRequestStatuses(token)
-  } catch (e) {
+  }
+  catch {
     // 如果獲取失敗，返回所有狀態作為後備
     return await listRequestStatuses(token)
   }
@@ -526,7 +548,7 @@ export async function getStatusesForRequestType(token: string, requestTypeId: nu
 /**
  * 取得待接應客戶（從未諮詢過的客戶）
  */
-export async function getPendingCustomers(token: string): Promise<{ id: number; name: string }[]> {
+export async function getPendingCustomers(token: string): Promise<{ id: number, name: string }[]> {
   try {
     // 取得所有客戶
     const res = await apiFetch<{ records: any[] }>(
@@ -541,7 +563,7 @@ export async function getPendingCustomers(token: string): Promise<{ id: number; 
       },
     )
 
-    const allCustomers = (res.records ?? []).map((r) => ({
+    const allCustomers = (res.records ?? []).map(r => ({
       id: Number(r.id),
       name: String(r.Name ?? ''),
     }))
@@ -566,8 +588,9 @@ export async function getPendingCustomers(token: string): Promise<{ id: number; 
     }
 
     // 過濾出從未諮詢過的客戶
-    return allCustomers.filter((customer) => !consultedCustomerIds.has(customer.id))
-  } catch (error) {
+    return allCustomers.filter(customer => !consultedCustomerIds.has(customer.id))
+  }
+  catch (error) {
     console.error('Failed to get pending customers:', error)
     return []
   }
@@ -597,7 +620,7 @@ export async function getRequestsByCustomer(token: string, bPartnerId: number): 
  */
 export async function getRequestStatistics(
   token: string,
-): Promise<Map<number, { total: number; byType: Map<number, number>; byStatus: Map<number, number> }>> {
+): Promise<Map<number, { total: number, byType: Map<number, number>, byStatus: Map<number, number> }>> {
   try {
     const res = await apiFetch<{ records: any[] }>(
       `${API_V1}/models/R_Request`,
@@ -609,7 +632,7 @@ export async function getRequestStatistics(
       },
     )
 
-    const stats = new Map<number, { total: number; byType: Map<number, number>; byStatus: Map<number, number> }>()
+    const stats = new Map<number, { total: number, byType: Map<number, number>, byStatus: Map<number, number> }>()
 
     for (const r of res.records ?? []) {
       const salesRepId = r.SalesRep_ID?.id ? Number(r.SalesRep_ID.id) : 0
@@ -637,7 +660,8 @@ export async function getRequestStatistics(
     }
 
     return stats
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to get request statistics:', error)
     return new Map()
   }

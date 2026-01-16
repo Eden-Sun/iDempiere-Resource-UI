@@ -3,7 +3,7 @@
  * 提供通用的列表加载、分页、搜索等功能
  */
 
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { getErrorMessage } from '../shared/utils/error'
 
 export interface ListOptions<T> {
@@ -12,7 +12,7 @@ export interface ListOptions<T> {
     skip: number
     filter?: string
     [key: string]: unknown
-  }) => Promise<{ records: T[]; totalCount?: number }>
+  }) => Promise<{ records: T[], totalCount?: number }>
   pageSize?: number
   initialFilter?: Record<string, unknown>
 }
@@ -51,9 +51,11 @@ export function useList<T>(options: ListOptions<T>) {
       const result = await loadFn(searchParams)
       records.value = result.records
       totalCount.value = result.totalCount ?? result.records.length
-    } catch (e: unknown) {
+    }
+    catch (e: unknown) {
       error.value = getErrorMessage(e, '載入列表失敗')
-    } finally {
+    }
+    finally {
       loading.value = false
     }
   }

@@ -1,17 +1,17 @@
 import { apiFetch } from '../../shared/api/http'
-import { getSysConfig, setSysConfig, batchGetSysConfig } from './utils'
+import { batchGetSysConfig, getSysConfig, setSysConfig } from './utils'
 
 const API_V1 = '/api/v1'
 
 type SearchParams = Record<string, string | number | boolean | undefined>
 
-export type Resource = {
+export interface Resource {
   id: number
   name: string
   resourceTypeId: number
 }
 
-export type ResourceType = {
+export interface ResourceType {
   id: number
   name: string
   isTimeSlot: boolean
@@ -27,7 +27,7 @@ export type ResourceType = {
   onSunday?: boolean
 }
 
-export type ResourceAssignment = {
+export interface ResourceAssignment {
   id: number
   name: string
   from: string
@@ -46,7 +46,7 @@ export async function listResources(token: string): Promise<Resource[]> {
     },
   )
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
     resourceTypeId: Number(r.S_ResourceType_ID?.id ?? r.S_ResourceType_ID ?? 0),
@@ -103,7 +103,7 @@ export async function listAssignmentsForRange(
       } satisfies SearchParams,
     },
   )
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
     from: String(r.AssignDateFrom),
@@ -158,10 +158,14 @@ export async function updateAssignment(
   const toISO = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z')
 
   const json: Record<string, any> = {}
-  if (input.name !== undefined) json.Name = input.name
-  if (input.from !== undefined) json.AssignDateFrom = toISO(input.from)
-  if (input.to !== undefined) json.AssignDateTo = toISO(input.to)
-  if (input.description !== undefined) json.Description = input.description
+  if (input.name !== undefined)
+    json.Name = input.name
+  if (input.from !== undefined)
+    json.AssignDateFrom = toISO(input.from)
+  if (input.to !== undefined)
+    json.AssignDateTo = toISO(input.to)
+  if (input.description !== undefined)
+    json.Description = input.description
 
   return await apiFetch<any>(`${API_V1}/models/S_ResourceAssignment/${id}`, {
     method: 'PUT',
@@ -188,7 +192,8 @@ export async function getAssignmentColor(token: string, assignmentId: number): P
     const configName = `EMUI_RESOURCE_ASSIGNMENT_COLOR_${assignmentId}`
     const config = await getSysConfig(token, configName)
     return config?.value || null
-  } catch (error) {
+  }
+  catch (error) {
     console.error(`Failed to get assignment color for ${assignmentId}:`, error)
     return null
   }
@@ -213,10 +218,11 @@ export async function setAssignmentColor(
       configName,
       color,
       `Color label for resource assignment ${assignmentId}`,
-      'S'
+      'S',
     )
     return true
-  } catch (error) {
+  }
+  catch (error) {
     console.error(`Failed to set assignment color for ${assignmentId}:`, error)
     return false
   }
@@ -234,7 +240,8 @@ export async function getAssignmentColors(
 ): Promise<Map<number, string>> {
   const colorMap = new Map<number, string>()
 
-  if (assignmentIds.length === 0) return colorMap
+  if (assignmentIds.length === 0)
+    return colorMap
 
   try {
     const configNames = assignmentIds.map(id => `EMUI_RESOURCE_ASSIGNMENT_COLOR_${id}`)
@@ -243,12 +250,13 @@ export async function getAssignmentColors(
     for (const [configName, value] of configMap.entries()) {
       if (configName.startsWith('EMUI_RESOURCE_ASSIGNMENT_COLOR_')) {
         const assignmentId = Number(configName.replace('EMUI_RESOURCE_ASSIGNMENT_COLOR_', ''))
-        if (!isNaN(assignmentId)) {
+        if (!Number.isNaN(assignmentId)) {
           colorMap.set(assignmentId, value)
         }
       }
     }
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to batch get assignment colors:', error)
   }
 
@@ -266,7 +274,8 @@ export async function getResourceDefaultColor(token: string, resourceId: number)
     const configName = `EMUI_RESOURCE_DEFAULT_COLOR_${resourceId}`
     const config = await getSysConfig(token, configName)
     return config?.value || null
-  } catch (error) {
+  }
+  catch (error) {
     console.error(`Failed to get default color for resource ${resourceId}:`, error)
     return null
   }
@@ -291,10 +300,11 @@ export async function setResourceDefaultColor(
       configName,
       color,
       `Default color for resource ${resourceId}`,
-      'S'
+      'S',
     )
     return true
-  } catch (error) {
+  }
+  catch (error) {
     console.error(`Failed to set default color for resource ${resourceId}:`, error)
     return false
   }
@@ -312,7 +322,8 @@ export async function getResourceDefaultColors(
 ): Promise<Map<number, string>> {
   const colorMap = new Map<number, string>()
 
-  if (resourceIds.length === 0) return colorMap
+  if (resourceIds.length === 0)
+    return colorMap
 
   try {
     const configNames = resourceIds.map(id => `EMUI_RESOURCE_DEFAULT_COLOR_${id}`)
@@ -321,12 +332,13 @@ export async function getResourceDefaultColors(
     for (const [configName, value] of configMap.entries()) {
       if (configName.startsWith('EMUI_RESOURCE_DEFAULT_COLOR_')) {
         const resourceId = Number(configName.replace('EMUI_RESOURCE_DEFAULT_COLOR_', ''))
-        if (!isNaN(resourceId)) {
+        if (!Number.isNaN(resourceId)) {
           colorMap.set(resourceId, value)
         }
       }
     }
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to batch get resource default colors:', error)
   }
 
@@ -344,7 +356,7 @@ export async function getAllAssignmentsForExport(
   token: string,
   start: Date,
   end: Date,
-): Promise<Array<{ assignment: ResourceAssignment; resourceName: string }>> {
+): Promise<Array<{ assignment: ResourceAssignment, resourceName: string }>> {
   try {
     const filter = `AssignDateFrom ge ${formatTimestampForFilter(start)} and AssignDateFrom lt ${formatTimestampForFilter(end)}`
     const res = await apiFetch<{ records: any[] }>(
@@ -359,11 +371,12 @@ export async function getAllAssignmentsForExport(
       },
     )
 
-    const result: Array<{ assignment: ResourceAssignment; resourceName: string }> = []
+    const result: Array<{ assignment: ResourceAssignment, resourceName: string }> = []
 
     for (const r of res.records ?? []) {
       const resourceId = Number(r.S_Resource_ID?.id ?? r.S_Resource_ID ?? 0)
-      if (!resourceId) continue
+      if (!resourceId)
+        continue
 
       const assignment: ResourceAssignment = {
         id: Number(r.id),
@@ -375,20 +388,21 @@ export async function getAllAssignmentsForExport(
       try {
         const resourceRes = await apiFetch<{ records: any[] }>(
           `${API_V1}/models/S_Resource?$filter=S_Resource_ID eq ${resourceId}&$select=Name&$top=1`,
-          { token }
+          { token },
         )
         const resourceName = resourceRes.records?.[0]?.Name || `Resource #${resourceId}`
 
         result.push({ assignment, resourceName: String(resourceName) })
-      } catch (e) {
+      }
+      catch {
         result.push({ assignment, resourceName: `Resource #${resourceId}` })
       }
     }
 
     return result
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to get assignments for export:', error)
     return []
   }
 }
-

@@ -1,520 +1,29 @@
-<template>
-  <div class="space-y-6">
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h1 class="text-lg font-semibold">使用者：預約</h1>
-      <p class="mt-1 text-sm text-slate-600">
-        選擇醫師/諮詢師，點選開始時段，再點選結束時段進行預約。
-      </p>
-    </div>
-
-    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div class="flex flex-wrap items-end justify-between gap-4">
-        <div class="flex-1 min-w-[300px]">
-          <label class="text-sm font-medium text-slate-700">選擇資源（醫師/諮詢師）</label>
-          <div class="mt-2 flex flex-wrap gap-3">
-            <label
-              v-for="r in resources"
-              :key="r.id"
-              class="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 transition-colors"
-              :class="selectedResourceIds.includes(r.id) ? 'border-brand-500 bg-brand-50' : ''"
-            >
-              <input
-                type="checkbox"
-                :value="r.id"
-                :checked="selectedResourceIds.includes(r.id)"
-                class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                @change="onResourceToggle(r.id)"
-              />
-              <span>{{ r.name }}</span>
-            </label>
-          </div>
-          <div v-if="selectedResourceIds.length > 0" class="mt-2 text-xs text-slate-600">
-            已選擇 {{ selectedResourceIds.length }} 個資源（可疊加觀看）
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <button
-            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            :disabled="loading"
-            type="button"
-            @click="reload"
-          >
-            {{ loading ? '載入中…' : '重新整理' }}
-          </button>
-        </div>
-      </div>
-
-      <p v-if="error" class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-        {{ error }}
-      </p>
-
-      <!-- 時段資訊 -->
-      <div v-if="selectedResources.length > 0" class="mt-4 space-y-2">
-        <div
-          v-for="res in selectedResources"
-          :key="res.id"
-          class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600"
-          :style="{ borderLeft: `4px solid ${getResourceColor(res.id)}` }"
-        >
-          <span class="font-semibold" :style="{ color: getResourceColor(res.id) }">{{ res.name }}：</span>
-          <span class="font-medium">營業時段：</span>
-          <template v-if="hasBusinessHours(res.id)">
-            {{ formatTime(resourceTypes.get(res.id)?.timeSlotStart) }} - {{ formatTime(resourceTypes.get(res.id)?.timeSlotEnd) }}
-          </template>
-          <template v-else>
-            <span class="text-rose-600 font-semibold">--:-- - --:-- (未配置)</span>
-          </template>
-          <span class="ml-3 font-medium">營業日：</span>
-          <span>{{ getAvailableDaysText(res.id) }}</span>
-        </div>
-      </div>
-
-      <!-- 營業時段未配置警告 -->
-      <div
-        v-if="selectedResources.length > 0 && !hasAllBusinessHours"
-        class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700"
-      >
-        <div class="flex items-start gap-2">
-          <svg class="h-5 w-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div>
-            <p class="font-semibold">部分資源未配置營業時段</p>
-            <p class="mt-1 text-xs">
-              以下資源尚未配置營業時段，無法進行時間選擇：{{ getResourcesWithoutHours().map(r => r.name).join('、') }}
-            </p>
-            <p class="mt-2 text-xs">
-              請聯繫管理員在系統中配置這些資源的營業時段（TimeSlotStart 和 TimeSlotEnd）。
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- 選擇提示 -->
-      <div v-if="selectionMode" class="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-700">
-        <template v-if="selectionMode === 'start'">
-          <span class="font-semibold">步驟 1/2：</span> 請點選<span class="font-semibold">開始時段</span>
-        </template>
-        <template v-else-if="selectionMode === 'end'">
-          <span class="font-semibold">步驟 2/2：</span> 已選開始 {{ selectedStart?.day.label }} {{ formatSlotTime(selectedStart?.slot) }}，請點選<span class="font-semibold">結束時段</span>
-          <button class="ml-2 text-xs underline" @click="resetSelection">重新選擇</button>
-        </template>
-      </div>
-
-      <!-- 無營業時段提示 -->
-      <div v-else-if="selectedResources.length > 0 && !hasAllBusinessHours" class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
-        <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p class="mt-4 text-sm font-semibold text-slate-700">無法顯示預約日曆</p>
-        <p class="mt-2 text-xs text-slate-600">
-          所選資源尚未配置營業時段，請先配置營業時段後再進行預約。
-        </p>
-      </div>
-
-      <!-- Google Calendar Style Grid -->
-      <div v-if="selectedResources.length > 0 && commonResourceType && hasAllBusinessHours" class="mt-6">
-        <div class="mb-3 flex items-center justify-between">
-          <div class="text-sm font-semibold text-slate-900">本週時段</div>
-          <div class="flex items-center gap-3">
-            <div class="text-xs text-slate-500">{{ weekStart.toLocaleDateString() }} ～ {{ weekEnd.toLocaleDateString() }}</div>
-            <button
-              v-if="!selectionMode"
-              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-              :disabled="exporting"
-              @click="exportCSV"
-            >
-              {{ exporting ? '匯出中…' : '匯出 CSV' }}
-            </button>
-            <button
-              v-if="!selectionMode"
-              class="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700"
-              @click="startSelection"
-            >
-              新增預約
-            </button>
-            <button
-              v-if="selectionMode"
-              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-              @click="resetSelection"
-            >
-              取消選擇
-            </button>
-          </div>
-        </div>
-
-        <div class="overflow-x-auto">
-          <div class="calendar-container">
-            <!-- Time column -->
-            <div class="time-column">
-              <div class="day-header-cell"></div>
-              <div class="time-grid">
-                <div v-for="hour in displayHours" :key="hour" class="time-label">
-                  <span>{{ hour }}:00</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Day columns -->
-            <div v-for="day in weekDays" :key="day.key" class="day-column" :class="{ 'day-unavailable': !isAnyDayAvailable(day.dayOfWeek) }">
-              <div class="day-header-cell" :class="{ 'is-today': isToday(day.dateObj) }">
-                <div class="day-name">{{ day.label }}</div>
-                <div class="day-date" :class="{ 'today-badge': isToday(day.dateObj) }">{{ day.dateObj.getDate() }}</div>
-              </div>
-              <div
-                class="day-grid"
-                @click="onDayGridClick($event, day)"
-                @mousemove="onDayGridHover($event, day)"
-                @mouseleave="onDayGridLeave"
-              >
-                <!-- Hour slots background -->
-                <div v-for="hour in displayHours" :key="hour" class="hour-slot">
-                  <div class="half-hour-line"></div>
-                </div>
-
-                <!-- Past time disabled overlay (when selecting start time) -->
-                <div
-                  v-if="selectionMode !== 'end' && getPastTimeHeight(day) > 0"
-                  class="past-time-overlay"
-                  :style="{ height: `${getPastTimeHeight(day)}px` }"
-                >
-                  <div class="past-time-label">已過時段</div>
-                </div>
-
-                <!-- Hover preview (when selecting end time) -->
-                <div
-                  v-if="selectionMode === 'end' && selectedStart?.day.key === day.key && hoverSlot"
-                  class="hover-preview-overlay"
-                  :style="getHoverPreviewStyle(day)"
-                >
-                  <div class="hover-duration-badge">{{ hoverDuration }} 分鐘</div>
-                </div>
-
-                <!-- Selection overlay -->
-                <div
-                  v-if="isSelectionInDay(day)"
-                  class="selection-overlay"
-                  :style="getSelectionStyle(day)"
-                ></div>
-
-                <!-- Events -->
-                <div
-                  v-for="event in getDayEvents(day)"
-                  :key="event.id"
-                  class="event-card"
-                  :style="getEventStyle(event)"
-                  @click.stop="openEditModal(event)"
-                  @mouseenter="showPopout($event, event)"
-                  @mouseleave="hidePopout"
-                >
-                  <div class="event-time">{{ formatEventTime(event.from) }}</div>
-                  <div class="event-title">{{ event.name || '—' }}</div>
-                  <div class="event-resource">{{ event.resourceName }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- 新增預約 Modal -->
-    <Teleport to="body">
-      <div
-        v-if="showBookingForm && selectedStart && selectedEnd"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-        @click.self="resetSelection"
-      >
-        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-          <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-slate-900">確認預約</h3>
-            <button
-              class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              @click="resetSelection"
-            >
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <div class="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-            <div class="grid grid-cols-2 gap-2">
-              <div><span class="font-medium text-slate-500">日期：</span>{{ selectedStart.day.label }} ({{ selectedStart.day.date }})</div>
-              <div><span class="font-medium text-slate-500">時長：</span>{{ calculateDuration() }} 分鐘</div>
-              <div class="col-span-2"><span class="font-medium text-slate-500">時段：</span>{{ formatSlotTime(selectedStart.slot) }} - {{ formatSlotEndTime(selectedEnd.slot) }}</div>
-            </div>
-            <div v-if="selectedResourceIds.length > 1" class="mt-3 border-t border-slate-200 pt-3">
-              <span class="font-medium text-slate-500">預約資源：</span>
-              <div class="mt-2 space-y-2">
-                <div
-                  v-for="resId in selectedResourceIds"
-                  :key="resId"
-                  class="flex items-center gap-2"
-                >
-                  <span
-                    class="inline-block rounded px-2 py-0.5 text-xs font-medium"
-                    :style="{
-                      backgroundColor: getResourceColor(resId) + '20',
-                      color: getResourceColor(resId),
-                      borderLeft: `3px solid ${getResourceColor(resId)}`
-                    }"
-                  >
-                    {{ resources.find(r => r.id === resId)?.name }}
-                  </span>
-                  <input
-                    :value="formatDateTimeLocal(multiResourceTimes.get(resId)?.from || '')"
-                    type="datetime-local"
-                    class="rounded border border-slate-300 px-2 py-1 text-xs"
-                    @change="(e) => updateResourceTime(resId, 'from', e.target.value)"
-                  />
-                  <span class="text-slate-400">-</span>
-                  <input
-                    :value="formatDateTimeLocal(multiResourceTimes.get(resId)?.to || '')"
-                    type="datetime-local"
-                    class="rounded border border-slate-300 px-2 py-1 text-xs"
-                    @change="(e) => updateResourceTime(resId, 'to', e.target.value)"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-4 space-y-4">
-            <div>
-              <label class="text-sm font-medium text-slate-700">預約名稱</label>
-              <input
-                v-model="bookingName"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                placeholder="例如：王小明 諮詢"
-                autofocus
-              />
-            </div>
-            <div v-if="showDescriptionField">
-              <label class="text-sm font-medium text-slate-700">備註</label>
-              <textarea
-                v-model="bookingDescription"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                rows="3"
-                placeholder="選填：備註資訊..."
-              />
-            </div>
-            <div>
-              <label class="text-sm font-medium text-slate-700">顏色標籤</label>
-              <div class="mt-1 flex items-center gap-3">
-                <input
-                  v-model="bookingColor"
-                  type="color"
-                  class="h-10 w-16 cursor-pointer rounded border border-slate-300"
-                />
-                <div
-                  class="flex-1 rounded-lg border px-3 py-2 text-sm"
-                  :style="{ backgroundColor: bookingColor + '15', color: bookingColor, borderColor: bookingColor }"
-                >
-                  {{ bookingColor }}
-                </div>
-                <button
-                  type="button"
-                  class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
-                  @click="resetColor"
-                >
-                  重置
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-6 flex gap-3">
-            <button
-              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-              :disabled="submitting || !bookingName.trim() || selectedResourceIds.length === 0"
-              @click="submitBooking"
-            >
-              {{ submitting ? '送出中…' : `確認預約${selectedResourceIds.length > 1 ? ` (${selectedResourceIds.length}個)` : ''}` }}
-            </button>
-            <button
-              class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              @click="resetSelection"
-            >
-              取消
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- Popout 資訊卡 -->
-    <Teleport to="body">
-      <div
-        v-if="activePopout"
-        class="fixed z-50 rounded-lg bg-white shadow-xl border border-slate-200 p-3 min-w-[200px] max-w-[280px]"
-        :style="popoutStyle"
-        @mouseenter="keepPopout"
-        @mouseleave="hidePopout"
-      >
-        <div class="flex items-start justify-between gap-2">
-          <div
-            class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5"
-            :style="{ backgroundColor: getAssignmentColor(activePopout.assignment.id) }"
-          ></div>
-          <div class="flex-1 min-w-0">
-            <div class="font-semibold text-sm text-slate-900 truncate">{{ activePopout.assignment.name || '—' }}</div>
-            <div class="text-xs text-slate-500 mt-0.5">{{ activePopout.assignment.resourceName }}</div>
-          </div>
-        </div>
-        <div class="mt-2 text-xs text-slate-600 space-y-1">
-          <div class="flex items-center gap-1">
-            <span class="text-slate-400">開始:</span>
-            <span>{{ formatDateTime(activePopout.assignment.from) }}</span>
-          </div>
-          <div class="flex items-center gap-1">
-            <span class="text-slate-400">結束:</span>
-            <span>{{ formatDateTime(activePopout.assignment.to) }}</span>
-          </div>
-        </div>
-        <div class="mt-3 pt-2 border-t border-slate-100">
-          <button
-            class="w-full text-xs text-brand-600 hover:text-brand-700 font-medium"
-            @click="openEditModal(activePopout.assignment)"
-          >
-            點擊編輯
-          </button>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- 編輯預約 Modal -->
-    <Teleport to="body">
-      <div
-        v-if="showEditModal && editingEvent"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-        @click.self="closeEditModal"
-      >
-        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-          <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-slate-900">編輯預約</h3>
-            <button
-              class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              @click="closeEditModal"
-            >
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <div class="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-            <div class="grid grid-cols-2 gap-2">
-              <div><span class="font-medium text-slate-500">資源：</span>{{ editingEvent.resourceName }}</div>
-              <div><span class="font-medium text-slate-500">時段：</span>{{ formatEventTime(editingEvent.from) }} - {{ formatEventTime(editingEvent.to || editingEvent.from) }}</div>
-              <div class="col-span-2"><span class="font-medium text-slate-500">日期：</span>{{ formatDateTime(editingEvent.from).split(' ')[0] }}</div>
-            </div>
-          </div>
-
-          <div class="mt-4 space-y-4">
-            <div>
-              <label class="text-sm font-medium text-slate-700">開始時間</label>
-              <input
-                v-model="editFromDate"
-                type="datetime-local"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
-            </div>
-            <div>
-              <label class="text-sm font-medium text-slate-700">結束時間</label>
-              <input
-                v-model="editToDate"
-                type="datetime-local"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-              />
-            </div>
-            <div>
-              <label class="text-sm font-medium text-slate-700">預約名稱</label>
-              <input
-                v-model="editName"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                placeholder="例如：王小明 諮詢"
-                autofocus
-              />
-            </div>
-            <div v-if="showDescriptionField">
-              <label class="text-sm font-medium text-slate-700">備註</label>
-              <textarea
-                v-model="editDescription"
-                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                rows="3"
-                placeholder="選填：備註資訊..."
-              />
-            </div>
-            <div>
-              <label class="text-sm font-medium text-slate-700">顏色標籤</label>
-              <div class="mt-1 flex items-center gap-3">
-                <input
-                  v-model="editColor"
-                  type="color"
-                  class="h-10 w-16 cursor-pointer rounded border border-slate-300"
-                />
-                <div
-                  class="flex-1 rounded-lg border px-3 py-2 text-sm"
-                  :style="{ backgroundColor: editColor + '15', color: editColor, borderColor: editColor }"
-                >
-                  {{ editColor }}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-6 flex gap-3">
-            <button
-              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-              :disabled="submitting || !editName.trim() || !editFromDate || !editToDate"
-              @click="saveEdit"
-            >
-              {{ submitting ? '儲存中…' : '儲存變更' }}
-            </button>
-            <button
-              class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-100 disabled:opacity-60"
-              :disabled="deleting"
-              @click="confirmDelete"
-            >
-              {{ deleting ? '刪除中…' : '刪除' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-  </div>
-</template>
-
 <script setup lang="ts">
+import type { Resource, ResourceAssignment, ResourceType } from '../../features/resource/api'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../../features/auth/store'
 import { usePermission } from '../../features/permission/store'
 import {
-  listResources,
-  listAssignmentsForRange,
   createAssignment,
-  updateAssignment,
   deleteAssignment,
-  getResourceType,
-  getAssignmentColors,
-  setAssignmentColor,
-  getResourceDefaultColors,
   getAllAssignmentsForExport,
-  type Resource,
-  type ResourceAssignment,
-  type ResourceType,
+  getAssignmentColors,
+  getResourceDefaultColors,
+  getResourceType,
+  listAssignmentsForRange,
+  listResources,
+
+  setAssignmentColor,
+  updateAssignment,
 } from '../../features/resource/api'
 import {
   formatDateTime,
   formatDateTimeLocal,
   formatEventTime,
   formatTime,
-  parseTimeString,
-  getWeekStart,
   getWeekEnd,
+  getWeekStart,
+  parseTimeString,
 } from '../../shared/utils/datetime'
 import { getErrorMessage } from '../../shared/utils/error'
 
@@ -565,15 +74,15 @@ function getResourceColor(resourceId: number): string {
 function getAssignmentColor(assignmentId: number): string {
   return assignmentColors.value.get(assignmentId) || getResourceColor(
     selectedResourceIds.value.find(id =>
-      assignments.value.get(id)?.some(a => a.id === assignmentId)
-    ) || selectedResourceIds.value[0] || 0
+      assignments.value.get(id)?.some(a => a.id === assignmentId),
+    ) || selectedResourceIds.value[0] || 0,
   )
 }
 
 // 選擇模式
 const selectionMode = ref<'start' | 'end' | null>(null)
-const selectedStart = ref<{ day: WeekDay; slot: TimeSlot } | null>(null)
-const selectedEnd = ref<{ day: WeekDay; slot: TimeSlot } | null>(null)
+const selectedStart = ref<{ day: WeekDay, slot: TimeSlot } | null>(null)
+const selectedEnd = ref<{ day: WeekDay, slot: TimeSlot } | null>(null)
 const hoverSlot = ref<TimeSlot | null>(null)
 const showBookingForm = ref(false)
 const bookingName = ref('')
@@ -583,7 +92,7 @@ const submitting = ref(false)
 const assignmentColors = ref<Map<number, string>>(new Map())
 
 // 多資源預約時間（各別修改）
-const multiResourceTimes = ref<Map<number, { from: Date; to: Date }>>(new Map())
+const multiResourceTimes = ref<Map<number, { from: Date, to: Date }>>(new Map())
 
 // 編輯預約
 const editingEvent = ref<CalendarEvent | null>(null)
@@ -597,14 +106,15 @@ const deleting = ref(false)
 
 // Hover 時的預計時長
 const hoverDuration = computed(() => {
-  if (!selectedStart.value || !hoverSlot.value) return 0
+  if (!selectedStart.value || !hoverSlot.value)
+    return 0
   const startMin = selectedStart.value.slot.hour * 60 + selectedStart.value.slot.minute
   const endMin = hoverSlot.value.endHour * 60 + hoverSlot.value.endMinute
   return Math.max(endMin - startMin, 30)
 })
 
 // Popout
-const activePopout = ref<{ assignment: CalendarEvent; x: number; y: number } | null>(null)
+const activePopout = ref<{ assignment: CalendarEvent, x: number, y: number } | null>(null)
 let hidePopoutTimer: ReturnType<typeof setTimeout> | null = null
 
 function showPopout(e: MouseEvent | TouchEvent, assignment: CalendarEvent) {
@@ -652,7 +162,7 @@ async function openEditModal(event: CalendarEvent) {
     showDescriptionField.value = await permission.isFieldVisible(
       auth.token.value,
       'S_ResourceAssignment',
-      'Description'
+      'Description',
     )
   }
 
@@ -670,12 +180,13 @@ function closeEditModal() {
 }
 
 async function saveEdit() {
-  if (!auth.token.value || !editingEvent.value || !editName.value.trim() || !editFromDate.value || !editToDate.value) return
+  if (!auth.token.value || !editingEvent.value || !editName.value.trim() || !editFromDate.value || !editToDate.value)
+    return
 
   const fromDate = new Date(editFromDate.value)
   const toDate = new Date(editToDate.value)
 
-  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
     error.value = '時間格式無效'
     return
   }
@@ -702,16 +213,20 @@ async function saveEdit() {
 
     closeEditModal()
     await loadAllAssignments()
-  } catch (e: any) {
+  }
+  catch (e: any) {
     error.value = getErrorMessage(e, '更新失敗')
-  } finally {
+  }
+  finally {
     submitting.value = false
   }
 }
 
 async function confirmDelete() {
-  if (!auth.token.value || !editingEvent.value) return
-  if (!confirm(`確定要刪除「${editingEvent.value.name || '此預約'}」嗎？`)) return
+  if (!auth.token.value || !editingEvent.value)
+    return
+  if (!confirm(`確定要刪除「${editingEvent.value.name || '此預約'}」嗎？`))
+    return
 
   deleting.value = true
   error.value = null
@@ -720,15 +235,18 @@ async function confirmDelete() {
     await deleteAssignment(auth.token.value, editingEvent.value.id)
     closeEditModal()
     await loadAllAssignments()
-  } catch (e: any) {
+  }
+  catch (e: any) {
     error.value = getErrorMessage(e, '刪除失敗')
-  } finally {
+  }
+  finally {
     deleting.value = false
   }
 }
 
 const popoutStyle = computed(() => {
-  if (!activePopout.value) return {}
+  if (!activePopout.value)
+    return {}
   const maxX = typeof window !== 'undefined' ? window.innerWidth - 300 : 1000
   const maxY = typeof window !== 'undefined' ? window.innerHeight - 200 : 600
   return {
@@ -742,7 +260,7 @@ const now = new Date()
 const weekStart = getWeekStart(now)
 const weekEnd = getWeekEnd(weekStart)
 
-type WeekDay = {
+interface WeekDay {
   key: string
   label: string
   date: string
@@ -750,7 +268,7 @@ type WeekDay = {
   dayOfWeek: number
 }
 
-type TimeSlot = {
+interface TimeSlot {
   key: string
   hour: number
   minute: number
@@ -761,15 +279,17 @@ type TimeSlot = {
 
 // 日曆顯示時間範圍
 const HOUR_START = computed(() => {
-  if (!commonResourceType.value?.timeSlotStart) return 9
+  if (!commonResourceType.value?.timeSlotStart)
+    return 9
   const match = commonResourceType.value.timeSlotStart.match(/^(\d{2})/)
-  return match ? parseInt(match[1], 10) : 9
+  return match ? Number.parseInt(match[1], 10) : 9
 })
 
 const HOUR_END = computed(() => {
-  if (!commonResourceType.value?.timeSlotEnd) return 18
+  if (!commonResourceType.value?.timeSlotEnd)
+    return 18
   const match = commonResourceType.value.timeSlotEnd.match(/^(\d{2})/)
-  return match ? parseInt(match[1], 10) : 18
+  return match ? Number.parseInt(match[1], 10) : 18
 })
 
 const displayHours = computed(() => {
@@ -778,24 +298,27 @@ const displayHours = computed(() => {
 
 const HOUR_HEIGHT = 60
 
-
 function formatSlotTime(slot?: TimeSlot | null): string {
-  if (!slot) return '--:--'
+  if (!slot)
+    return '--:--'
   return `${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')}`
 }
 
 function formatSlotEndTime(slot?: TimeSlot | null): string {
-  if (!slot) return '--:--'
+  if (!slot)
+    return '--:--'
   return `${String(slot.endHour).padStart(2, '0')}:${String(slot.endMinute).padStart(2, '0')}`
 }
 
 const timeSlots = computed<TimeSlot[]>(() => {
-  if (!commonResourceType.value) return []
+  if (!commonResourceType.value)
+    return []
 
   const start = parseTimeString(commonResourceType.value.timeSlotStart)
   const end = parseTimeString(commonResourceType.value.timeSlotEnd)
 
-  if (!start || !end) return []
+  if (!start || !end)
+    return []
 
   const slots: TimeSlot[] = []
   let hour = start.hour
@@ -853,14 +376,15 @@ const weekDays = computed<WeekDay[]>(() => {
 
 function isToday(date: Date): boolean {
   const today = new Date()
-  return date.getDate() === today.getDate() &&
-         date.getMonth() === today.getMonth() &&
-         date.getFullYear() === today.getFullYear()
+  return date.getDate() === today.getDate()
+    && date.getMonth() === today.getMonth()
+    && date.getFullYear() === today.getFullYear()
 }
 
 function isDayAvailable(dayOfWeek: number, resourceId?: number): boolean {
   const rt = resourceId ? resourceTypes.value.get(resourceId) : commonResourceType.value
-  if (!rt) return false
+  if (!rt)
+    return false
   switch (dayOfWeek) {
     case 0: return rt.onSunday ?? false
     case 1: return rt.onMonday ?? false
@@ -879,15 +403,23 @@ function isAnyDayAvailable(dayOfWeek: number): boolean {
 
 function getAvailableDaysText(resourceId: number): string {
   const rt = resourceTypes.value.get(resourceId)
-  if (!rt) return '無'
+  if (!rt)
+    return '無'
   const days: string[] = []
-  if (rt.onMonday) days.push('一')
-  if (rt.onTuesday) days.push('二')
-  if (rt.onWednesday) days.push('三')
-  if (rt.onThursday) days.push('四')
-  if (rt.onFriday) days.push('五')
-  if (rt.onSaturday) days.push('六')
-  if (rt.onSunday) days.push('日')
+  if (rt.onMonday)
+    days.push('一')
+  if (rt.onTuesday)
+    days.push('二')
+  if (rt.onWednesday)
+    days.push('三')
+  if (rt.onThursday)
+    days.push('四')
+  if (rt.onFriday)
+    days.push('五')
+  if (rt.onSaturday)
+    days.push('六')
+  if (rt.onSunday)
+    days.push('日')
   return days.length ? days.join('、') : '無'
 }
 
@@ -897,7 +429,8 @@ function hasBusinessHours(resourceId: number): boolean {
 }
 
 const hasAllBusinessHours = computed(() => {
-  if (selectedResourceIds.value.length === 0) return true
+  if (selectedResourceIds.value.length === 0)
+    return true
   return selectedResourceIds.value.every(resId => hasBusinessHours(resId))
 })
 
@@ -906,11 +439,12 @@ function getResourcesWithoutHours(): Resource[] {
 }
 
 const selectedResources = computed(() =>
-  resources.value.filter((r) => selectedResourceIds.value.includes(r.id))
+  resources.value.filter(r => selectedResourceIds.value.includes(r.id)),
 )
 
 const commonResourceType = computed(() => {
-  if (selectedResourceIds.value.length === 0) return null
+  if (selectedResourceIds.value.length === 0)
+    return null
   const firstRes = selectedResources.value[0]
   return resourceTypes.value.get(firstRes?.id) ?? null
 })
@@ -968,7 +502,7 @@ function getDayEvents(day: WeekDay): CalendarEvent[] {
 
   for (const event of events) {
     const overlapping = events.filter(e =>
-      e.startDate < event.endDate && e.endDate > event.startDate
+      e.startDate < event.endDate && e.endDate > event.startDate,
     )
     event.totalColumns = Math.max(...overlapping.map(e => e.column)) + 1
   }
@@ -1001,9 +535,9 @@ function getEventStyle(event: CalendarEvent): Record<string, string> {
     height: `${height}px`,
     left: `${left}%`,
     width: `calc(${width}% - 4px)`,
-    backgroundColor: color + '20',
+    backgroundColor: `${color}20`,
     borderLeftColor: color,
-    color: color,
+    color,
   }
 }
 
@@ -1036,7 +570,8 @@ function isSelectionInDay(day: WeekDay): boolean {
 }
 
 function getSelectionStyle(day: WeekDay): Record<string, string> {
-  if (!selectedStart.value || selectedStart.value.day.key !== day.key) return {}
+  if (!selectedStart.value || selectedStart.value.day.key !== day.key)
+    return {}
 
   const startSlot = selectedStart.value.slot
   const endSlot = selectedEnd.value?.slot || startSlot
@@ -1064,13 +599,15 @@ function getSelectionStyle(day: WeekDay): Record<string, string> {
 
 // Hover preview style（從開始時間到 hover 位置）
 function getHoverPreviewStyle(day: WeekDay): Record<string, string> {
-  if (!selectedStart.value || !hoverSlot.value || selectedStart.value.day.key !== day.key) return {}
+  if (!selectedStart.value || !hoverSlot.value || selectedStart.value.day.key !== day.key)
+    return {}
 
   const startSlot = selectedStart.value.slot
   const endSlot = hoverSlot.value
 
   // 確保 hover 位置在開始時間之後
-  if (endSlot.index < startSlot.index) return {}
+  if (endSlot.index < startSlot.index)
+    return {}
 
   const dayStart = new Date(day.dateObj)
   dayStart.setHours(HOUR_START.value, 0, 0, 0)
@@ -1095,8 +632,10 @@ function getHoverPreviewStyle(day: WeekDay): Record<string, string> {
 
 // Hover 事件處理
 function onDayGridHover(e: MouseEvent, day: WeekDay) {
-  if (selectionMode.value !== 'end') return
-  if (!selectedStart.value || selectedStart.value.day.key !== day.key) return
+  if (selectionMode.value !== 'end')
+    return
+  if (!selectedStart.value || selectedStart.value.day.key !== day.key)
+    return
 
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   const y = e.clientY - rect.top
@@ -1116,7 +655,8 @@ function onDayGridLeave() {
 }
 
 function onDayGridClick(e: MouseEvent, day: WeekDay) {
-  if (!isAnyDayAvailable(day.dayOfWeek)) return
+  if (!isAnyDayAvailable(day.dayOfWeek))
+    return
 
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   const y = e.clientY - rect.top
@@ -1128,7 +668,8 @@ function onDayGridClick(e: MouseEvent, day: WeekDay) {
 
   // 找到對應的 slot
   const slot = timeSlots.value.find(s => s.hour === clickHour && s.minute === clickMinute)
-  if (!slot) return
+  if (!slot)
+    return
 
   // 檢查是否已被預約
   const slotStart = new Date(day.dateObj)
@@ -1138,30 +679,37 @@ function onDayGridClick(e: MouseEvent, day: WeekDay) {
 
   const events = getDayEvents(day)
   const hasConflict = events.some(ev => ev.startDate < slotEnd && ev.endDate > slotStart)
-  if (hasConflict) return
+  if (hasConflict)
+    return
 
   // 檢查是否過去時間（選擇開始時間時）
-  if (selectionMode.value !== 'end' && slotStart < now) return
+  if (selectionMode.value !== 'end' && slotStart < now)
+    return
 
   // 直接點擊日曆即可開始選擇（不需要先按「新增預約」按鈕）
   if (!selectionMode.value || selectionMode.value === 'start') {
     selectedStart.value = { day, slot }
     selectedEnd.value = { day, slot }
     selectionMode.value = 'end'
-  } else if (selectionMode.value === 'end') {
-    if (day.key !== selectedStart.value?.day.key) return
-    if (slot.index < (selectedStart.value?.slot.index ?? 0)) return
+  }
+  else if (selectionMode.value === 'end') {
+    if (day.key !== selectedStart.value?.day.key)
+      return
+    if (slot.index < (selectedStart.value?.slot.index ?? 0))
+      return
 
     // 檢查中間是否有衝突
     const startIdx = selectedStart.value?.slot.index ?? 0
     for (let i = startIdx; i <= slot.index; i++) {
       const checkSlot = timeSlots.value[i]
-      if (!checkSlot) return
+      if (!checkSlot)
+        return
       const checkStart = new Date(day.dateObj)
       checkStart.setHours(checkSlot.hour, checkSlot.minute, 0, 0)
       const checkEnd = new Date(day.dateObj)
       checkEnd.setHours(checkSlot.endHour, checkSlot.endMinute, 0, 0)
-      if (events.some(ev => ev.startDate < checkEnd && ev.endDate > checkStart)) return
+      if (events.some(ev => ev.startDate < checkEnd && ev.endDate > checkStart))
+        return
     }
 
     selectedEnd.value = { day, slot }
@@ -1174,7 +722,7 @@ function onDayGridClick(e: MouseEvent, day: WeekDay) {
     to.setHours(selectedEnd.value.slot.endHour, selectedEnd.value.slot.endMinute, 0, 0)
 
     multiResourceTimes.value = new Map(
-      selectedResourceIds.value.map(resId => [resId, { from: new Date(from), to: new Date(to) }])
+      selectedResourceIds.value.map(resId => [resId, { from: new Date(from), to: new Date(to) }]),
     )
 
     showBookingForm.value = true
@@ -1195,7 +743,7 @@ async function startSelection() {
     showDescriptionField.value = await permission.isFieldVisible(
       auth.token.value,
       'S_ResourceAssignment',
-      'Description'
+      'Description',
     )
   }
 }
@@ -1219,14 +767,22 @@ function resetColor() {
 }
 
 function calculateDuration(): number {
-  if (!selectedStart.value || !selectedEnd.value) return 0
+  if (!selectedStart.value || !selectedEnd.value)
+    return 0
   const startMin = selectedStart.value.slot.hour * 60 + selectedStart.value.slot.minute
   const endMin = selectedEnd.value.slot.endHour * 60 + selectedEnd.value.slot.endMinute
   return endMin - startMin
 }
 
 async function submitBooking() {
-  if (!auth.token.value || selectedResourceIds.value.length === 0 || !selectedStart.value || !selectedEnd.value || !bookingName.value.trim()) return
+  if (!auth.token.value)
+    return
+  if (selectedResourceIds.value.length === 0)
+    return
+  if (!selectedStart.value || !selectedEnd.value)
+    return
+  if (!bookingName.value.trim())
+    return
 
   submitting.value = true
   error.value = null
@@ -1238,7 +794,7 @@ async function submitBooking() {
     defaultTo.setHours(selectedEnd.value.slot.endHour, selectedEnd.value.slot.endMinute, 0, 0)
 
     const createdAssignments = await Promise.all(
-      selectedResourceIds.value.map(resourceId => {
+      selectedResourceIds.value.map((resourceId) => {
         const time = multiResourceTimes.value.get(resourceId)
         return createAssignment(auth.token.value!, {
           resourceId,
@@ -1247,7 +803,7 @@ async function submitBooking() {
           to: time?.to || defaultTo,
           description: bookingDescription.value || undefined,
         })
-      })
+      }),
     )
 
     if (bookingColor.value) {
@@ -1257,35 +813,40 @@ async function submitBooking() {
           if (assignmentId) {
             try {
               await setAssignmentColor(auth.token.value!, assignmentId, bookingColor.value)
-            } catch (e) {
+            }
+            catch (e) {
               console.error(`Failed to save color for assignment ${assignmentId}:`, e)
             }
           }
-        })
+        }),
       )
     }
 
     resetSelection()
     await loadAllAssignments()
-  } catch (e: any) {
+  }
+  catch (e: any) {
     error.value = getErrorMessage(e, '預約失敗')
-  } finally {
+  }
+  finally {
     submitting.value = false
   }
 }
 
 function updateResourceTime(resourceId: number, field: 'from' | 'to', value: string) {
-  if (!value) return
+  if (!value)
+    return
 
   const date = new Date(value)
-  if (isNaN(date.getTime())) return
+  if (Number.isNaN(date.getTime()))
+    return
 
   const times = multiResourceTimes.value.get(resourceId) || { from: new Date(), to: new Date() }
   times[field] = date
 
-  // 驗證開始時間早於結束時間
   if (times.from >= times.to) {
-    error.value = `${resources.find(r => r.id === resourceId)?.name} 的結束時間必須晚於開始時間`
+    const resourceName = resources.value.find(r => r.id === resourceId)?.name || `資源 #${resourceId}`
+    error.value = `${resourceName} 的結束時間必須晚於開始時間`
     return
   }
 
@@ -1294,7 +855,8 @@ function updateResourceTime(resourceId: number, field: 'from' | 'to', value: str
 }
 
 async function loadResources() {
-  if (!auth.token.value) return
+  if (!auth.token.value)
+    return
   resources.value = await listResources(auth.token.value)
   if (selectedResourceIds.value.length === 0 && resources.value.length) {
     selectedResourceIds.value = [resources.value[0].id]
@@ -1303,16 +865,18 @@ async function loadResources() {
   try {
     const colors = await getResourceDefaultColors(
       auth.token.value,
-      resources.value.map(r => r.id)
+      resources.value.map(r => r.id),
     )
     resourceDefaultColors.value = colors
-  } catch (e) {
+  }
+  catch (e) {
     console.error('Failed to load resource default colors:', e)
   }
 }
 
 async function loadResourceTypes() {
-  if (!auth.token.value) return
+  if (!auth.token.value)
+    return
   const map = new Map<number, ResourceType>()
   for (const resId of selectedResourceIds.value) {
     const resource = resources.value.find(r => r.id === resId)
@@ -1320,7 +884,8 @@ async function loadResourceTypes() {
       try {
         const rt = await getResourceType(auth.token.value, resource.resourceTypeId)
         map.set(resId, rt)
-      } catch (e) {
+      }
+      catch (e) {
         console.error(`Failed to load resource type for resource ${resId}:`, e)
       }
     }
@@ -1329,7 +894,8 @@ async function loadResourceTypes() {
 }
 
 async function loadAllAssignments() {
-  if (!auth.token.value || selectedResourceIds.value.length === 0) return
+  if (!auth.token.value || selectedResourceIds.value.length === 0)
+    return
   const map = new Map<number, ResourceAssignment[]>()
   const allAssignmentIds: number[] = []
 
@@ -1339,11 +905,12 @@ async function loadAllAssignments() {
         const list = await listAssignmentsForRange(auth.token.value!, resId, weekStart, weekEnd)
         map.set(resId, list)
         allAssignmentIds.push(...list.map(a => a.id))
-      } catch (e) {
+      }
+      catch (e) {
         console.error(`Failed to load assignments for resource ${resId}:`, e)
         map.set(resId, [])
       }
-    })
+    }),
   )
   assignments.value = map
 
@@ -1351,22 +918,24 @@ async function loadAllAssignments() {
     try {
       const colors = await getAssignmentColors(auth.token.value!, allAssignmentIds)
       assignmentColors.value = colors
-    } catch (e) {
+    }
+    catch (e) {
       console.error('Failed to load assignment colors:', e)
       assignmentColors.value = new Map()
     }
-  } else {
+  }
+  else {
     assignmentColors.value = new Map()
   }
 }
 
 function onResourceToggle(resourceId: number) {
   const index = selectedResourceIds.value.indexOf(resourceId)
-  if (index > -1) {
+  if (index > -1)
     selectedResourceIds.value.splice(index, 1)
-  } else {
+  else
     selectedResourceIds.value.push(resourceId)
-  }
+
   reloadForSelectedResources()
 }
 
@@ -1377,9 +946,11 @@ async function reloadForSelectedResources() {
   try {
     await loadResourceTypes()
     await loadAllAssignments()
-  } catch (e: any) {
+  }
+  catch (e: any) {
     error.value = getErrorMessage(e, '載入預約失敗')
-  } finally {
+  }
+  finally {
     loading.value = false
   }
 }
@@ -1391,15 +962,18 @@ async function reload() {
   try {
     await loadResources()
     await reloadForSelectedResources()
-  } catch (e: any) {
+  }
+  catch (e: any) {
     error.value = getErrorMessage(e, '載入失敗')
-  } finally {
+  }
+  finally {
     loading.value = false
   }
 }
 
 async function exportCSV() {
-  if (!auth.token.value) return
+  if (!auth.token.value)
+    return
 
   exporting.value = true
   error.value = null
@@ -1418,14 +992,14 @@ async function exportCSV() {
       assignment.name,
       resourceName,
       formatDateTime(assignment.from),
-      assignment.to ? formatDateTime(assignment.to) : ''
+      assignment.to ? formatDateTime(assignment.to) : '',
     ])
 
     const csvContent = [headers, ...rows]
       .map(row => row.map(cell => `"${cell}"`).join(','))
       .join('\n')
 
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
 
@@ -1436,9 +1010,11 @@ async function exportCSV() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-  } catch (e: any) {
+  }
+  catch (e: any) {
     error.value = getErrorMessage(e, '匯出失敗')
-  } finally {
+  }
+  finally {
     exporting.value = false
   }
 }
@@ -1449,6 +1025,533 @@ watch(selectedResourceIds, async () => {
 
 onMounted(reload)
 </script>
+
+<template>
+  <div class="space-y-6">
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h1 class="text-lg font-semibold">
+        使用者：預約
+      </h1>
+      <p class="mt-1 text-sm text-slate-600">
+        選擇醫師/諮詢師，點選開始時段，再點選結束時段進行預約。
+      </p>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div class="flex-1 min-w-[300px]">
+          <label class="text-sm font-medium text-slate-700">選擇資源（醫師/諮詢師）</label>
+          <div class="mt-2 flex flex-wrap gap-3">
+            <label
+              v-for="r in resources"
+              :key="r.id"
+              class="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 transition-colors"
+              :class="selectedResourceIds.includes(r.id) ? 'border-brand-500 bg-brand-50' : ''"
+            >
+              <input
+                type="checkbox"
+                :value="r.id"
+                :checked="selectedResourceIds.includes(r.id)"
+                class="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                @change="onResourceToggle(r.id)"
+              >
+              <span>{{ r.name }}</span>
+            </label>
+          </div>
+          <div v-if="selectedResourceIds.length > 0" class="mt-2 text-xs text-slate-600">
+            已選擇 {{ selectedResourceIds.length }} 個資源（可疊加觀看）
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button
+            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            :disabled="loading"
+            type="button"
+            @click="reload"
+          >
+            {{ loading ? '載入中…' : '重新整理' }}
+          </button>
+        </div>
+      </div>
+
+      <p v-if="error" class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        {{ error }}
+      </p>
+
+      <!-- 時段資訊 -->
+      <div v-if="selectedResources.length > 0" class="mt-4 space-y-2">
+        <div
+          v-for="res in selectedResources"
+          :key="res.id"
+          class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600"
+          :style="{ borderLeft: `4px solid ${getResourceColor(res.id)}` }"
+        >
+          <span class="font-semibold" :style="{ color: getResourceColor(res.id) }">{{ res.name }}：</span>
+          <span class="font-medium">營業時段：</span>
+          <template v-if="hasBusinessHours(res.id)">
+            {{ formatTime(resourceTypes.get(res.id)?.timeSlotStart) }} - {{ formatTime(resourceTypes.get(res.id)?.timeSlotEnd) }}
+          </template>
+          <template v-else>
+            <span class="text-rose-600 font-semibold">--:-- - --:-- (未配置)</span>
+          </template>
+          <span class="ml-3 font-medium">營業日：</span>
+          <span>{{ getAvailableDaysText(res.id) }}</span>
+        </div>
+      </div>
+
+      <!-- 營業時段未配置警告 -->
+      <div
+        v-if="selectedResources.length > 0 && !hasAllBusinessHours"
+        class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700"
+      >
+        <div class="flex items-start gap-2">
+          <svg class="h-5 w-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <p class="font-semibold">
+              部分資源未配置營業時段
+            </p>
+            <p class="mt-1 text-xs">
+              以下資源尚未配置營業時段，無法進行時間選擇：{{ getResourcesWithoutHours().map(r => r.name).join('、') }}
+            </p>
+            <p class="mt-2 text-xs">
+              請聯繫管理員在系統中配置這些資源的營業時段（TimeSlotStart 和 TimeSlotEnd）。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 選擇提示 -->
+      <div v-if="selectionMode" class="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-700">
+        <template v-if="selectionMode === 'start'">
+          <span class="font-semibold">步驟 1/2：</span> 請點選<span class="font-semibold">開始時段</span>
+        </template>
+        <template v-else-if="selectionMode === 'end'">
+          <span class="font-semibold">步驟 2/2：</span> 已選開始 {{ selectedStart?.day.label }} {{ formatSlotTime(selectedStart?.slot) }}，請點選<span class="font-semibold">結束時段</span>
+          <button class="ml-2 text-xs underline" @click="resetSelection">
+            重新選擇
+          </button>
+        </template>
+      </div>
+
+      <!-- 無營業時段提示 -->
+      <div v-else-if="selectedResources.length > 0 && !hasAllBusinessHours" class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
+        <svg class="mx-auto h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="mt-4 text-sm font-semibold text-slate-700">
+          無法顯示預約日曆
+        </p>
+        <p class="mt-2 text-xs text-slate-600">
+          所選資源尚未配置營業時段，請先配置營業時段後再進行預約。
+        </p>
+      </div>
+
+      <!-- Google Calendar Style Grid -->
+      <div v-if="selectedResources.length > 0 && commonResourceType && hasAllBusinessHours" class="mt-6">
+        <div class="mb-3 flex items-center justify-between">
+          <div class="text-sm font-semibold text-slate-900">
+            本週時段
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="text-xs text-slate-500">
+              {{ weekStart.toLocaleDateString() }} ～ {{ weekEnd.toLocaleDateString() }}
+            </div>
+            <button
+              v-if="!selectionMode"
+              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              :disabled="exporting"
+              @click="exportCSV"
+            >
+              {{ exporting ? '匯出中…' : '匯出 CSV' }}
+            </button>
+            <button
+              v-if="!selectionMode"
+              class="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700"
+              @click="startSelection"
+            >
+              新增預約
+            </button>
+            <button
+              v-if="selectionMode"
+              class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              @click="resetSelection"
+            >
+              取消選擇
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <div class="calendar-container">
+            <!-- Time column -->
+            <div class="time-column">
+              <div class="day-header-cell" />
+              <div class="time-grid">
+                <div v-for="hour in displayHours" :key="hour" class="time-label">
+                  <span>{{ hour }}:00</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Day columns -->
+            <div v-for="day in weekDays" :key="day.key" class="day-column" :class="{ 'day-unavailable': !isAnyDayAvailable(day.dayOfWeek) }">
+              <div class="day-header-cell" :class="{ 'is-today': isToday(day.dateObj) }">
+                <div class="day-name">
+                  {{ day.label }}
+                </div>
+                <div class="day-date" :class="{ 'today-badge': isToday(day.dateObj) }">
+                  {{ day.dateObj.getDate() }}
+                </div>
+              </div>
+              <div
+                class="day-grid"
+                @click="onDayGridClick($event, day)"
+                @mousemove="onDayGridHover($event, day)"
+                @mouseleave="onDayGridLeave"
+              >
+                <!-- Hour slots background -->
+                <div v-for="hour in displayHours" :key="hour" class="hour-slot">
+                  <div class="half-hour-line" />
+                </div>
+
+                <!-- Past time disabled overlay (when selecting start time) -->
+                <div
+                  v-if="selectionMode !== 'end' && getPastTimeHeight(day) > 0"
+                  class="past-time-overlay"
+                  :style="{ height: `${getPastTimeHeight(day)}px` }"
+                >
+                  <div class="past-time-label">
+                    已過時段
+                  </div>
+                </div>
+
+                <!-- Hover preview (when selecting end time) -->
+                <div
+                  v-if="selectionMode === 'end' && selectedStart?.day.key === day.key && hoverSlot"
+                  class="hover-preview-overlay"
+                  :style="getHoverPreviewStyle(day)"
+                >
+                  <div class="hover-duration-badge">
+                    {{ hoverDuration }} 分鐘
+                  </div>
+                </div>
+
+                <!-- Selection overlay -->
+                <div
+                  v-if="isSelectionInDay(day)"
+                  class="selection-overlay"
+                  :style="getSelectionStyle(day)"
+                />
+
+                <!-- Events -->
+                <div
+                  v-for="event in getDayEvents(day)"
+                  :key="event.id"
+                  class="event-card"
+                  :style="getEventStyle(event)"
+                  @click.stop="openEditModal(event)"
+                  @mouseenter="showPopout($event, event)"
+                  @mouseleave="hidePopout"
+                >
+                  <div class="event-time">
+                    {{ formatEventTime(event.from) }}
+                  </div>
+                  <div class="event-title">
+                    {{ event.name || '—' }}
+                  </div>
+                  <div class="event-resource">
+                    {{ event.resourceName }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新增預約 Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showBookingForm && selectedStart && selectedEnd"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="resetSelection"
+      >
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-slate-900">
+              確認預約
+            </h3>
+            <button
+              class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              @click="resetSelection"
+            >
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+            <div class="grid grid-cols-2 gap-2">
+              <div><span class="font-medium text-slate-500">日期：</span>{{ selectedStart.day.label }} ({{ selectedStart.day.date }})</div>
+              <div><span class="font-medium text-slate-500">時長：</span>{{ calculateDuration() }} 分鐘</div>
+              <div class="col-span-2">
+                <span class="font-medium text-slate-500">時段：</span>{{ formatSlotTime(selectedStart.slot) }} - {{ formatSlotEndTime(selectedEnd.slot) }}
+              </div>
+            </div>
+            <div v-if="selectedResourceIds.length > 1" class="mt-3 border-t border-slate-200 pt-3">
+              <span class="font-medium text-slate-500">預約資源：</span>
+              <div class="mt-2 space-y-2">
+                <div
+                  v-for="resId in selectedResourceIds"
+                  :key="resId"
+                  class="flex items-center gap-2"
+                >
+                  <span
+                    class="inline-block rounded px-2 py-0.5 text-xs font-medium"
+                    :style="{
+                      backgroundColor: `${getResourceColor(resId)}20`,
+                      color: getResourceColor(resId),
+                      borderLeft: `3px solid ${getResourceColor(resId)}`,
+                    }"
+                  >
+                    {{ resources.find(r => r.id === resId)?.name }}
+                  </span>
+                  <input
+                    :value="formatDateTimeLocal(multiResourceTimes.get(resId)?.from || '')"
+                    type="datetime-local"
+                    class="rounded border border-slate-300 px-2 py-1 text-xs"
+                    @change="(e) => updateResourceTime(resId, 'from', e.target.value)"
+                  >
+                  <span class="text-slate-400">-</span>
+                  <input
+                    :value="formatDateTimeLocal(multiResourceTimes.get(resId)?.to || '')"
+                    type="datetime-local"
+                    class="rounded border border-slate-300 px-2 py-1 text-xs"
+                    @change="(e) => updateResourceTime(resId, 'to', e.target.value)"
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 space-y-4">
+            <div>
+              <label class="text-sm font-medium text-slate-700">預約名稱</label>
+              <input
+                v-model="bookingName"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                placeholder="例如：王小明 諮詢"
+                autofocus
+              >
+            </div>
+            <div v-if="showDescriptionField">
+              <label class="text-sm font-medium text-slate-700">備註</label>
+              <textarea
+                v-model="bookingDescription"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                rows="3"
+                placeholder="選填：備註資訊..."
+              />
+            </div>
+            <div>
+              <label class="text-sm font-medium text-slate-700">顏色標籤</label>
+              <div class="mt-1 flex items-center gap-3">
+                <input
+                  v-model="bookingColor"
+                  type="color"
+                  class="h-10 w-16 cursor-pointer rounded border border-slate-300"
+                >
+                <div
+                  class="flex-1 rounded-lg border px-3 py-2 text-sm"
+                  :style="{ backgroundColor: `${bookingColor}15`, color: bookingColor, borderColor: bookingColor }"
+                >
+                  {{ bookingColor }}
+                </div>
+                <button
+                  type="button"
+                  class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+                  @click="resetColor"
+                >
+                  重置
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex gap-3">
+            <button
+              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              :disabled="submitting || !bookingName.trim() || selectedResourceIds.length === 0"
+              @click="submitBooking"
+            >
+              {{ submitting ? '送出中…' : `確認預約${selectedResourceIds.length > 1 ? ` (${selectedResourceIds.length}個)` : ''}` }}
+            </button>
+            <button
+              class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              @click="resetSelection"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Popout 資訊卡 -->
+    <Teleport to="body">
+      <div
+        v-if="activePopout"
+        class="fixed z-50 rounded-lg bg-white shadow-xl border border-slate-200 p-3 min-w-[200px] max-w-[280px]"
+        :style="popoutStyle"
+        @mouseenter="keepPopout"
+        @mouseleave="hidePopout"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <div
+            class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5"
+            :style="{ backgroundColor: getAssignmentColor(activePopout.assignment.id) }"
+          />
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-sm text-slate-900 truncate">
+              {{ activePopout.assignment.name || '—' }}
+            </div>
+            <div class="text-xs text-slate-500 mt-0.5">
+              {{ activePopout.assignment.resourceName }}
+            </div>
+          </div>
+        </div>
+        <div class="mt-2 text-xs text-slate-600 space-y-1">
+          <div class="flex items-center gap-1">
+            <span class="text-slate-400">開始:</span>
+            <span>{{ formatDateTime(activePopout.assignment.from) }}</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="text-slate-400">結束:</span>
+            <span>{{ formatDateTime(activePopout.assignment.to) }}</span>
+          </div>
+        </div>
+        <div class="mt-3 pt-2 border-t border-slate-100">
+          <button
+            class="w-full text-xs text-brand-600 hover:text-brand-700 font-medium"
+            @click="openEditModal(activePopout.assignment)"
+          >
+            點擊編輯
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 編輯預約 Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showEditModal && editingEvent"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="closeEditModal"
+      >
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-slate-900">
+              編輯預約
+            </h3>
+            <button
+              class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              @click="closeEditModal"
+            >
+              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+            <div class="grid grid-cols-2 gap-2">
+              <div><span class="font-medium text-slate-500">資源：</span>{{ editingEvent.resourceName }}</div>
+              <div><span class="font-medium text-slate-500">時段：</span>{{ formatEventTime(editingEvent.from) }} - {{ formatEventTime(editingEvent.to || editingEvent.from) }}</div>
+              <div class="col-span-2">
+                <span class="font-medium text-slate-500">日期：</span>{{ formatDateTime(editingEvent.from).split(' ')[0] }}
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 space-y-4">
+            <div>
+              <label class="text-sm font-medium text-slate-700">開始時間</label>
+              <input
+                v-model="editFromDate"
+                type="datetime-local"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              >
+            </div>
+            <div>
+              <label class="text-sm font-medium text-slate-700">結束時間</label>
+              <input
+                v-model="editToDate"
+                type="datetime-local"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              >
+            </div>
+            <div>
+              <label class="text-sm font-medium text-slate-700">預約名稱</label>
+              <input
+                v-model="editName"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                placeholder="例如：王小明 諮詢"
+                autofocus
+              >
+            </div>
+            <div v-if="showDescriptionField">
+              <label class="text-sm font-medium text-slate-700">備註</label>
+              <textarea
+                v-model="editDescription"
+                class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                rows="3"
+                placeholder="選填：備註資訊..."
+              />
+            </div>
+            <div>
+              <label class="text-sm font-medium text-slate-700">顏色標籤</label>
+              <div class="mt-1 flex items-center gap-3">
+                <input
+                  v-model="editColor"
+                  type="color"
+                  class="h-10 w-16 cursor-pointer rounded border border-slate-300"
+                >
+                <div
+                  class="flex-1 rounded-lg border px-3 py-2 text-sm"
+                  :style="{ backgroundColor: `${editColor}15`, color: editColor, borderColor: editColor }"
+                >
+                  {{ editColor }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex gap-3">
+            <button
+              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              :disabled="submitting || !editName.trim() || !editFromDate || !editToDate"
+              @click="saveEdit"
+            >
+              {{ submitting ? '儲存中…' : '儲存變更' }}
+            </button>
+            <button
+              class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-100 disabled:opacity-60"
+              :disabled="deleting"
+              @click="confirmDelete"
+            >
+              {{ deleting ? '刪除中…' : '刪除' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+  </div>
+</template>
 
 <style scoped>
 .calendar-container {

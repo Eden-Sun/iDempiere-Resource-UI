@@ -3,15 +3,15 @@
  * 使用 AD_SysConfig 存儲選單權限
  */
 
-import { apiFetch } from '../../shared/api/http'
 import type { UserType } from './types'
+import { apiFetch } from '../../shared/api/http'
 
 const API_V1 = '/api/v1'
 
 // SysConfig 名稱格式
-const MENU_PERMISSION_PREFIX = 'EMUI_MENU_PERMISSION'  // EMUI_MENU_PERMISSION_{userId}_{menuId}
-const SYSTEM_ROLE_CONFIG = 'EMUI_SYSTEM_ROLES'        // 逗號分隔的 System Role ID 列表
-const FIELD_VISIBILITY_PREFIX = 'EMUI_FIELD_VISIBILITY'  // EMUI_FIELD_VISIBILITY_{clientId}_{orgId}_{tableName}_{fieldName}
+const MENU_PERMISSION_PREFIX = 'EMUI_MENU_PERMISSION' // EMUI_MENU_PERMISSION_{userId}_{menuId}
+const SYSTEM_ROLE_CONFIG = 'EMUI_SYSTEM_ROLES' // 逗號分隔的 System Role ID 列表
+const FIELD_VISIBILITY_PREFIX = 'EMUI_FIELD_VISIBILITY' // EMUI_FIELD_VISIBILITY_{clientId}_{orgId}_{tableName}_{fieldName}
 
 /**
  * 判斷使用者類型（System 或 User）
@@ -34,8 +34,8 @@ export async function getUserType(token: string, roleId: number): Promise<UserTy
     if (res.records && res.records.length > 0) {
       const systemRoleIds = (res.records[0].Value || '')
         .split(',')
-        .map((s: string) => parseInt(s.trim(), 10))
-        .filter((n: number) => !isNaN(n))
+        .map((s: string) => Number.parseInt(s.trim(), 10))
+        .filter((n: number) => !Number.isNaN(n))
 
       if (systemRoleIds.includes(roleId)) {
         return 'System'
@@ -43,7 +43,8 @@ export async function getUserType(token: string, roleId: number): Promise<UserTy
     }
 
     return 'User'
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to get user type:', error)
     return 'User' // 預設為 User
   }
@@ -83,7 +84,8 @@ export async function getUserMenuPermissions(
     }
 
     return enabledMenus
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to get user menu permissions:', error)
     return []
   }
@@ -122,7 +124,8 @@ export async function setUserMenuPermission(
         token,
         json: { Value: value },
       })
-    } else {
+    }
+    else {
       // 新增
       await apiFetch(`${API_V1}/models/AD_SysConfig`, {
         method: 'POST',
@@ -137,7 +140,8 @@ export async function setUserMenuPermission(
     }
 
     return true
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to set menu permission:', error)
     return false
   }
@@ -149,14 +153,15 @@ export async function setUserMenuPermission(
 export async function setUserMenuPermissions(
   token: string,
   userId: number,
-  permissions: { menuId: string; enabled: boolean }[],
+  permissions: { menuId: string, enabled: boolean }[],
 ): Promise<boolean> {
   try {
     await Promise.all(
-      permissions.map(p => setUserMenuPermission(token, userId, p.menuId, p.enabled))
+      permissions.map(p => setUserMenuPermission(token, userId, p.menuId, p.enabled)),
     )
     return true
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to set menu permissions:', error)
     return false
   }
@@ -165,7 +170,7 @@ export async function setUserMenuPermissions(
 /**
  * 取得所有使用者列表（用於權限設定 UI）
  */
-export async function listUsers(token: string): Promise<{ id: number; name: string }[]> {
+export async function listUsers(token: string): Promise<{ id: number, name: string }[]> {
   try {
     const res = await apiFetch<{ records: any[] }>(
       `${API_V1}/models/AD_User`,
@@ -183,7 +188,8 @@ export async function listUsers(token: string): Promise<{ id: number; name: stri
       id: Number(r.id || r.AD_User_ID),
       name: String(r.Name || ''),
     }))
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to list users:', error)
     return []
   }
@@ -214,7 +220,8 @@ export async function setSystemRoles(token: string, roleIds: number[]): Promise<
         token,
         json: { Value: value },
       })
-    } else {
+    }
+    else {
       await apiFetch(`${API_V1}/models/AD_SysConfig`, {
         method: 'POST',
         token,
@@ -228,7 +235,8 @@ export async function setSystemRoles(token: string, roleIds: number[]): Promise<
     }
 
     return true
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to set system roles:', error)
     return false
   }
@@ -254,12 +262,13 @@ export async function getSystemRoles(token: string): Promise<number[]> {
     if (res.records && res.records.length > 0) {
       return (res.records[0].Value || '')
         .split(',')
-        .map((s: string) => parseInt(s.trim(), 10))
-        .filter((n: number) => !isNaN(n))
+        .map((s: string) => Number.parseInt(s.trim(), 10))
+        .filter((n: number) => !Number.isNaN(n))
     }
 
     return []
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to get system roles:', error)
     return []
   }
@@ -304,7 +313,8 @@ export async function setFieldVisibility(
         token,
         json: { Value: value },
       })
-    } else {
+    }
+    else {
       await apiFetch(`${API_V1}/models/AD_SysConfig`, {
         method: 'POST',
         token,
@@ -318,7 +328,8 @@ export async function setFieldVisibility(
     }
 
     return true
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to set field visibility:', error)
     return false
   }
@@ -340,11 +351,12 @@ export async function setFieldVisibilities(
   try {
     await Promise.all(
       visibilities.map(v =>
-        setFieldVisibility(token, v.tableName, v.fieldName, v.visible, v.clientId, v.orgId)
-      )
+        setFieldVisibility(token, v.tableName, v.fieldName, v.visible, v.clientId, v.orgId),
+      ),
     )
     return true
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to set field visibilities:', error)
     return false
   }
@@ -379,7 +391,8 @@ export async function getFieldVisibility(
     }
 
     return null // 未設定，預設為 public
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to get field visibility:', error)
     return null
   }
@@ -419,7 +432,8 @@ export async function getFieldVisibilitiesForTable(
     }
 
     return visibilities
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to get field visibilities:', error)
     return {}
   }

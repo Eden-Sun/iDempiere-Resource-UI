@@ -1,10 +1,10 @@
 import type { RouteRecordRaw } from 'vue-router'
-import LoginPage from './views/LoginPage.vue'
-import BookingPage from './views/BookingPage.vue'
 import AdminCalendarPage from './views/AdminCalendarPage.vue'
 import AdminPermissionsPage from './views/AdminPermissionsPage.vue'
+import BookingPage from './views/BookingPage.vue'
 import BPartnerPage from './views/BPartnerPage.vue'
 import InOutPage from './views/InOutPage.vue'
+import LoginPage from './views/LoginPage.vue'
 import OrderPage from './views/OrderPage.vue'
 import PaymentPage from './views/PaymentPage.vue'
 import ProductionPage from './views/ProductionPage.vue'
@@ -26,4 +26,3 @@ export const routes: RouteRecordRaw[] = [
   { path: '/production', component: ProductionPage },
   { path: '/report', component: ReportPage },
 ]
-

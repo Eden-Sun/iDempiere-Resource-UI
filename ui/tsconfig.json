@@ -2,17 +2,17 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "useDefineForClassFields": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
-    "isolatedModules": true,
-    "useDefineForClassFields": true,
+    "types": ["vite/client"],
     "strict": true,
-    "skipLibCheck": true,
     "noEmit": true,
-    "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
-    "types": ["vite/client"]
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts"]
 }

@@ -2,10 +2,10 @@
  * 權限狀態管理
  */
 
-import { ref, computed } from 'vue'
-import type { UserType, MenuItem } from './types'
+import type { MenuItem, UserType } from './types'
+import { computed, ref } from 'vue'
+import { getFieldVisibility, getUserMenuPermissions, getUserType } from './api'
 import { MENU_ITEMS, SYSTEM_MENU_ITEMS } from './types'
-import { getUserType, getUserMenuPermissions, getFieldVisibility } from './api'
 
 // 狀態
 const userType = ref<UserType>('User')
@@ -41,25 +41,31 @@ export function usePermission() {
 
   // 檢查選單是否可見
   function canAccessMenu(menuId: string): boolean {
-    if (userType.value === 'System') return true
+    if (userType.value === 'System')
+      return true
     // 沒設定權限時，預設全開放
-    if (enabledMenuIds.value.length === 0) return true
+    if (enabledMenuIds.value.length === 0)
+      return true
     return enabledMenuIds.value.includes(menuId)
   }
 
   // 檢查路徑是否可存取
   function canAccessPath(path: string): boolean {
-    if (userType.value === 'System') return true
+    if (userType.value === 'System')
+      return true
 
     // 找到對應的選單項目
     const menuItem = [...MENU_ITEMS, ...SYSTEM_MENU_ITEMS].find(m => m.path === path)
-    if (!menuItem) return true // 未定義的路徑預設允許
+    if (!menuItem)
+      return true // 未定義的路徑預設允許
 
     // System 專用選單，User 不可存取
-    if (SYSTEM_MENU_ITEMS.some(m => m.id === menuItem.id)) return false
+    if (SYSTEM_MENU_ITEMS.some(m => m.id === menuItem.id))
+      return false
 
     // 沒設定權限時，預設全開放
-    if (enabledMenuIds.value.length === 0) return true
+    if (enabledMenuIds.value.length === 0)
+      return true
     return enabledMenuIds.value.includes(menuItem.id)
   }
 
@@ -72,7 +78,8 @@ export function usePermission() {
       // 如果是 User，載入選單權限
       if (userType.value === 'User') {
         enabledMenuIds.value = await getUserMenuPermissions(token, userId)
-      } else {
+      }
+      else {
         // System 用戶有所有權限
         enabledMenuIds.value = MENU_ITEMS.map(m => m.id)
       }
@@ -82,7 +89,8 @@ export function usePermission() {
       fieldVisibilityCache.value = {}
 
       permissionsLoaded.value = true
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to load permissions:', error)
       userType.value = 'User'
       enabledMenuIds.value = []
@@ -94,7 +102,7 @@ export function usePermission() {
   async function isFieldVisible(
     token: string,
     tableName: string,
-    fieldName: string
+    fieldName: string,
   ): Promise<boolean> {
     const key = `${tableName}.${fieldName}`
 
@@ -112,7 +120,8 @@ export function usePermission() {
       const visibility = await getFieldVisibility(token, tableName, fieldName, clientId.value, orgId.value)
       fieldVisibilityCache.value[key] = visibility
       return visibility ?? true // null 預設為 true (public)
-    } catch (error) {
+    }
+    catch (error) {
       console.error('Failed to check field visibility:', error)
       return true
     }

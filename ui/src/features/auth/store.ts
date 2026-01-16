@@ -1,5 +1,5 @@
-import { computed, ref } from 'vue'
 import type { Session } from './types'
+import { computed, ref } from 'vue'
 
 const STORAGE_KEY = 'idempiere.resource.session.v1'
 
@@ -11,11 +11,13 @@ const session = ref<Session | null>(null)
 function decodeJWT(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split('.')
-    if (parts.length !== 3) return null
+    if (parts.length !== 3)
+      return null
     const payload = parts[1]
     const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
     return JSON.parse(decoded) as Record<string, unknown>
-  } catch {
+  }
+  catch {
     return null
   }
 }
@@ -25,8 +27,10 @@ export function useAuth() {
   const token = computed(() => session.value?.token ?? null)
   const userId = computed(() => session.value?.userId ?? null)
   const userName = computed(() => {
-    if (session.value?.userName) return session.value.userName
-    if (!session.value?.token) return null
+    if (session.value?.userName)
+      return session.value.userName
+    if (!session.value?.token)
+      return null
     const payload = decodeJWT(session.value.token)
     return (payload?.sub as string) ?? null
   })
@@ -39,10 +43,12 @@ export function useAuth() {
 
   function load() {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
+    if (!raw)
+      return
     try {
       session.value = JSON.parse(raw) as Session
-    } catch {
+    }
+    catch {
       localStorage.removeItem(STORAGE_KEY)
       session.value = null
     }
@@ -75,4 +81,3 @@ export function useAuth() {
     clear,
   }
 }
-

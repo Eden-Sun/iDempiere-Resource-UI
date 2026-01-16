@@ -11,12 +11,12 @@ const API_V1 = '/api/v1'
  */
 export async function getSysConfig(
   token: string,
-  configName: string
-): Promise<{ id: number; value: string } | null> {
+  configName: string,
+): Promise<{ id: number, value: string } | null> {
   try {
     const res = await apiFetch<{ records: any[] }>(
       `${API_V1}/models/AD_SysConfig?$filter=Name eq '${configName}'&$select=id,Value&$top=1`,
-      { token }
+      { token },
     )
 
     if (res.records && res.records.length > 0) {
@@ -26,7 +26,8 @@ export async function getSysConfig(
       }
     }
     return null
-  } catch (error) {
+  }
+  catch (error) {
     console.error(`Failed to get sysconfig ${configName}:`, error)
     throw error
   }
@@ -40,7 +41,7 @@ export async function setSysConfig(
   configName: string,
   value: string,
   description: string,
-  configLevel: 'S' | 'C' | 'O' = 'S'
+  configLevel: 'S' | 'C' | 'O' = 'S',
 ): Promise<boolean> {
   try {
     const existing = await getSysConfig(token, configName)
@@ -62,7 +63,8 @@ export async function setSysConfig(
       }
 
       return true
-    } else {
+    }
+    else {
       // 創建新配置
       const body = {
         Name: configName,
@@ -87,7 +89,8 @@ export async function setSysConfig(
 
       return true
     }
-  } catch (error) {
+  }
+  catch (error) {
     console.error(`Failed to set sysconfig ${configName}:`, error)
     throw error
   }
@@ -98,17 +101,18 @@ export async function setSysConfig(
  */
 export async function batchGetSysConfig(
   token: string,
-  configNames: string[]
+  configNames: string[],
 ): Promise<Map<string, string>> {
   const configMap = new Map<string, string>()
 
-  if (configNames.length === 0) return configMap
+  if (configNames.length === 0)
+    return configMap
 
   try {
     const filter = configNames.map(name => `Name eq '${name}'`).join(' or ')
     const res = await apiFetch<{ records: any[] }>(
       `${API_V1}/models/AD_SysConfig?$filter=${filter}&$select=Name,Value`,
-      { token }
+      { token },
     )
 
     for (const record of res.records ?? []) {
@@ -116,7 +120,8 @@ export async function batchGetSysConfig(
         configMap.set(record.Name, String(record.Value))
       }
     }
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Failed to batch get sysconfig:', error)
   }
 

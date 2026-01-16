@@ -2,11 +2,11 @@ import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 
 import App from './app/App.vue'
-import './app/styles.css'
-
 import { routes } from './app/routes'
+
 import { useAuth } from './features/auth/store'
 import { usePermission } from './features/permission/store'
+import './app/styles.css'
 
 const auth = useAuth()
 const permission = usePermission()
@@ -25,11 +25,14 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const publicRoutes = new Set(['/login'])
-  if (publicRoutes.has(to.path)) return true
-  if (!auth.isAuthenticated.value) return { path: '/login' }
+  if (publicRoutes.has(to.path))
+    return true
+  if (!auth.isAuthenticated.value)
+    return { path: '/login' }
 
   // 權限未載入完成時，先放行
-  if (!permission.permissionsLoaded.value) return true
+  if (!permission.permissionsLoaded.value)
+    return true
 
   // 檢查路徑權限
   if (!permission.canAccessPath(to.path)) {
@@ -49,4 +52,3 @@ router.beforeEach((to) => {
 })
 
 createApp(App).use(router).mount('#app')
-

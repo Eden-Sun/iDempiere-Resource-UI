@@ -1,15 +1,16 @@
 import { apiFetch } from '../../shared/api/http'
+import { useAuth } from '../../features/auth/store'
 
 const API_V1 = '/api/v1'
 
 // === Types ===
 
-export type LookupOption = {
+export interface LookupOption {
   value: string | number
   label: string
 }
 
-export type WindowTab = {
+export interface WindowTab {
   id: number
   uid: string
   name: string
@@ -20,7 +21,7 @@ export type WindowTab = {
   help?: string
 }
 
-export type WindowDef = {
+export interface WindowDef {
   id: number
   uid: string
   name: string
@@ -30,7 +31,7 @@ export type WindowDef = {
   tabs: WindowTab[]
 }
 
-export type FieldColumn = {
+export interface FieldColumn {
   id: number
   columnName: string
   fieldLength: number
@@ -41,7 +42,7 @@ export type FieldColumn = {
   referenceValueId?: number // for TableDirect/Table lookups
 }
 
-export type TabField = {
+export interface TabField {
   id: number
   uid: string
   name: string
@@ -120,22 +121,23 @@ export async function getTabFields(
     `${API_V1}/windows/${windowSlug}/tabs/${tabSlug}/fields`,
     { token },
   )
-  
+
   const fields = res.fields ?? []
-  if (fields.length === 0) return []
-  
+  if (fields.length === 0)
+    return []
+
   // Get field IDs to fetch SeqNo from AD_Field
-  const fieldIds = fields.map((f) => f.id).filter((id) => id > 0)
-  
+  const fieldIds = fields.map(f => f.id).filter(id => id > 0)
+
   // Fetch SeqNo, IsDisplayed and optionally translations from AD_Field
-  let fieldMetaMap = new Map<number, { seqNo: number; isDisplayed: boolean; trlName?: string }>()
+  const fieldMetaMap = new Map<number, { seqNo: number, isDisplayed: boolean, trlName?: string }>()
   if (fieldIds.length > 0) {
     try {
       // Fetch in batches if needed (use filter with IN-like syntax)
-      const fieldFilter = fieldIds.map((id) => `AD_Field_ID eq ${id}`).join(' or ')
+      const fieldFilter = fieldIds.map(id => `AD_Field_ID eq ${id}`).join(' or ')
       const adFields = await apiFetch<{ records: any[] }>(
         `${API_V1}/models/AD_Field`,
-        { 
+        {
           token,
           searchParams: {
             $filter: fieldFilter,
@@ -149,11 +151,11 @@ export async function getTabFields(
           isDisplayed: af.IsDisplayed !== false,
         })
       }
-      
+
       // Fetch translations if language is specified and not English
       if (language && language !== 'en_US') {
         try {
-          const trlFilter = `(${fieldIds.map((id) => `AD_Field_ID eq ${id}`).join(' or ')}) and AD_Language eq '${language}'`
+          const trlFilter = `(${fieldIds.map(id => `AD_Field_ID eq ${id}`).join(' or ')}) and AD_Language eq '${language}'`
           const trlFields = await apiFetch<{ records: any[] }>(
             `${API_V1}/models/AD_Field_Trl`,
             {
@@ -171,15 +173,17 @@ export async function getTabFields(
               meta.trlName = trl.Name
             }
           }
-        } catch (e) {
+        }
+        catch (e) {
           console.warn('[getTabFields] Failed to fetch translations:', e)
         }
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.warn('[getTabFields] Failed to fetch SeqNo from AD_Field:', e)
     }
   }
-  
+
   return fields.map((f) => {
     const meta = fieldMetaMap.get(f.id)
     return {
@@ -227,24 +231,24 @@ export async function getTabFieldsWithMeta(
 
   // Fetch column metadata in parallel, but handle individual failures gracefully
   const columnPromises = fields
-    .filter((f) => f.columnId > 0)
-    .map((f) =>
+    .filter(f => f.columnId > 0)
+    .map(f =>
       getColumn(token, f.columnId)
-        .then((col) => ({ fieldId: f.id, col, error: null }))
+        .then(col => ({ fieldId: f.id, col, error: null }))
         .catch((err) => {
           console.warn(`[getTabFieldsWithMeta] Failed to load column ${f.columnId} for field ${f.columnName}:`, err)
           return { fieldId: f.id, col: null, error: err }
-        })
+        }),
     )
 
   const columnResults = await Promise.all(columnPromises)
   const columnMap = new Map(
     columnResults
-      .filter((r) => r.col !== null)
-      .map((r) => [r.fieldId, r.col!])
+      .filter(r => r.col !== null)
+      .map(r => [r.fieldId, r.col!]),
   )
 
-  return fields.map((f) => ({
+  return fields.map(f => ({
     ...f,
     column: columnMap.get(f.id),
   }))
@@ -293,13 +297,17 @@ export async function listWindowRecords(
   token: string,
   windowSlug: string,
   tabSlug: string,
-  options?: { filter?: string; orderby?: string; top?: number; skip?: number },
-): Promise<{ records: any[]; totalCount?: number }> {
+  options?: { filter?: string, orderby?: string, top?: number, skip?: number },
+): Promise<{ records: any[], totalCount?: number }> {
   const searchParams: Record<string, string | number> = {}
-  if (options?.filter) searchParams.$filter = options.filter
-  if (options?.orderby) searchParams.$orderby = options.orderby
-  if (options?.top) searchParams.$top = options.top
-  if (options?.skip) searchParams.$skip = options.skip
+  if (options?.filter)
+    searchParams.$filter = options.filter
+  if (options?.orderby)
+    searchParams.$orderby = options.orderby
+  if (options?.top)
+    searchParams.$top = options.top
+  if (options?.skip)
+    searchParams.$skip = options.skip
 
   const res = await apiFetch<any>(
     `${API_V1}/windows/${windowSlug}/tabs/${tabSlug}`,
@@ -369,13 +377,17 @@ export async function createModelRecord(
 export async function getTableLookupOptions(
   token: string,
   tableName: string,
-  options?: { filter?: string; select?: string; orderby?: string; top?: number },
+  options?: { filter?: string, select?: string, orderby?: string, top?: number },
 ): Promise<LookupOption[]> {
   const searchParams: Record<string, string | number> = {}
-  if (options?.filter) searchParams.$filter = options.filter
-  if (options?.select) searchParams.$select = options.select
-  if (options?.orderby) searchParams.$orderby = options.orderby
-  if (options?.top) searchParams.$top = options.top
+  if (options?.filter)
+    searchParams.$filter = options.filter
+  if (options?.select)
+    searchParams.$select = options.select
+  if (options?.orderby)
+    searchParams.$orderby = options.orderby
+  if (options?.top)
+    searchParams.$top = options.top
 
   const fetchTable = async (sp: Record<string, string | number>) => {
     return await apiFetch<{ records: any[] }>(`${API_V1}/models/${tableName}`, { token, searchParams: sp })
@@ -384,14 +396,17 @@ export async function getTableLookupOptions(
   let res: { records: any[] }
   try {
     res = await fetchTable(searchParams)
-  } catch {
+  }
+  catch {
     const sp2: Record<string, string | number> = {}
-    if (options?.filter) sp2.$filter = options.filter
-    if (options?.top) sp2.$top = options.top
+    if (options?.filter)
+      sp2.$filter = options.filter
+    if (options?.top)
+      sp2.$top = options.top
     res = await fetchTable(sp2)
   }
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     value: Number(r.id),
     label: String(r.identifier ?? r.Name ?? r.Value ?? r.id),
   }))
@@ -418,28 +433,32 @@ export async function getReferenceLookupOptions(token: string, referenceId: numb
   if (Array.isArray(res?.reftable)) {
     return res.reftable
       .map((row: any) => {
-        if (!row || typeof row !== 'object') return null
+        if (!row || typeof row !== 'object')
+          return null
 
         // best-effort: key = first *_ID numeric, else row.id
         let key: number | string | null = null
-        if (row.id != null) key = row.id
+        if (row.id != null)
+          key = row.id
         if (key == null) {
           for (const [k, v] of Object.entries(row)) {
-            if (!k.endsWith('_ID')) continue
+            if (!k.endsWith('_ID'))
+              continue
             if (typeof v === 'number') {
               key = v
               break
             }
             if (typeof v === 'string' && v.trim() !== '') {
               const n = Number(v)
-              if (!Number.isNaN(n)) {
+              if (!Number.Number.isNaN(n)) {
                 key = n
                 break
               }
             }
           }
         }
-        if (key == null) return null
+        if (key == null)
+          return null
 
         const label = String(row.Name ?? row.Value ?? row.identifier ?? key)
         return { value: typeof key === 'number' ? key : String(key), label } satisfies LookupOption
@@ -456,10 +475,10 @@ export async function getReferenceLookupOptions(token: string, referenceId: numb
 export async function getLookupValues(
   token: string,
   tableName: string,
-  options?: { filter?: string; select?: string; orderby?: string; top?: number },
-): Promise<{ id: number; identifier: string }[]> {
+  options?: { filter?: string, select?: string, orderby?: string, top?: number },
+): Promise<{ id: number, identifier: string }[]> {
   const opts = await getTableLookupOptions(token, tableName, options)
-  return opts.map((o) => ({ id: Number(o.value), identifier: String(o.label) }))
+  return opts.map(o => ({ id: Number(o.value), identifier: String(o.label) }))
 }
 
 // === Helpers ===
@@ -477,7 +496,7 @@ function extractColumnName(identifier: string): string {
   }
   // Fallback: find first underscore followed by space or uppercase (label start)
   // e.g. "TaxID_Tax ID" -> "TaxID"
-  const match = identifier.match(/^([A-Za-z0-9_]+?)_[A-Z\s]/)
+  const match = identifier.match(/^(\w+?)_[A-Z\s]/)
   if (match) {
     return match[1]
   }
@@ -538,16 +557,20 @@ export function isLookupField(referenceId: number): boolean {
  * @returns Configuration value or null if not found
  */
 export async function getSysConfig(token: string, configName: string): Promise<string | null> {
+  const auth = useAuth()
+  const orgId = auth.organizationId.value
+
   try {
     const res = await apiFetch<{ records: any[] }>(
-      `${API_V1}/models/AD_SysConfig?$filter=Name eq '${configName}'&$select=Value&$top=1`,
+      `${API_V1}/models/AD_SysConfig?$filter=Name eq '${configName}' and AD_Org_ID eq ${orgId}&$select=Value&$top=1`,
       { token },
     )
     if (res.records && res.records.length > 0) {
       return res.records[0].Value || null
     }
     return null
-  } catch (error) {
+  }
+  catch (error) {
     console.error(`Failed to get sysconfig ${configName}:`, error)
     return null
   }
@@ -569,11 +592,14 @@ export async function setSysConfig(
   value: string,
   description?: string,
 ): Promise<boolean> {
+  const auth = useAuth()
+  const orgId = auth.organizationId.value
+
   try {
-    // Check if config already exists
+    // Check if config already exists for current org
     // Note: Don't use $select - API returns 'id' field which is not a table column
     const existing = await apiFetch<{ records: any[] }>(
-      `${API_V1}/models/AD_SysConfig?$filter=Name eq '${configName}'&$top=1`,
+      `${API_V1}/models/AD_SysConfig?$filter=Name eq '${configName}' and AD_Org_ID eq ${orgId}&$top=1`,
       { token },
     )
 
@@ -604,7 +630,8 @@ export async function setSysConfig(
       }
 
       console.log(`✓ Updated AD_SysConfig: ${configName} = ${value}`)
-    } else {
+    }
+    else {
       // Create new - POST may return empty/non-JSON response on success
       const response = await fetch(`${API_V1}/models/AD_SysConfig`, {
         method: 'POST',
@@ -615,6 +642,7 @@ export async function setSysConfig(
         body: JSON.stringify({
           Name: configName,
           Value: value,
+          AD_Org_ID: orgId,
           ConfigurationLevel: 'S', // System level
           Description: description || configName,
         }),
@@ -629,7 +657,8 @@ export async function setSysConfig(
       console.log(`✓ Created AD_SysConfig: ${configName} = ${value}`)
     }
     return true
-  } catch (error) {
+  }
+  catch (error) {
     console.error(`Failed to set sysconfig ${configName}:`, error)
     return false
   }
@@ -638,8 +667,8 @@ export async function setSysConfig(
 /**
  * Field visibility configuration structure
  */
-export type FieldVisibilityConfig = {
-  hiddenFields: string[]  // Array of column names to hide
+export interface FieldVisibilityConfig {
+  hiddenFields: string[] // Array of column names to hide
 }
 
 /**
@@ -654,14 +683,16 @@ export async function getFieldVisibility(
   windowSlug: string,
   tabSlug: string,
 ): Promise<FieldVisibilityConfig | null> {
-  const configName = `EMUI_FIELD_VISIBILITY_${windowSlug}_${tabSlug}`
+  const configName = `EMUI_FV_${windowSlug}_${tabSlug}`
   const value = await getSysConfig(token, configName)
 
-  if (!value) return null
+  if (!value)
+    return null
 
   try {
     return JSON.parse(value) as FieldVisibilityConfig
-  } catch (error) {
+  }
+  catch (error) {
     console.error(`Failed to parse field visibility config for ${configName}:`, error)
     return null
   }
@@ -675,7 +706,7 @@ export async function getFieldVisibility(
  * @param hiddenFields - Array of column names to hide
  * @returns true if successful
  *
- * Note: Requires System Administrator role
+ * Note: Requires write access to AD_SysConfig table
  */
 export async function setFieldVisibility(
   token: string,
@@ -683,7 +714,7 @@ export async function setFieldVisibility(
   tabSlug: string,
   hiddenFields: string[],
 ): Promise<boolean> {
-  const configName = `EMUI_FIELD_VISIBILITY_${windowSlug}_${tabSlug}`
+  const configName = `EMUI_FV_${windowSlug}_${tabSlug}`
   const config: FieldVisibilityConfig = { hiddenFields }
   const value = JSON.stringify(config)
   const description = `EMUI field visibility for ${windowSlug}/${tabSlug}`

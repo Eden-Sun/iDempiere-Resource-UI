@@ -2,9 +2,7 @@ import { apiFetch } from '../../shared/api/http'
 
 const API_V1 = '/api/v1'
 
-type SearchParams = Record<string, string | number | boolean | undefined>
-
-export type Order = {
+export interface Order {
   id: number
   documentNo: string
   bpartnerId: number
@@ -16,7 +14,7 @@ export type Order = {
   warehouseId?: number
 }
 
-export type OrderLine = {
+export interface OrderLine {
   id: number
   orderId: number
   productId: number
@@ -27,20 +25,20 @@ export type OrderLine = {
   taxId?: number
 }
 
-export type Product = {
+export interface Product {
   id: number
   name: string
   value?: string
   uom?: string
 }
 
-export type Warehouse = {
+export interface Warehouse {
   id: number
   name: string
   orgId: number // AD_Org_ID
 }
 
-export type Tax = {
+export interface Tax {
   id: number
   name: string
   rate: number
@@ -48,19 +46,22 @@ export type Tax = {
 
 export async function listOrders(
   token: string,
-  options: { isSOTrx: boolean; filter?: string; top?: number; skip?: number } = { isSOTrx: false },
-): Promise<{ records: Order[]; totalCount: number }> {
+  options: { isSOTrx: boolean, filter?: string, top?: number, skip?: number } = { isSOTrx: false },
+): Promise<{ records: Order[], totalCount: number }> {
   const searchParams: Record<string, string | number> = {
     $select: 'C_Order_ID,DocumentNo,C_BPartner_ID,DateOrdered,GrandTotal,DocStatus,M_Warehouse_ID',
     $orderby: 'DateOrdered desc,DocumentNo desc',
     $filter: `IsSOTrx eq ${options.isSOTrx}`,
   }
 
-  if (options.top) searchParams.$top = options.top
-  if (options.skip) searchParams.$skip = options.skip
-  if (options.filter) searchParams.$filter += ` and (${options.filter})`
+  if (options.top)
+    searchParams.$top = options.top
+  if (options.skip)
+    searchParams.$skip = options.skip
+  if (options.filter)
+    searchParams.$filter += ` and (${options.filter})`
 
-  const res = await apiFetch<{ records: any[]; 'row-count'?: number }>(`${API_V1}/models/C_Order`, {
+  const res = await apiFetch<{ 'records': any[], 'row-count'?: number }>(`${API_V1}/models/C_Order`, {
     token,
     searchParams,
   })
@@ -72,7 +73,8 @@ export async function listOrders(
       if (typeof r.DocStatus === 'object' && r.DocStatus !== null) {
         // 对象可能有 id、value、name 等属性
         docStatus = String(r.DocStatus.id ?? r.DocStatus.value ?? r.DocStatus.name ?? r.DocStatus.identifier ?? '')
-      } else {
+      }
+      else {
         docStatus = String(r.DocStatus)
       }
     }
@@ -98,14 +100,15 @@ export async function listOrders(
 
 export async function getOrder(token: string, id: number): Promise<Order> {
   const res = await apiFetch<any>(`${API_V1}/models/C_Order/${id}`, { token })
-  
+
   // 处理 DocStatus，可能是对象或字符串
   let docStatus = ''
   if (res.DocStatus) {
     if (typeof res.DocStatus === 'object' && res.DocStatus !== null) {
       // 对象可能有 id、value、name 等属性
       docStatus = String(res.DocStatus.id ?? res.DocStatus.value ?? res.DocStatus.name ?? res.DocStatus.identifier ?? '')
-    } else {
+    }
+    else {
       docStatus = String(res.DocStatus)
     }
   }
@@ -133,7 +136,7 @@ export async function getOrderLines(token: string, orderId: number): Promise<Ord
     },
   })
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     orderId: Number(r.C_Order_ID?.id ?? r.C_Order_ID ?? 0),
     productId: Number(r.M_Product_ID?.id ?? r.M_Product_ID ?? 0),
@@ -145,21 +148,23 @@ export async function getOrderLines(token: string, orderId: number): Promise<Ord
   }))
 }
 
-export async function listProducts(token: string, options?: { filter?: string; top?: number }): Promise<Product[]> {
+export async function listProducts(token: string, options?: { filter?: string, top?: number }): Promise<Product[]> {
   const searchParams: Record<string, string | number> = {
     $select: 'M_Product_ID,Name,Value,C_UOM_ID',
     $orderby: 'Name',
   }
 
-  if (options?.filter) searchParams.$filter = options.filter
-  if (options?.top) searchParams.$top = options.top
+  if (options?.filter)
+    searchParams.$filter = options.filter
+  if (options?.top)
+    searchParams.$top = options.top
 
   const res = await apiFetch<{ records: any[] }>(`${API_V1}/models/M_Product`, {
     token,
     searchParams,
   })
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
     value: r.Value ? String(r.Value) : undefined,
@@ -176,7 +181,7 @@ export async function listWarehouses(token: string): Promise<Warehouse[]> {
     },
   })
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
     orgId: Number(r.AD_Org_ID?.id ?? r.AD_Org_ID ?? 0),
@@ -192,7 +197,7 @@ export async function listTaxes(token: string): Promise<Tax[]> {
     },
   })
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
     rate: Number(r.Rate ?? 0),
@@ -205,16 +210,16 @@ function ensureNumberId(value: number | string | undefined | null): number | nul
     return null
   }
   if (typeof value === 'number') {
-    return isNaN(value) ? null : Math.floor(Math.abs(value))
+    return Number.isNaN(value) ? null : Math.floor(Math.abs(value))
   }
   if (typeof value === 'string') {
     // 只保留数字字符，移除所有非数字字符（包括小数点、负号等）
-    const cleaned = value.replace(/[^\d]/g, '')
+    const cleaned = value.replace(/\D/g, '')
     if (!cleaned || cleaned.length === 0) {
       return null
     }
-    const num = parseInt(cleaned, 10)
-    return isNaN(num) || num <= 0 ? null : num
+    const num = Number.parseInt(cleaned, 10)
+    return Number.isNaN(num) || num <= 0 ? null : num
   }
   return null
 }
@@ -225,12 +230,12 @@ function ensureNumber(value: number | string | undefined | null): number {
     return 0
   }
   if (typeof value === 'number') {
-    return isNaN(value) ? 0 : value
+    return Number.isNaN(value) ? 0 : value
   }
   if (typeof value === 'string') {
     const cleaned = value.replace(/[^\d.-]/g, '')
-    const num = parseFloat(cleaned)
-    return isNaN(num) ? 0 : num
+    const num = Number.parseFloat(cleaned)
+    return Number.isNaN(num) ? 0 : num
   }
   return 0
 }
@@ -246,7 +251,7 @@ export async function createOrder(
     orgId: number // AD_Org_ID - 组织ID (必填)
     description?: string
   },
-  lines: Array<{ productId: number; qtyEntered: number; priceEntered: number; taxId?: number }>,
+  lines: Array<{ productId: number, qtyEntered: number, priceEntered: number, taxId?: number }>,
 ): Promise<any> {
   // 确保所有ID字段都是纯数字
   const bpartnerId = ensureNumberId(order.bpartnerId)
@@ -268,19 +273,19 @@ export async function createOrder(
 
   // 最终验证：确保 bpartnerId 是有效的数字
   const finalBpartnerId = Number(bpartnerId)
-  if (isNaN(finalBpartnerId) || finalBpartnerId <= 0) {
+  if (Number.isNaN(finalBpartnerId) || finalBpartnerId <= 0) {
     throw new Error(`无效的客户/供应商ID: ${bpartnerId} (类型: ${typeof bpartnerId})`)
   }
 
   // 构建请求体，只包含非null的字段，并确保所有类型正确
   // 注意：DocAction 可能在创建时不应该设置，让后端使用默认值
   const finalWarehouseId = Number(warehouseId)
-  if (isNaN(finalWarehouseId) || finalWarehouseId <= 0) {
+  if (Number.isNaN(finalWarehouseId) || finalWarehouseId <= 0) {
     throw new Error(`无效的仓库ID: ${warehouseId} (类型: ${typeof warehouseId})`)
   }
 
   const finalOrgId = Number(orgId)
-  if (isNaN(finalOrgId) || finalOrgId <= 0) {
+  if (Number.isNaN(finalOrgId) || finalOrgId <= 0) {
     throw new Error(`无效的组织ID: ${orgId} (类型: ${typeof orgId})`)
   }
 
@@ -297,7 +302,7 @@ export async function createOrder(
   // 如果有业务伙伴收货地点，添加到请求中
   if (bpartnerLocationId && bpartnerLocationId > 0) {
     const finalBpartnerLocationId = Number(bpartnerLocationId)
-    if (!isNaN(finalBpartnerLocationId) && finalBpartnerLocationId > 0) {
+    if (!Number.isNaN(finalBpartnerLocationId) && finalBpartnerLocationId > 0) {
       orderBody.C_BPartner_Location_ID = finalBpartnerLocationId
     }
   }
@@ -352,7 +357,7 @@ export async function createOrder(
     if (priceEntered < 0) {
       throw new Error('單價不能為負數')
     }
-    
+
     // 构建订单行请求体，只包含非null的字段，并确保所有类型正确
     const lineBody: Record<string, any> = {
       C_Order_ID: Number(numericOrderId), // 确保是数字类型
@@ -367,7 +372,7 @@ export async function createOrder(
     }
 
     // 调试：在开发环境中打印请求体
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('Creating C_OrderLine with body:', JSON.stringify(lineBody, null, 2))
     }
 

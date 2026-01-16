@@ -1,3 +1,9 @@
+<script setup lang="ts">
+defineProps<{
+  message: string | null
+}>()
+</script>
+
 <template>
   <div
     v-if="message"
@@ -6,9 +12,3 @@
     {{ message }}
   </div>
 </template>
-
-<script setup lang="ts">
-defineProps<{
-  message: string | null
-}>()
-</script>

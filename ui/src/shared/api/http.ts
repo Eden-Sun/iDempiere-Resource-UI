@@ -1,6 +1,6 @@
 import ky, { HTTPError } from 'ky'
 
-export type ApiError = {
+export interface ApiError {
   status: number
   title?: string
   detail?: string
@@ -19,11 +19,13 @@ async function safeReadBody(res: Response): Promise<unknown> {
   try {
     // Many endpoints return JSON; if not JSON, fallback to text
     return await res.clone().json()
-  } catch {
+  }
+  catch {
     try {
       const text = await res.text()
       return text || null
-    } catch {
+    }
+    catch {
       return null
     }
   }
@@ -39,7 +41,7 @@ export async function apiFetch<T>(
   } = {},
 ): Promise<T> {
   const { token, method, searchParams, json } = options
-  
+
   // Filter out undefined values from searchParams
   const cleanSearchParams: Record<string, string | number | boolean> = {}
   if (searchParams) {
@@ -49,7 +51,7 @@ export async function apiFetch<T>(
       }
     }
   }
-  
+
   try {
     return await ky(path, {
       method,
@@ -57,7 +59,8 @@ export async function apiFetch<T>(
       json,
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     }).json<T>()
-  } catch (e: any) {
+  }
+  catch (e: any) {
     if (e instanceof HTTPError) {
       const body = await safeReadBody(e.response)
       const err: ApiError = { status: e.response.status, raw: body }
@@ -80,4 +83,3 @@ export async function apiFetch<T>(
     throw e
   }
 }
-

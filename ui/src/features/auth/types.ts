@@ -1,4 +1,4 @@
-export type AuthParameters = {
+export interface AuthParameters {
   clientId?: string | number
   roleId?: string | number
   organizationId?: string | number
@@ -6,16 +6,16 @@ export type AuthParameters = {
   language?: string
 }
 
-export type AuthRequest = {
+export interface AuthRequest {
   userName: string
   password: string
   parameters?: AuthParameters
 }
 
-export type ClientOption = { id: number; name: string }
-export type NamedId = { id: number; name: string }
+export interface ClientOption { id: number, name: string }
+export interface NamedId { id: number, name: string }
 
-export type AuthResponse = {
+export interface AuthResponse {
   clients?: ClientOption[]
   userId?: number
   language?: string
@@ -24,17 +24,16 @@ export type AuthResponse = {
   refresh_token?: string
 }
 
-export type Session = {
+export interface Session {
   token: string
   refreshToken?: string
   userId: number
-  userName?: string  // Decoded from JWT token
+  userName?: string // Decoded from JWT token
   clientId: number
-  clientName?: string  // Client name for display
+  clientName?: string // Client name for display
   organizationId: number
   roleId?: number
-  roleName?: string  // Role name for display
+  roleName?: string // Role name for display
   warehouseId?: number
   language?: string
 }
-

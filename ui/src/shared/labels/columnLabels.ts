@@ -50,4 +50,3 @@ export const zhTwLabelByColumnName: Record<string, string> = {
 export function getColumnLabel(columnName: string, fallback?: string): string {
   return zhTwLabelByColumnName[columnName] || fallback || columnName
 }
-

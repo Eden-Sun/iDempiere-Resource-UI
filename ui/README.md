@@ -137,3 +137,8 @@ services:
 ```
 
 將產物打包進 JAR 部署到 iDempiere。
+
+### Router（如果有）
+
+- **Vue Router**：`createWebHistory('/emui/')`
+- **React Router**：`<BrowserRouter basename="/emui">`

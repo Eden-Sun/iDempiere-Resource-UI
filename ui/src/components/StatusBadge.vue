@@ -1,12 +1,3 @@
-<template>
-  <span
-    :class="statusClass"
-    class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-  >
-    {{ statusText }}
-  </span>
-</template>
-
 <script setup lang="ts">
 import { computed } from 'vue'
 import { getDocStatusClass, getDocStatusText, getRequestStatusClass } from '../shared/utils/format'
@@ -25,8 +16,19 @@ const statusClass = computed(() => {
 })
 
 const statusText = computed(() => {
-  if (props.customText) return props.customText
-  if (props.type === 'request') return props.status || '—'
+  if (props.customText)
+    return props.customText
+  if (props.type === 'request')
+    return props.status || '—'
   return getDocStatusText(props.status)
 })
 </script>
+
+<template>
+  <span
+    :class="statusClass"
+    class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+  >
+    {{ statusText }}
+  </span>
+</template>

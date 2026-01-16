@@ -1,5 +1,5 @@
-import { apiFetch } from '../../shared/api/http'
 import type { AuthParameters, AuthRequest, AuthResponse, NamedId } from './types'
+import { apiFetch } from '../../shared/api/http'
 
 const API_V1 = '/api/v1'
 
@@ -44,4 +44,3 @@ export async function getWarehouses(
 export async function getClientLanguage(clientId: number, token: string): Promise<{ language: string }> {
   return await apiFetch<{ language: string }>(`${API_V1}/auth/language`, { token, searchParams: { client: clientId } })
 }
-

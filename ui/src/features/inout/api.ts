@@ -2,7 +2,7 @@ import { apiFetch } from '../../shared/api/http'
 
 const API_V1 = '/api/v1'
 
-export type InOut = {
+export interface InOut {
   id: number
   documentNo: string
   orderId: number
@@ -14,7 +14,7 @@ export type InOut = {
   docStatus: string
 }
 
-export type InOutLine = {
+export interface InOutLine {
   id: number
   inOutId: number
   orderLineId: number
@@ -54,7 +54,7 @@ export async function getReceiptDocType(token: string): Promise<number> {
     token,
     searchParams: {
       $select: 'C_DocType_ID,Name,DocBaseType,IsSOTrx',
-      $filter: "IsActive eq true", // 只取得啟用的單據類型
+      $filter: 'IsActive eq true', // 只取得啟用的單據類型
     },
   })
 
@@ -67,7 +67,8 @@ export async function getReceiptDocType(token: string): Promise<number> {
 
   // Look for Material Receipt (MMR) first - this is the standard for vendor receipts
   let doc = records.find((r: any) => r.DocBaseType === 'MMR')
-  if (doc) return doc.id
+  if (doc)
+    return doc.id
 
   // Look for Material Receipt by name with various patterns
   const receiptPatterns = [
@@ -80,7 +81,8 @@ export async function getReceiptDocType(token: string): Promise<number> {
 
   for (const pattern of receiptPatterns) {
     doc = records.find(pattern)
-    if (doc) return doc.id
+    if (doc)
+      return doc.id
   }
 
   // Last resort: return first non-sales DocType as fallback
@@ -108,7 +110,8 @@ export async function createInOut(
   if (order.AD_Org_ID) {
     if (typeof order.AD_Org_ID === 'object') {
       orgId = order.AD_Org_ID.id
-    } else if (typeof order.AD_Org_ID === 'string' || typeof order.AD_Org_ID === 'number') {
+    }
+    else if (typeof order.AD_Org_ID === 'string' || typeof order.AD_Org_ID === 'number') {
       orgId = Number(order.AD_Org_ID)
     }
   }
@@ -120,7 +123,8 @@ export async function createInOut(
 
   // Helper function to extract ID from iDempiere response
   const extractId = (field: any): number | undefined => {
-    if (!field) return undefined
+    if (!field)
+      return undefined
     if (typeof field === 'object') {
       return field.id ? Number(field.id) : undefined
     }
@@ -144,15 +148,15 @@ export async function createInOut(
 
   // Build body with required fields - all fields must be explicitly set
   const body: Record<string, any> = {
-    'AD_Org_ID': orgId,
-    'C_BPartner_ID': bpartnerId,
-    'C_BPartner_Location_ID': bpartnerLocationId,
-    'M_Warehouse_ID': warehouseId,
-    'MovementDate': movementDate,
-    'DateAcct': movementDate,
-    'IsSOTrx': 'N',
-    'C_DocType_ID': receiptDocTypeId, // Always set DocType - it's required
-    'C_Order_ID': order.id, // Include order reference
+    AD_Org_ID: orgId,
+    C_BPartner_ID: bpartnerId,
+    C_BPartner_Location_ID: bpartnerLocationId,
+    M_Warehouse_ID: warehouseId,
+    MovementDate: movementDate,
+    DateAcct: movementDate,
+    IsSOTrx: 'N',
+    C_DocType_ID: receiptDocTypeId, // Always set DocType - it's required
+    C_Order_ID: order.id, // Include order reference
   }
 
   console.log('Creating M_InOut with body:', body)
@@ -166,7 +170,8 @@ export async function createInOut(
     })
 
     return res
-  } catch (error: any) {
+  }
+  catch (error: any) {
     console.error('Create M_InOut error:', error)
     throw new Error(`建立收貨單失敗: ${error?.detail || error?.message || '未知錯誤'}`)
   }
@@ -197,7 +202,7 @@ export async function getInOutLines(token: string, inOutId: number): Promise<InO
     },
   })
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     inOutId: Number(r.M_InOut_ID?.id ?? r.M_InOut_ID ?? 0),
     orderLineId: Number(r.C_OrderLine_ID?.id ?? r.C_OrderLine_ID ?? 0),
@@ -217,13 +222,13 @@ export async function createInOutLine(
   orgId: number,
 ): Promise<any> {
   const body = {
-    'AD_Org_ID': orgId,
-    'M_InOut_ID': inOutId,
-    'C_OrderLine_ID': orderLine.id,
-    'M_Product_ID': orderLine.M_Product_ID?.id ?? orderLine.M_Product_ID,
-    'MovementQty': quantity,
-    'QtyEntered': quantity,
-    'M_Locator_ID': locatorId,
+    AD_Org_ID: orgId,
+    M_InOut_ID: inOutId,
+    C_OrderLine_ID: orderLine.id,
+    M_Product_ID: orderLine.M_Product_ID?.id ?? orderLine.M_Product_ID,
+    MovementQty: quantity,
+    QtyEntered: quantity,
+    M_Locator_ID: locatorId,
   }
 
   return await apiFetch<any>(`${API_V1}/models/M_InOutLine`, {
@@ -242,8 +247,8 @@ export async function updateInOutLine(
     method: 'PUT',
     token,
     json: {
-      'MovementQty': quantity,
-      'QtyEntered': quantity,
+      MovementQty: quantity,
+      QtyEntered: quantity,
     },
   })
 }
@@ -286,7 +291,8 @@ export async function getDefaultLocator(token: string, warehouseId: number): Pro
     })
 
     return fallbackRes?.records?.[0]?.id ?? 0
-  } catch (e) {
+  }
+  catch (e) {
     console.error('Failed to get default locator:', e)
     return 0
   }

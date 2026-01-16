@@ -96,13 +96,15 @@ const res = await apiFetch<{ records: any[] }>(
 
 // POST/PUT
 await apiFetch(`/api/v1/models/TABLE/${id}`, {
-  method: 'PUT', token, json: { Field: value }
+  method: 'PUT',
+  token,
+  json: { Field: value }
 })
 ```
 
 ### 行事曆計算
 ```typescript
-const HOUR_HEIGHT = 60  // 每小時 60px
+const HOUR_HEIGHT = 60 // 每小時 60px
 // 時間→位置: top = (minutes / 60) * HOUR_HEIGHT
 // 位置→時間: minutes = (y / HOUR_HEIGHT) * 60
 ```

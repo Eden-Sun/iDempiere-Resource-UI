@@ -14,7 +14,8 @@ export function formatDateTime(dateStr: string): string {
  * 格式化日期時間為本地顯示格式 (YYYY/M/d HH:mm)
  */
 export function formatDateTimeLong(dateStr?: string): string {
-  if (!dateStr) return '—'
+  if (!dateStr)
+    return '—'
   const d = new Date(dateStr)
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
@@ -39,11 +40,13 @@ export function formatEventTime(dateStr: string): string {
 /**
  * 解析時間字串 (HH:mm) 為小時和分鐘
  */
-export function parseTimeString(timeStr?: string): { hour: number; minute: number } | null {
-  if (!timeStr) return null
+export function parseTimeString(timeStr?: string): { hour: number, minute: number } | null {
+  if (!timeStr)
+    return null
   const match = timeStr.match(/^(\d{2}):(\d{2})/)
-  if (!match) return null
-  return { hour: parseInt(match[1], 10), minute: parseInt(match[2], 10) }
+  if (!match)
+    return null
+  return { hour: Number.parseInt(match[1], 10), minute: Number.parseInt(match[2], 10) }
 }
 
 /**
@@ -51,7 +54,8 @@ export function parseTimeString(timeStr?: string): { hour: number; minute: numbe
  */
 export function formatTime(timeStr?: string): string {
   const t = parseTimeString(timeStr)
-  if (!t) return '--:--'
+  if (!t)
+    return '--:--'
   return `${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}`
 }
 

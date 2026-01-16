@@ -4,7 +4,7 @@ const API_V1 = '/api/v1'
 
 type SearchParams = Record<string, string | number | boolean | undefined>
 
-export type BPartner = {
+export interface BPartner {
   id: number
   name: string
   value?: string
@@ -15,12 +15,12 @@ export type BPartner = {
   isEmployee?: boolean
 }
 
-export type BPartnerGroup = {
+export interface BPartnerGroup {
   id: number
   name: string
 }
 
-export type BPartnerContact = {
+export interface BPartnerContact {
   id: number
   bPartnerId: number
   name?: string
@@ -28,7 +28,7 @@ export type BPartnerContact = {
   phone?: string
 }
 
-export type BPartnerLocation = {
+export interface BPartnerLocation {
   id: number
   bPartnerId: number
   address1?: string
@@ -48,7 +48,7 @@ export async function listBPartners(token: string): Promise<BPartner[]> {
     },
   )
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
     value: r.Value ? String(r.Value) : undefined,
@@ -115,12 +115,18 @@ export async function updateBPartner(
   },
 ): Promise<any> {
   const json: Record<string, any> = {}
-  if (input.name !== undefined) json.Name = input.name
-  if (input.value !== undefined) json.Value = input.value
-  if (input.bpGroupId !== undefined) json.C_BP_Group_ID = input.bpGroupId
-  if (input.isCustomer !== undefined) json.IsCustomer = input.isCustomer
-  if (input.isVendor !== undefined) json.IsVendor = input.isVendor
-  if (input.isEmployee !== undefined) json.IsEmployee = input.isEmployee
+  if (input.name !== undefined)
+    json.Name = input.name
+  if (input.value !== undefined)
+    json.Value = input.value
+  if (input.bpGroupId !== undefined)
+    json.C_BP_Group_ID = input.bpGroupId
+  if (input.isCustomer !== undefined)
+    json.IsCustomer = input.isCustomer
+  if (input.isVendor !== undefined)
+    json.IsVendor = input.isVendor
+  if (input.isEmployee !== undefined)
+    json.IsEmployee = input.isEmployee
 
   return await apiFetch<any>(`${API_V1}/models/C_BPartner/${id}`, {
     method: 'PUT',
@@ -148,7 +154,7 @@ export async function listBPartnerGroups(token: string): Promise<BPartnerGroup[]
     },
   )
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     name: String(r.Name ?? ''),
   }))
@@ -190,7 +196,7 @@ export async function listBPartnerLocations(token: string, bPartnerId: number): 
     },
   )
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     bPartnerId: Number(r.C_BPartner_ID?.id ?? r.C_BPartner_ID ?? 0),
     address1: r.C_Location_ID?.Address1 ? String(r.C_Location_ID.Address1) : undefined,

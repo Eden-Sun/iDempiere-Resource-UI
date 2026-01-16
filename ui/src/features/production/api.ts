@@ -2,9 +2,7 @@ import { apiFetch } from '../../shared/api/http'
 
 const API_V1 = '/api/v1'
 
-type SearchParams = Record<string, string | number | boolean | undefined>
-
-export type Production = {
+export interface Production {
   id: number
   documentNo: string
   orderId: number
@@ -19,7 +17,7 @@ export type Production = {
   docStatus: string
 }
 
-export type ProductionLine = {
+export interface ProductionLine {
   id: number
   productionId: number
   productId: number
@@ -30,19 +28,22 @@ export type ProductionLine = {
 
 export async function listProductions(
   token: string,
-  options: { filter?: string; top?: number; skip?: number } = {},
-): Promise<{ records: Production[]; totalCount: number }> {
+  options: { filter?: string, top?: number, skip?: number } = {},
+): Promise<{ records: Production[], totalCount: number }> {
   const searchParams: Record<string, string | number> = {
     $select: 'M_Production_ID,DocumentNo,C_BPartner_ID,M_Product_ID,DatePromised,Processed,DocStatus',
     $expand: 'M_ProductionLine($select=M_ProductionLine_ID,MovementQty,IsEndProduct)',
     $orderby: 'DatePromised desc,DocumentNo desc',
   }
 
-  if (options.top) searchParams.$top = options.top
-  if (options.skip) searchParams.$skip = options.skip
-  if (options.filter) searchParams.$filter = options.filter
+  if (options.top)
+    searchParams.$top = options.top
+  if (options.skip)
+    searchParams.$skip = options.skip
+  if (options.filter)
+    searchParams.$filter = options.filter
 
-  const res = await apiFetch<{ records: any[]; 'row-count'?: number }>(`${API_V1}/models/M_Production`, {
+  const res = await apiFetch<{ 'records': any[], 'row-count'?: number }>(`${API_V1}/models/M_Production`, {
     token,
     searchParams,
   })
@@ -53,7 +54,7 @@ export async function listProductions(
     const productionQty = lines
       .filter((line: any) => line.IsEndProduct === true || line.IsEndProduct === 'Y')
       .reduce((sum: number, line: any) => sum + Number(line.MovementQty ?? 0), 0)
-    
+
     return {
       id: Number(r.id),
       documentNo: String(r.DocumentNo ?? ''),
@@ -78,7 +79,7 @@ export async function listProductions(
 
 export async function getProduction(token: string, id: number): Promise<Production> {
   const res = await apiFetch<any>(`${API_V1}/models/M_Production/${id}`, { token })
-  
+
   // Get production quantity from lines (sum of end product quantities)
   let productionQty = 0
   try {
@@ -86,10 +87,11 @@ export async function getProduction(token: string, id: number): Promise<Producti
     productionQty = lines
       .filter(line => line.isEndProduct)
       .reduce((sum, line) => sum + line.movementQty, 0)
-  } catch (e) {
+  }
+  catch (e) {
     console.warn('Failed to load production lines for quantity:', e)
   }
-  
+
   return {
     id: Number(res.id),
     documentNo: String(res.DocumentNo ?? ''),
@@ -116,7 +118,7 @@ export async function getProductionLines(token: string, productionId: number): P
     },
   })
 
-  return (res.records ?? []).map((r) => ({
+  return (res.records ?? []).map(r => ({
     id: Number(r.id),
     productionId: Number(r.M_Production_ID?.id ?? r.M_Production_ID ?? 0),
     productId: Number(r.M_Product_ID?.id ?? r.M_Product_ID ?? 0),
@@ -126,16 +128,19 @@ export async function getProductionLines(token: string, productionId: number): P
   }))
 }
 
-export async function getOrdersForProduction(token: string, options?: { filter?: string; top?: number; skip?: number }): Promise<any[]> {
+export async function getOrdersForProduction(token: string, options?: { filter?: string, top?: number, skip?: number }): Promise<any[]> {
   const searchParams: Record<string, string | number> = {
     $select: 'C_Order_ID,DocumentNo,C_BPartner_ID,DateOrdered,GrandTotal,DocStatus',
     $orderby: 'DateOrdered desc,DocumentNo desc',
-    $filter: "IsSOTrx eq true and DocStatus eq 'CO'",
+    $filter: 'IsSOTrx eq true and DocStatus eq \'CO\'',
   }
 
-  if (options?.filter) searchParams.$filter += ` and (${options.filter})`
-  if (options?.top) searchParams.$top = options.top
-  if (options?.skip) searchParams.$skip = options.skip
+  if (options?.filter)
+    searchParams.$filter += ` and (${options.filter})`
+  if (options?.top)
+    searchParams.$top = options.top
+  if (options?.skip)
+    searchParams.$skip = options.skip
 
   const res = await apiFetch<{ records: any[] }>(`${API_V1}/models/C_Order`, {
     token,
@@ -155,7 +160,7 @@ export async function createProduction(
     productionQty: number
     datePromised: string
   },
-  lines: Array<{ productId: number; movementQty: number; isEndProduct: boolean }>,
+  lines: Array<{ productId: number, movementQty: number, isEndProduct: boolean }>,
 ): Promise<any> {
   const orderRes = await apiFetch<any>(`${API_V1}/models/M_Production`, {
     method: 'POST',
@@ -198,7 +203,8 @@ export async function updateProduction(
   data: { processed?: boolean },
 ): Promise<any> {
   const json: Record<string, any> = {}
-  if (data.processed !== undefined) json.Processed = data.processed
+  if (data.processed !== undefined)
+    json.Processed = data.processed
 
   return await apiFetch<any>(`${API_V1}/models/M_Production/${id}`, {
     method: 'PUT',

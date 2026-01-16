@@ -3,7 +3,7 @@
  * 提供通用的表单状态、验证、提交等功能
  */
 
-import { ref, reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { getErrorMessage } from '../shared/utils/error'
 
 export interface FormOptions<T> {
@@ -39,18 +39,21 @@ export function useForm<T extends Record<string, unknown>>(options: FormOptions<
     try {
       await onSubmit(formData)
       successMessage.value = '操作成功'
-      
+
       if (onSuccess) {
         onSuccess()
-      } else {
+      }
+      else {
         // 默认在 1 秒后清除成功消息
         setTimeout(() => {
           successMessage.value = null
         }, 1000)
       }
-    } catch (e: unknown) {
+    }
+    catch (e: unknown) {
       error.value = getErrorMessage(e, '操作失敗')
-    } finally {
+    }
+    finally {
       submitting.value = false
     }
   }
