@@ -248,10 +248,15 @@ export async function getTabFieldsWithMeta(
       .map(r => [r.fieldId, r.col!]),
   )
 
-  return fields.map(f => ({
-    ...f,
-    column: columnMap.get(f.id),
-  }))
+  return fields.map((f) => {
+    const column = columnMap.get(f.id)
+    return {
+      ...f,
+      // Use correct columnName from AD_Column metadata (fixes multi-select columns that don't end with _ID)
+      columnName: column?.columnName || f.columnName,
+      column,
+    }
+  })
 }
 
 /**
