@@ -27,4 +27,7 @@ RUN source ~/.bashrc
 # Copy package files from ui directory
 COPY ui/package*.json ./
 
+# Install dependencies
+RUN bun install
+
 CMD ["bun", "version"]
