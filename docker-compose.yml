@@ -23,6 +23,7 @@ services:
       - "5555:5555"
     volumes:
       - .:/app
+      - ${HOME}/.local/share/opencode/:/root/.local/share/opencode/
     working_dir: /app
     environment:
       - NODE_ENV=development
