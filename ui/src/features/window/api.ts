@@ -450,7 +450,7 @@ export async function getReferenceLookupOptions(token: string, referenceId: numb
             }
             if (typeof v === 'string' && v.trim() !== '') {
               const n = Number(v)
-              if (!Number.Number.isNaN(n)) {
+              if (!Number.isNaN(n)) {
                 key = n
                 break
               }
