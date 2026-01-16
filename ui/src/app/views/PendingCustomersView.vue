@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
     <div class="flex items-center justify-between">
-      <h2 class="text-base font-semibold text-slate-900">待接應客戶</h2>
+      <h2 class="text-base font-semibold text-slate-900">從未諮詢的客戶</h2>
       <button
         class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
         :disabled="loading"
