@@ -23,7 +23,7 @@ services:
       - "5555:5555"
     volumes:
       - .:/app
-      - ${HOME}/.local/share/opencode/:/root/.local/share/opencode/
+      - opencode-data:/root/.local/share/opencode/
       - ${HOME}/.ssh:/root/.ssh:ro
       - ${HOME}/.gitconfig:/root/.gitconfig:ro
     working_dir: /app
@@ -31,3 +31,6 @@ services:
       - NODE_ENV=development
       - GIT_SSH_COMMAND=ssh -i /root/.ssh/id_rsa -o StrictHostKeyChecking=accept-new
     command: opencode web --hostname 0.0.0.0 --port 5555
+
+volumes:
+  opencode-data:
