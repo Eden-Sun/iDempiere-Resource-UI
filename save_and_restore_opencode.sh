@@ -12,7 +12,7 @@ echo "================================"
 echo ""
 echo "📦 Step 1: 保存現有容器的日誌..."
 
-CONTAINER_ID=$(docker-compose ps -q opencode-web 2>/dev/null || echo "")
+CONTAINER_ID=$(docker compose ps -q opencode-web 2>/dev/null || echo "")
 
 if [ -n "$CONTAINER_ID" ]; then
     echo "  找到運行中的容器: $CONTAINER_ID"
@@ -27,13 +27,13 @@ fi
 # Step 2: 停止並移除舊容器
 echo ""
 echo "🛑 Step 2: 停止容器..."
-docker-compose down opencode-web 2>/dev/null || true
+docker compose down opencode-web 2>/dev/null || true
 echo "  ✅ 容器已停止"
 
 # Step 3: 啟動新容器（自動掛載 volume）
 echo ""
 echo "🚀 Step 3: 啟動新容器（帶 volume）..."
-docker-compose up -d opencode-web
+docker compose up -d opencode-web
 echo "  ✅ 新容器已啟動"
 
 # Step 4: 恢復日誌到新容器
@@ -41,7 +41,7 @@ echo ""
 echo "📥 Step 4: 恢復日誌到新容器..."
 sleep 2  # 等待容器完全啟動
 
-NEW_CONTAINER_ID=$(docker-compose ps -q opencode-web)
+NEW_CONTAINER_ID=$(docker compose ps -q opencode-web)
 if [ -d ~/.local/share/opencode/ ]; then
     docker cp ~/.local/share/opencode/. "$NEW_CONTAINER_ID:/root/.local/share/opencode/" 2>/dev/null || true
     echo "  ✅ 日誌已恢復"
