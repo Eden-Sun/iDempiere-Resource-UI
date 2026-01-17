@@ -10,6 +10,7 @@ import {
   updateRequestStatus,
 } from '../../features/request/api'
 import RequestDetailModal from './RequestDetailModal.vue'
+import { formatDate } from '../../shared/utils/datetime'
 
 const auth = useAuth()
 
@@ -54,13 +55,6 @@ const filteredRequests = computed(() => {
 // Group requests by status
 function getRequestsByStatus(statusName: string): Request[] {
   return filteredRequests.value.filter(req => req.requestStatusName === statusName)
-}
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr)
-    return '—'
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 // Debounce search

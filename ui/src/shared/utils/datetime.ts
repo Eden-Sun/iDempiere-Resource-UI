@@ -3,6 +3,26 @@
  */
 
 /**
+ * 格式化日期為簡短格式 (M/d)
+ */
+export function formatDate(dateStr?: string): string {
+  if (!dateStr)
+    return '—'
+  const d = new Date(dateStr)
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+/**
+ * 格式化日期為完整格式 (YYYY/M/d)
+ */
+export function formatDateLong(dateStr?: string): string {
+  if (!dateStr)
+    return '—'
+  const d = new Date(dateStr)
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
+}
+
+/**
  * 格式化日期時間為本地顯示格式 (M/d HH:mm)
  */
 export function formatDateTime(dateStr: string): string {

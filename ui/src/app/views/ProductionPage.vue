@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Order, OrderLine } from '../../features/order/types'
+import type { Production, ProductionLine } from '../../features/production/types'
 import { computed, onMounted, ref, watch } from 'vue'
 import ErrorMessage from '../../components/ErrorMessage.vue'
 import StatusBadge from '../../components/StatusBadge.vue'
@@ -13,8 +15,8 @@ const auth = useAuth()
 const mode = ref<'list' | 'create' | 'detail'>('list')
 const activeTab = ref<'pending' | 'created'>('pending')
 
-const pendingOrders = ref<any[]>([])
-const createdProductions = ref<any[]>([])
+const pendingOrders = ref<Order[]>([])
+const createdProductions = ref<Production[]>([])
 const listLoading = ref(false)
 const totalCount = ref(0)
 const currentPage = ref(1)
@@ -26,14 +28,14 @@ const successMessage = ref<string | null>(null)
 const submitting = ref(false)
 const completing = ref(false)
 
-const selectedOrder = ref<any>(null)
-const orderLines = ref<any[]>([])
+const selectedOrder = ref<Order | null>(null)
+const orderLines = ref<OrderLine[]>([])
 const orderLinesLoading = ref(false)
 const selectedLineIndices = ref<number[]>([])
 const datePromised = ref(new Date().toISOString().split('T')[0])
 
-const currentProduction = ref<any>(null)
-const productionLines = ref<any[]>([])
+const currentProduction = ref<Production | null>(null)
+const productionLines = ref<ProductionLine[]>([])
 const productionLinesLoading = ref(false)
 
 const hasNextPage = computed(() => {
@@ -99,7 +101,7 @@ function nextPage() {
   }
 }
 
-async function startCreateFromOrder(order: any) {
+async function startCreateFromOrder(order: Order) {
   selectedOrder.value = order
   selectedLineIndices.value = []
   datePromised.value = new Date().toISOString().split('T')[0]
@@ -110,6 +112,9 @@ async function startCreateFromOrder(order: any) {
   mode.value = 'create'
 
   try {
+    if (!auth.token.value) {
+      throw new Error('尚未登入')
+    }
     const lines = await getOrderLines(auth.token.value, order.id)
     orderLines.value = lines
   }
@@ -139,23 +144,41 @@ async function handleCreateProduction() {
   submitting.value = true
 
   try {
+    if (!auth.token.value || !selectedOrder.value) {
+      throw new Error('資料不完整')
+    }
+
     for (const index of selectedLineIndices.value) {
       const line = orderLines.value[index]
+
+      if (!selectedOrder.value.C_BPartner_ID || !line.M_Product_ID) {
+        throw new Error('訂單明細資料不完整')
+      }
+
+      const bpartnerId = typeof selectedOrder.value.C_BPartner_ID === 'object'
+        ? selectedOrder.value.C_BPartner_ID.id
+        : selectedOrder.value.C_BPartner_ID
+
+      const productId = typeof line.M_Product_ID === 'object'
+        ? line.M_Product_ID.id
+        : line.M_Product_ID
+
+      const qtyEntered = line.QtyEntered ?? line.qtyEntered ?? 0
 
       await createProduction(
         auth.token.value,
         {
           orderId: selectedOrder.value.id,
           orderLineId: line.id,
-          bpartnerId: selectedOrder.value.C_BPartner_ID.id,
-          productId: line.M_Product_ID.id,
-          productionQty: line.QtyEntered,
+          bpartnerId,
+          productId,
+          productionQty: qtyEntered,
           datePromised: datePromised.value,
         },
         [
           {
-            productId: line.M_Product_ID.id,
-            movementQty: line.QtyEntered,
+            productId,
+            movementQty: qtyEntered,
             isEndProduct: true,
           },
         ],
@@ -176,7 +199,7 @@ async function handleCreateProduction() {
   }
 }
 
-async function viewProductionDetail(production: any) {
+async function viewProductionDetail(production: Production) {
   currentProduction.value = production
   productionLines.value = []
   error.value = null
@@ -186,6 +209,9 @@ async function viewProductionDetail(production: any) {
   mode.value = 'detail'
 
   try {
+    if (!auth.token.value) {
+      throw new Error('尚未登入')
+    }
     const lines = await getProductionLines(auth.token.value, production.id)
     productionLines.value = lines
   }
@@ -235,8 +261,11 @@ function backToList() {
   loadList()
 }
 
-function getDocStatus(order: any): string {
-  return order.DocStatus?.id ?? order.DocStatus ?? ''
+function getDocStatus(order: Order): string {
+  if (typeof order.DocStatus === 'object' && order.DocStatus !== null) {
+    return (order.DocStatus as { id: string }).id
+  }
+  return order.DocStatus ?? ''
 }
 
 watch(activeTab, () => {

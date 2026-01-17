@@ -1322,17 +1322,23 @@ onMounted(reload)
                     {{ resources.find(r => r.id === resId)?.name }}
                   </span>
                   <input
-                    :value="formatDateTimeLocal(multiResourceTimes.get(resId)?.from || '')"
+                    :value="formatDateTimeLocal(multiResourceTimes.get(resId)?.from || new Date())"
                     type="datetime-local"
                     class="rounded border border-slate-300 px-2 py-1 text-xs"
-                    @change="(e) => updateResourceTime(resId, 'from', e.target.value)"
+                    @change="(e) => {
+                      const target = e.target as HTMLInputElement
+                      updateResourceTime(resId, 'from', target.value)
+                    }"
                   >
                   <span class="text-slate-400">-</span>
                   <input
-                    :value="formatDateTimeLocal(multiResourceTimes.get(resId)?.to || '')"
+                    :value="formatDateTimeLocal(multiResourceTimes.get(resId)?.to || new Date())"
                     type="datetime-local"
                     class="rounded border border-slate-300 px-2 py-1 text-xs"
-                    @change="(e) => updateResourceTime(resId, 'to', e.target.value)"
+                    @change="(e) => {
+                      const target = e.target as HTMLInputElement
+                      updateResourceTime(resId, 'to', target.value)
+                    }"
                   >
                 </div>
               </div>
@@ -1432,7 +1438,7 @@ onMounted(reload)
           </div>
           <div class="flex items-center gap-1">
             <span class="text-slate-400">結束:</span>
-            <span>{{ formatDateTime(activePopout.assignment.to) }}</span>
+            <span>{{ formatDateTime(activePopout.assignment.to || activePopout.assignment.from) }}</span>
           </div>
         </div>
         <div class="mt-3 pt-2 border-t border-slate-100">

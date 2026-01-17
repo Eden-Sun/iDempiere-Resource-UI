@@ -244,7 +244,7 @@ watch([() => auth.token.value, () => props.field.id], () => {
     <textarea
       v-else-if="inputType === 'textarea'"
       :id="fieldId"
-      v-model="localValue"
+      v-model="localValue as string"
       :required="isRequired"
       :placeholder="field.description"
       rows="3"

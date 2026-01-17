@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { BPartnerLocation } from '../../features/bpartner/api'
+import type { Order, OrderLine, Product, Warehouse } from '../../features/order/types'
+import type { BPartner } from '../../features/payment/types'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import ErrorMessage from '../../components/ErrorMessage.vue'
@@ -26,7 +28,7 @@ const subtitle = computed(() => isPurchase.value ? '採購單' : '銷售單')
 const mode = ref<'list' | 'form'>('list')
 const editingId = ref<number | null>(null)
 
-const listRecords = ref<any[]>([])
+const listRecords = ref<Order[]>([])
 const listLoading = ref(false)
 const totalCount = ref(0)
 const currentPage = ref(1)
@@ -37,9 +39,9 @@ const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 const submitting = ref(false)
 
-const bpartners = ref<any[]>([])
-const products = ref<any[]>([])
-const warehouses = ref<any[]>([])
+const bpartners = ref<BPartner[]>([])
+const products = ref<Product[]>([])
+const warehouses = ref<Warehouse[]>([])
 const bpartnerLocations = ref<BPartnerLocation[]>([])
 const loadingLocations = ref(false)
 
@@ -206,7 +208,7 @@ function startCreate() {
   mode.value = 'form'
 }
 
-async function startEdit(record: any) {
+async function startEdit(record: Order) {
   editingId.value = record.id
   error.value = null
   successMessage.value = null
@@ -252,6 +254,7 @@ function removeLine(index: number) {
 }
 
 function updateLineTotal(_index: number) {
+  // Function placeholder for future calculation logic
 }
 
 async function handleSubmit() {

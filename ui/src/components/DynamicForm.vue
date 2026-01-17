@@ -5,6 +5,10 @@ import { useAuth } from '../features/auth/store'
 import { getFieldVisibility, getTabFieldsWithMeta, getWindowRecord, ReferenceType, setFieldVisibility } from '../features/window/api'
 import DynamicField from './DynamicField.vue'
 
+interface FieldVisibilityConfig {
+  hiddenFields?: string[]
+}
+
 const props = withDefaults(
   defineProps<{
     windowSlug: string

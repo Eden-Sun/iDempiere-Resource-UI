@@ -9,6 +9,8 @@ import {
 
 } from '../../features/request/api'
 import { apiFetch } from '../../shared/api/http'
+import { formatDate } from '../../shared/utils/datetime'
+import { getRequestStatusColor } from '../../shared/utils/format'
 
 const auth = useAuth()
 
@@ -110,16 +112,6 @@ const activeRequests = computed(() =>
   ).length,
 )
 
-function getStatusColor(statusName?: string): string {
-  const statusColors: Record<string, string> = {
-    開啟: '#10b981',
-    進行中: '#3b82f6',
-    已關閉: '#6b7280',
-    待處理: '#f59e0b',
-  }
-  return statusColors[statusName || ''] || '#3b82f6'
-}
-
 const groupedRequests = computed(() => {
   const groups = new Map<number, Request[]>()
 
@@ -177,14 +169,7 @@ function getRequestStyle(req: Request): Record<string, string> {
   const left = (startOffset / totalDays) * 100
   const width = Math.max(2, (endOffset - startOffset) / totalDays * 100)
 
-  const statusColors: Record<string, string> = {
-    開啟: '#10b981',
-    進行中: '#3b82f6',
-    已關閉: '#6b7280',
-    待處理: '#f59e0b',
-  }
-
-  const color = statusColors[req.requestStatusName || ''] || '#3b82f6'
+  const color = getRequestStatusColor(req.requestStatusName)
 
   return {
     left: `${left}%`,
@@ -192,13 +177,6 @@ function getRequestStyle(req: Request): Record<string, string> {
     backgroundColor: `${color}90`,
     borderColor: color,
   }
-}
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr)
-    return '—'
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 function getProgressPercentage(req: Request): number {
@@ -550,7 +528,7 @@ onMounted(async () => {
           <div v-for="status in requestStatuses.slice(0, 4)" :key="status.id" class="flex items-center gap-2">
             <div
               class="w-3 h-3 rounded border"
-              :style="{ backgroundColor: `${getStatusColor(status.name)}90`, borderColor: getStatusColor(status.name) }"
+              :style="{ backgroundColor: `${getRequestStatusColor(status.name)}90`, borderColor: getRequestStatusColor(status.name) }"
             />
             <span class="text-xs text-slate-600">{{ status.name }}</span>
           </div>

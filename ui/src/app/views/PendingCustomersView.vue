@@ -11,6 +11,7 @@ import {
   listRequestTypes,
   updateRequest,
 } from '../../features/request/api'
+import { formatDate } from '../../shared/utils/datetime'
 
 const auth = useAuth()
 
@@ -77,13 +78,6 @@ async function claimRequest(request: Request) {
   finally {
     submitting.value = false
   }
-}
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr)
-    return '—'
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 function openNewRequest(customer: { id: number, name: string }) {

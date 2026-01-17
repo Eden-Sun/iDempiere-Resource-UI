@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { BankAccount } from '../../features/payment/api'
+import type { BPartner, CustomerBalance, Payment } from '../../features/payment/types'
 import { computed, onMounted, ref } from 'vue'
 import ErrorMessage from '../../components/ErrorMessage.vue'
 import Pagination from '../../components/Pagination.vue'
@@ -27,7 +28,7 @@ const title = '付款單'
 const mode = ref<'list' | 'form'>('list')
 const editingId = ref<number | null>(null)
 
-const listRecords = ref<any[]>([])
+const listRecords = ref<Payment[]>([])
 const listLoading = ref(false)
 const totalCount = ref(0)
 const currentPage = ref(1)
@@ -38,14 +39,10 @@ const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 const submitting = ref(false)
 
-const customers = ref<any[]>([])
+const customers = ref<BPartner[]>([])
 const bankAccounts = ref<BankAccount[]>([])
-const customerBalance = ref<{
-  totalOutstanding: number
-  creditLimit: number
-  availableCredit: number
-} | null>(null)
-const editingRecord = ref<any>(null)
+const customerBalance = ref<CustomerBalance | null>(null)
+const editingRecord = ref<Payment | null>(null)
 
 const filter = ref({
   tenderType: '',
@@ -166,7 +163,7 @@ function onBankAccountChange() {
   }
 }
 
-function startEdit(record: any) {
+function startEdit(record: Payment) {
   editingId.value = record.id
   editingRecord.value = record
   error.value = null

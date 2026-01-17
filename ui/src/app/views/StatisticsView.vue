@@ -9,6 +9,7 @@ import {
   listRequestTypes,
 
 } from '../../features/request/api'
+import { getRequestStatusClass } from '../../shared/utils/format'
 
 const auth = useAuth()
 
@@ -33,17 +34,6 @@ function getRequestTypeName(typeId: number): string {
 function getRequestStatusName(statusId: number): string {
   const status = requestStatuses.value.find(s => s.id === statusId)
   return status?.name || `Status #${statusId}`
-}
-
-function getStatusColorClass(statusId: number): string {
-  const statusName = getRequestStatusName(statusId)
-  const map: Record<string, string> = {
-    開啟: 'bg-emerald-100 text-emerald-700',
-    進行中: 'bg-blue-100 text-blue-700',
-    已關閉: 'bg-slate-100 text-slate-700',
-    待處理: 'bg-amber-100 text-amber-700',
-  }
-  return map[statusName] || 'bg-slate-100 text-slate-700'
 }
 
 async function loadData() {
@@ -167,7 +157,7 @@ onMounted(async () => {
                   v-for="([statusId, count], idx) in Array.from(stat.byStatus.entries())"
                   :key="idx"
                   class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-                  :class="getStatusColorClass(statusId)"
+                  :class="getRequestStatusClass(getRequestStatusName(statusId))"
                 >
                   {{ getRequestStatusName(statusId) }}: {{ count }}
                 </span>

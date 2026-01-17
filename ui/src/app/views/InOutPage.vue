@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import type { OrderForReceipt, OrderLineForReceipt } from '../../features/inout/types'
 import { computed, onMounted, ref } from 'vue'
 import { useAuth } from '../../features/auth/store'
 import * as InOutAPI from '../../features/inout/api'
+import { formatDateLong } from '../../shared/utils/datetime'
 
 const auth = useAuth()
 const token = computed(() => auth.token.value)
@@ -13,21 +15,18 @@ const loading = ref(false)
 const linesLoading = ref(false)
 const submitting = ref(false)
 
-const orders = ref<any[]>([])
-const currentOrder = ref<any>(null)
-const orderLines = ref<any[]>([])
+const orders = ref<OrderForReceipt[]>([])
+const currentOrder = ref<OrderForReceipt | null>(null)
+const orderLines = ref<OrderLineForReceipt[]>([])
 const movementDate = ref(new Date().toISOString().split('T')[0])
 const orderFullyDeliveredMap = ref<Map<number, boolean>>(new Map())
 
-function formatDate(dateStr?: string): string {
-  if (!dateStr)
-    return '-'
-  return new Date(dateStr).toLocaleDateString('zh-TW')
-}
-
-function getDocStatus(order: any): string {
+function getDocStatus(order: OrderForReceipt): string {
   // Handle object { id, identifier } or plain string
-  return order.DocStatus?.id ?? order.DocStatus ?? ''
+  if (typeof order.DocStatus === 'object' && order.DocStatus !== null) {
+    return (order.DocStatus as { id: string }).id
+  }
+  return order.DocStatus ?? ''
 }
 
 function getDocStatusText(status: string): string {
@@ -43,7 +42,7 @@ function getDocStatusText(status: string): string {
 
 async function checkOrderFullyDelivered(orderId: number): Promise<boolean> {
   try {
-    const lines = await InOutAPI.getOrderLines(token.value, orderId)
+    const lines = await InOutAPI.getOrderLines(token.value || '', orderId)
     if (lines.length === 0)
       return false
 
@@ -64,7 +63,7 @@ async function loadOrders(): Promise<void> {
   loading.value = true
   error.value = ''
   try {
-    const fetchedOrders = await InOutAPI.getPendingPurchaseOrders(token.value)
+    const fetchedOrders = await InOutAPI.getPendingPurchaseOrders(token.value || '')
     orders.value = fetchedOrders
 
     // 并行检查每个订单的交付状态
@@ -91,7 +90,7 @@ function isOrderFullyDelivered(orderId: number): boolean {
   return orderFullyDeliveredMap.value.get(orderId) ?? false
 }
 
-async function viewOrder(order: any): Promise<void> {
+async function viewOrder(order: OrderForReceipt): Promise<void> {
   mode.value = 'detail'
   currentOrder.value = order
   movementDate.value = new Date().toISOString().split('T')[0]
@@ -102,7 +101,7 @@ async function loadOrderLines(orderId: number): Promise<void> {
   linesLoading.value = true
   error.value = ''
   try {
-    const lines = await InOutAPI.getOrderLines(token.value, orderId)
+    const lines = await InOutAPI.getOrderLines(token.value || '', orderId)
     orderLines.value = lines.map((l) => {
       const qtyEntered = Number(l.QtyEntered || 0)
       const qtyDelivered = Number(l.QtyDelivered || 0)
@@ -125,7 +124,7 @@ async function loadOrderLines(orderId: number): Promise<void> {
   }
 }
 
-function validateQty(line: any): void {
+function validateQty(line: OrderLineForReceipt): void {
   if (line.qtyToReceive < 0) {
     line.qtyError = '不能小於 0'
     line.qtyToReceive = 0
@@ -159,14 +158,22 @@ async function confirmReceipt(): Promise<void> {
       throw new Error('請至少輸入一項收貨數量')
     }
 
+    if (!currentOrder.value) {
+      throw new Error('訂單資料遺失')
+    }
+
     // Step 1: Get DocType for Receipt and default locator
+    const warehouseId = typeof currentOrder.value.M_Warehouse_ID === 'object' && currentOrder.value.M_Warehouse_ID !== null
+      ? currentOrder.value.M_Warehouse_ID.id
+      : currentOrder.value.M_Warehouse_ID ?? 0
+
     const [docTypeId, locatorId] = await Promise.all([
-      InOutAPI.getReceiptDocType(token.value),
-      InOutAPI.getDefaultLocator(token.value, currentOrder.value.M_Warehouse_ID?.id ?? currentOrder.value.M_Warehouse_ID),
+      InOutAPI.getReceiptDocType(token.value || ''),
+      InOutAPI.getDefaultLocator(token.value || '', warehouseId),
     ])
 
     // Step 2: Create M_InOut header
-    const inOut = await InOutAPI.createInOut(token.value, currentOrder.value, movementDate.value, docTypeId)
+    const inOut = await InOutAPI.createInOut(token.value || '', currentOrder.value, movementDate.value, docTypeId)
     const inOutId = inOut.id
 
     if (!inOutId) {
@@ -174,13 +181,16 @@ async function confirmReceipt(): Promise<void> {
     }
 
     // Step 3: Create M_InOutLine for each order line
-    const orgId = currentOrder.value.AD_Org_ID?.id ?? currentOrder.value.AD_Org_ID
+    const orgId = typeof currentOrder.value.AD_Org_ID === 'object' && currentOrder.value.AD_Org_ID !== null
+      ? currentOrder.value.AD_Org_ID.id
+      : currentOrder.value.AD_Org_ID ?? 0
+
     for (const line of linesToReceive) {
-      await InOutAPI.createInOutLine(token.value, inOutId, line, line.qtyToReceive, locatorId, orgId)
+      await InOutAPI.createInOutLine(token.value || '', inOutId, line, line.qtyToReceive, locatorId, orgId)
     }
 
     // Step 4: Complete the InOut
-    await InOutAPI.completeInOut(token.value, inOutId)
+    await InOutAPI.completeInOut(token.value || '', inOutId)
 
     successMessage.value = `收貨完成！收貨單號: ${inOut.DocumentNo || inOutId}`
     await loadOrders()
@@ -281,7 +291,7 @@ onMounted(() => {
                 {{ order.C_BPartner_ID?.identifier || '-' }}
               </td>
               <td class="px-4 py-3 text-slate-600">
-                {{ formatDate(order.DateOrdered) }}
+                {{ formatDateLong(order.DateOrdered) }}
               </td>
               <td class="px-4 py-3 text-slate-900">
                 ${{ Number(order.GrandTotal || 0).toFixed(2) }}
@@ -336,7 +346,7 @@ onMounted(() => {
           <div>
             <label class="block text-sm font-medium text-slate-600">訂單日期</label>
             <div class="mt-1 text-sm text-slate-900">
-              {{ formatDate(currentOrder?.DateOrdered) }}
+              {{ formatDateLong(currentOrder?.DateOrdered) }}
             </div>
           </div>
           <div>

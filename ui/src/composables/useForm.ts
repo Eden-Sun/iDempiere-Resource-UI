@@ -27,7 +27,7 @@ export function useForm<T extends Record<string, unknown>>(options: FormOptions<
 
     // 验证
     if (validate) {
-      const errors = validate(formData)
+      const errors = validate(formData as T)
       if (errors.length > 0) {
         error.value = errors.join('\n')
         return
@@ -37,7 +37,7 @@ export function useForm<T extends Record<string, unknown>>(options: FormOptions<
     submitting.value = true
 
     try {
-      await onSubmit(formData)
+      await onSubmit(formData as T)
       successMessage.value = '操作成功'
 
       if (onSuccess) {

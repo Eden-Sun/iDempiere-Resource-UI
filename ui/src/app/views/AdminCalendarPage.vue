@@ -3,6 +3,7 @@ import type { Resource, ResourceAssignment, ResourceType } from '../../features/
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../../features/auth/store'
 import { createAssignment, deleteAssignment, getAssignmentColors, getResourceType, listAssignmentsForRange, listResources } from '../../features/resource/api'
+import { formatDateTime, formatEventTime } from '../../shared/utils/datetime'
 
 // 事件顯示資訊（Google Calendar style）
 type CalendarEvent = ResourceAssignment & {
@@ -92,16 +93,6 @@ function confirmDeleteFromPopout() {
     deleteTarget.value = activePopout.value.assignment
     activePopout.value = null
   }
-}
-
-function formatDateTime(dateStr: string): string {
-  const d = new Date(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-function formatEventTime(dateStr: string): string {
-  const d = new Date(dateStr)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 // 顏色配置
@@ -633,7 +624,7 @@ onMounted(reload)
           </div>
           <div class="flex items-center gap-1">
             <span class="text-slate-400">結束:</span>
-            <span>{{ formatDateTime(activePopout.assignment.to) }}</span>
+            <span>{{ formatDateTime(activePopout.assignment.to || activePopout.assignment.from) }}</span>
           </div>
         </div>
         <div class="mt-3 pt-2 border-t border-slate-100">

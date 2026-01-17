@@ -9,6 +9,7 @@ import {
 
   updateRequest,
 } from '../../features/request/api'
+import { formatDateTimeLong } from '../../shared/utils/datetime'
 
 const props = defineProps<{
   showModal: boolean
@@ -38,13 +39,6 @@ const form = ref({
   startDate: '',
   closeDate: '',
 })
-
-function formatDateTime(dateStr?: string): string {
-  if (!dateStr)
-    return '—'
-  const d = new Date(dateStr)
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
 
 async function loadRequest() {
   if (!props.requestId || !auth.token.value)
@@ -114,7 +108,7 @@ function closeModal() {
 
 watch(() => props.showModal, async (show) => {
   if (show) {
-    if (requestTypes.value.length === 0) {
+    if (requestTypes.value.length === 0 && auth.token.value) {
       try {
         requestTypes.value = await listRequestTypes(auth.token.value)
         requestStatuses.value = await listRequestStatuses(auth.token.value)
@@ -234,7 +228,7 @@ watch(() => props.showModal, async (show) => {
             </div>
           </div>
           <div class="text-xs text-slate-500">
-            建立時間：{{ formatDateTime(request?.created) }}
+            建立時間：{{ formatDateTimeLong(request?.created) }}
           </div>
         </div>
 

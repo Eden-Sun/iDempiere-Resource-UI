@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { BPartner } from '../../features/bpartner/types'
 import { computed, onMounted, ref } from 'vue'
 import DynamicForm from '../../components/DynamicForm.vue'
 import { useAuth } from '../../features/auth/store'
@@ -13,7 +14,7 @@ const editingId = ref<number | null>(null)
 const editingRecord = ref<Record<string, unknown> | null>(null)
 
 // List state
-const listRecords = ref<any[]>([])
+const listRecords = ref<BPartner[]>([])
 const listLoading = ref(false)
 const totalCount = ref(0)
 const currentPage = ref(1)
@@ -107,9 +108,9 @@ function startCreate() {
   mode.value = 'form'
 }
 
-function startEdit(record: any) {
+function startEdit(record: BPartner) {
   editingId.value = record.id
-  editingRecord.value = record
+  editingRecord.value = record as unknown as Record<string, unknown>
   error.value = null
   successMessage.value = null
   mode.value = 'form'

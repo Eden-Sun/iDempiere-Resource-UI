@@ -37,11 +37,11 @@ export function useList<T>(options: ListOptions<T>) {
     error.value = null
 
     try {
-      const searchParams: Record<string, unknown> = {
+      const searchParams = {
         top: pageSize,
         skip: (currentPage.value - 1) * pageSize,
         ...filter.value,
-      }
+      } as Parameters<typeof loadFn>[0]
 
       // 添加文本搜索
       if (searchQuery.value.trim()) {
