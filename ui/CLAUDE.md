@@ -136,9 +136,13 @@ const HOUR_HEIGHT = 60 // 每小時 60px
 
 ```bash
 cd ui
-npm run dev    # http://localhost:5173/emui/
-npm run build  # 輸出 ../web-content/
+bun run dev    # http://localhost:5173/emui/
+bun run build  # 輸出 ../web-content/
+bun run lint   # ESLint 檢查
+bunx vue-tsc --noEmit  # TypeScript 類型檢查
 ```
+
+**注意**: 本專案使用 **bun** 而非 npm
 
 ---
 

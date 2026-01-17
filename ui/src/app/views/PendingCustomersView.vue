@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import type { RequestStatus, RequestType } from '../../features/request/api'
+import type { Request, RequestStatus, RequestType } from '../../features/request/api'
 import { onMounted, ref } from 'vue'
 import ErrorMessage from '../../components/ErrorMessage.vue'
 import { useAuth } from '../../features/auth/store'
 import {
   createRequest,
   getPendingCustomers,
+  getUnassignedRequests,
   listRequestStatuses,
   listRequestTypes,
-
+  updateRequest,
 } from '../../features/request/api'
 
 const auth = useAuth()
 
 const customers = ref<{ id: number, name: string }[]>([])
+const unassignedRequests = ref<Request[]>([])
 const requestTypes = ref<RequestType[]>([])
 const requestStatuses = ref<RequestStatus[]>([])
 const loading = ref(false)
@@ -40,7 +42,12 @@ async function loadData() {
   error.value = null
 
   try {
-    customers.value = await getPendingCustomers(auth.token.value)
+    const [customersResult, unassignedResult] = await Promise.all([
+      getPendingCustomers(auth.token.value),
+      getUnassignedRequests(auth.token.value),
+    ])
+    customers.value = customersResult
+    unassignedRequests.value = unassignedResult
   }
   catch (e: any) {
     error.value = e?.detail || e?.title || e?.message || '載入失敗'
@@ -48,6 +55,35 @@ async function loadData() {
   finally {
     loading.value = false
   }
+}
+
+// 接手未分配的諮詢單
+async function claimRequest(request: Request) {
+  if (!auth.token.value || !auth.userId.value)
+    return
+
+  submitting.value = true
+  error.value = null
+
+  try {
+    await updateRequest(auth.token.value, request.id, {
+      salesRepId: auth.userId.value,
+    })
+    await loadData()
+  }
+  catch (e: any) {
+    error.value = e?.detail || e?.title || e?.message || '接手失敗'
+  }
+  finally {
+    submitting.value = false
+  }
+}
+
+function formatDate(dateStr?: string): string {
+  if (!dateStr)
+    return '—'
+  const d = new Date(dateStr)
+  return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 function openNewRequest(customer: { id: number, name: string }) {
@@ -172,11 +208,63 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- Empty State -->
+    <!-- Empty State for customers -->
     <div v-if="!loading && customers.length === 0" class="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
       <p class="text-sm text-slate-600">
-        暫無可用客戶
+        所有客戶都已有諮詢記錄
       </p>
+    </div>
+
+    <!-- Unassigned Requests Section -->
+    <div class="mt-8">
+      <h2 class="text-base font-semibold text-slate-900 mb-4">
+        未分配諮詢師的諮詢單
+        <span v-if="unassignedRequests.length > 0" class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+          {{ unassignedRequests.length }}
+        </span>
+      </h2>
+
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          v-for="request in unassignedRequests"
+          :key="request.id"
+          class="rounded-lg border border-amber-200 bg-amber-50 p-4 shadow-sm hover:shadow-md transition-shadow"
+        >
+          <div class="space-y-2">
+            <div class="flex items-start justify-between">
+              <h3 class="font-medium text-slate-900">
+                {{ request.name || '未命名諮詢單' }}
+              </h3>
+              <span class="inline-flex rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium text-amber-800">
+                待分配
+              </span>
+            </div>
+            <p class="text-sm text-slate-600">
+              {{ request.bPartnerName || '未知客戶' }}
+            </p>
+            <div class="flex items-center justify-between text-xs text-slate-500">
+              <span>{{ request.requestTypeName || '—' }}</span>
+              <span>{{ formatDate(request.created) }}</span>
+            </div>
+            <div class="pt-2">
+              <button
+                class="w-full rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                :disabled="submitting"
+                @click="claimRequest(request)"
+              >
+                {{ submitting ? '處理中…' : '接手此諮詢單' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State for unassigned requests -->
+      <div v-if="!loading && unassignedRequests.length === 0" class="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
+        <p class="text-sm text-slate-600">
+          所有諮詢單都已分配諮詢師
+        </p>
+      </div>
     </div>
 
     <!-- Create Request Modal -->

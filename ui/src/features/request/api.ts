@@ -614,6 +614,79 @@ export async function getStatusesForRequestType(token: string, requestTypeId: nu
 }
 
 /**
+ * 取得未分配諮詢師的諮詢單（SalesRep_ID 為空）
+ */
+export async function getUnassignedRequests(token: string): Promise<Request[]> {
+  const allResult = await apiFetch<{ 'records': any[], 'row-count'?: number }>(
+    `${API_V1}/models/R_Request`,
+    {
+      token,
+      searchParams: {
+        $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created',
+        $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)',
+        $filter: 'SalesRep_ID eq null',
+        $orderby: 'Created desc',
+      },
+    },
+  )
+
+  let requests: Request[] = (allResult.records ?? []).map(r => ({
+    id: Number(r.id),
+    name: r.Summary ? String(r.Summary) : undefined,
+    description: r.Result ? String(r.Result) : undefined,
+    bPartnerId: Number(r.C_BPartner_ID?.id ?? r.C_BPartner_ID ?? 0),
+    bPartnerName: r.C_BPartner_ID?.name ? String(r.C_BPartner_ID.name) : (r.C_BPartner_ID?.identifier ? String(r.C_BPartner_ID.identifier) : undefined),
+    salesRepId: r.SalesRep_ID?.id ? Number(r.SalesRep_ID.id) : undefined,
+    salesRepName: r.SalesRep_ID?.name ? String(r.SalesRep_ID.name) : (r.SalesRep_ID?.identifier ? String(r.SalesRep_ID.identifier) : undefined),
+    requestTypeId: r.R_RequestType_ID?.id ? Number(r.R_RequestType_ID.id) : undefined,
+    requestTypeName: r.R_RequestType_ID?.name ? String(r.R_RequestType_ID.name) : (r.R_RequestType_ID?.identifier ? String(r.R_RequestType_ID.identifier) : undefined),
+    requestStatusId: r.R_Status_ID?.id ? Number(r.R_Status_ID.id) : undefined,
+    requestStatusName: r.R_Status_ID?.name ? String(r.R_Status_ID.name) : (r.R_Status_ID?.identifier ? String(r.R_Status_ID.identifier) : undefined),
+    startDate: r.StartDate ? String(r.StartDate) : undefined,
+    closeDate: r.CloseDate ? String(r.CloseDate) : undefined,
+    created: String(r.Created),
+  }))
+
+  // 查询客户名称
+  const bPartnerIds = Array.from(new Set(requests.filter(r => r.bPartnerId > 0).map(r => r.bPartnerId)))
+  if (bPartnerIds.length > 0) {
+    try {
+      const bpFilter = bPartnerIds.map(id => `C_BPartner_ID eq ${id}`).join(' or ')
+      const bpRes = await apiFetch<{ records: any[] }>(
+        `${API_V1}/models/C_BPartner`,
+        {
+          token,
+          searchParams: {
+            $select: 'C_BPartner_ID,Name',
+            $filter: bpFilter,
+          },
+        },
+      )
+
+      const bpNameMap = new Map<number, string>()
+      for (const bp of bpRes.records ?? []) {
+        const id = Number(bp.id)
+        const name = String(bp.Name || '')
+        if (id > 0 && name) {
+          bpNameMap.set(id, name)
+        }
+      }
+
+      for (const req of requests) {
+        if (req.bPartnerId > 0 && bpNameMap.has(req.bPartnerId)) {
+          req.bPartnerName = bpNameMap.get(req.bPartnerId)
+        }
+      }
+    }
+    catch (e) {
+      console.warn('Failed to load business partner names:', e)
+    }
+  }
+
+  return requests
+}
+
+/**
  * 取得待接應客戶（從未諮詢過的客戶）
  */
 export async function getPendingCustomers(token: string): Promise<{ id: number, name: string }[]> {
