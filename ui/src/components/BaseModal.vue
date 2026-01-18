@@ -81,12 +81,15 @@ const sizeClasses = {
         >
           <div
             v-if="modelValue"
+            role="dialog"
+            aria-modal="true"
+            :aria-labelledby="title ? 'modal-title' : undefined"
             class="modal-box w-11/12"
             :class="sizeClasses[size]"
           >
             <!-- Header -->
             <div v-if="title" class="mb-4 flex items-center justify-between">
-              <h3 class="text-lg font-bold">{{ title }}</h3>
+              <h3 id="modal-title" class="text-lg font-bold">{{ title }}</h3>
               <button
                 type="button"
                 class="btn btn-sm btn-circle btn-ghost"

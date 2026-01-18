@@ -2,8 +2,18 @@ import type { Session } from './types'
 import { computed, ref } from 'vue'
 
 const STORAGE_KEY = 'idempiere.resource.session.v1'
+const REMEMBER_KEY = 'idempiere.resource.remember.v1'
 
 const session = ref<Session | null>(null)
+
+export interface RememberData {
+  userName?: string
+  clientId?: number
+  roleId?: number
+  organizationId?: number
+  warehouseId?: number
+  language?: string
+}
 
 /**
  * Decode JWT token payload (without verification - for display only)
@@ -64,6 +74,27 @@ export function useAuth() {
     localStorage.removeItem(STORAGE_KEY)
   }
 
+  function saveRemember(data: RememberData) {
+    localStorage.setItem(REMEMBER_KEY, JSON.stringify(data))
+  }
+
+  function loadRemember(): RememberData | null {
+    const raw = localStorage.getItem(REMEMBER_KEY)
+    if (!raw)
+      return null
+    try {
+      return JSON.parse(raw) as RememberData
+    }
+    catch {
+      localStorage.removeItem(REMEMBER_KEY)
+      return null
+    }
+  }
+
+  function clearRemember() {
+    localStorage.removeItem(REMEMBER_KEY)
+  }
+
   return {
     session,
     isAuthenticated,
@@ -79,5 +110,8 @@ export function useAuth() {
     load,
     set,
     clear,
+    saveRemember,
+    loadRemember,
+    clearRemember,
   }
 }

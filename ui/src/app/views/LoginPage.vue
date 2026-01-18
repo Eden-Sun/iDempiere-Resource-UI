@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ClientOption, NamedId } from '../../features/auth/types'
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getClientLanguage, getOrganizations, getRoles, getWarehouses, login, setLoginParameters } from '../../features/auth/api'
 import { useAuth } from '../../features/auth/store'
@@ -20,6 +20,9 @@ const permission = usePermission()
 const language = ref<string>('zh_TW')
 const selectRole = ref(false)
 const rememberMe = ref(false)
+
+// Remembered selections to restore after clients load
+const rememberedData = ref<{ clientId?: number, roleId?: number, organizationId?: number, warehouseId?: number } | null>(null)
 
 // Role selection fields
 const clients = ref<ClientOption[]>([])
@@ -55,9 +58,14 @@ watch([clientId, selectRole], async ([id, shouldSelect]) => {
     language.value = lang.language || language.value
     roles.value = await getRoles(id, tempRes.token)
 
-    // Preselect first role if only one
-    if (roles.value.length === 1)
+    // Auto-select remembered role if available
+    if (rememberedData.value?.roleId && roles.value.some(r => r.id === rememberedData.value!.roleId)) {
+      roleId.value = rememberedData.value.roleId
+    }
+    // Otherwise preselect first role if only one
+    else if (roles.value.length === 1) {
       roleId.value = roles.value[0].id
+    }
   }
   catch (e: any) {
     error.value = e?.detail || e?.title || '載入角色失敗'
@@ -83,9 +91,14 @@ watch([roleId, clientId, selectRole], async ([rid, cid, shouldSelect]) => {
 
     organizations.value = await getOrganizations(cid, rid, tempRes.token)
 
-    // Preselect first organization if only one
-    if (organizations.value.length === 1)
+    // Auto-select remembered organization if available
+    if (rememberedData.value?.organizationId && organizations.value.some(o => o.id === rememberedData.value!.organizationId)) {
+      organizationId.value = rememberedData.value.organizationId
+    }
+    // Otherwise preselect first organization if only one
+    else if (organizations.value.length === 1) {
       organizationId.value = organizations.value[0].id
+    }
   }
   catch (e: any) {
     error.value = e?.detail || e?.title || '載入組織失敗'
@@ -108,6 +121,11 @@ watch([organizationId, clientId, roleId, selectRole], async ([oid, cid, rid, sho
       throw new Error('Failed to get temporary token')
 
     warehouses.value = await getWarehouses(cid, rid, oid, tempRes.token)
+
+    // Auto-select remembered warehouse if available
+    if (rememberedData.value?.warehouseId && warehouses.value.some(w => w.id === rememberedData.value!.warehouseId)) {
+      warehouseId.value = rememberedData.value.warehouseId
+    }
   }
   catch {
     // warehouse is optional; don't show error
@@ -138,9 +156,14 @@ watch(selectRole, async (shouldSelect) => {
 
     clients.value = tempRes.clients ?? []
 
-    // Preselect first client if only one
-    if (clients.value.length === 1)
+    // Auto-select remembered client if available
+    if (rememberedData.value?.clientId && clients.value.some(c => c.id === rememberedData.value!.clientId)) {
+      clientId.value = rememberedData.value.clientId
+    }
+    // Otherwise preselect first client if only one
+    else if (clients.value.length === 1) {
       clientId.value = clients.value[0].id
+    }
   }
   catch (e: any) {
     error.value = e?.detail || e?.title || '載入客戶失敗'
@@ -232,6 +255,21 @@ async function onSubmitLogin() {
       language: finalRes.language || language.value,
     })
 
+    // Save or clear remember data based on checkbox
+    if (rememberMe.value) {
+      auth.saveRemember({
+        userName: userName.value.trim(),
+        clientId: finalClientId,
+        roleId: finalRoleId,
+        organizationId: finalOrgId,
+        warehouseId: finalWarehouseId ?? undefined,
+        language: language.value,
+      })
+    }
+    else {
+      auth.clearRemember()
+    }
+
     // Load permissions
     await permission.loadPermissions(
       finalRes.token,
@@ -262,6 +300,31 @@ function onHelp() {
   // TODO: Implement help functionality
   window.open('https://wiki.idempiere.org/en/Login_Help', '_blank')
 }
+
+// Load remembered data on mount
+onMounted(() => {
+  const remembered = auth.loadRemember()
+  if (remembered) {
+    rememberMe.value = true
+    if (remembered.userName) {
+      userName.value = remembered.userName
+    }
+    if (remembered.language) {
+      language.value = remembered.language
+    }
+    // Store remembered selections to apply after clients load
+    if (remembered.clientId) {
+      rememberedData.value = {
+        clientId: remembered.clientId,
+        roleId: remembered.roleId,
+        organizationId: remembered.organizationId,
+        warehouseId: remembered.warehouseId,
+      }
+      // Auto-enable selectRole mode to show the selection UI
+      selectRole.value = true
+    }
+  }
+})
 </script>
 
 <template>

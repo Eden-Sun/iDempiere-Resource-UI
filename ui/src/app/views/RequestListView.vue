@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { Request, RequestStatus, RequestType } from '../../features/request/api'
 import { onMounted, ref } from 'vue'
+import EmptyState from '../../components/EmptyState.vue'
+import TableSkeleton from '../../components/TableSkeleton.vue'
 import { useAuth } from '../../features/auth/store'
 import {
   deleteRequest,
@@ -10,9 +12,9 @@ import {
   listRequestTypes,
 
 } from '../../features/request/api'
-import RequestDetailModal from './RequestDetailModal.vue'
 import { formatDateTimeLong } from '../../shared/utils/datetime'
 import { getRequestStatusClass } from '../../shared/utils/format'
+import RequestDetailModal from './RequestDetailModal.vue'
 
 const auth = useAuth()
 
@@ -290,46 +292,36 @@ onMounted(async () => {
       <table class="w-full text-sm">
         <thead class="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
           <tr>
-            <th class="px-4 py-3">
+            <th scope="col" class="px-4 py-3">
               諮詢單
             </th>
-            <th class="px-4 py-3">
+            <th scope="col" class="px-4 py-3">
               客戶
             </th>
-            <th class="px-4 py-3">
+            <th scope="col" class="px-4 py-3">
               最後聯繫
             </th>
-            <th class="px-4 py-3">
+            <th scope="col" class="px-4 py-3">
               諮詢師
             </th>
-            <th class="px-4 py-3">
+            <th scope="col" class="px-4 py-3">
               Type
             </th>
-            <th class="px-4 py-3">
+            <th scope="col" class="px-4 py-3">
               Status
             </th>
-            <th class="px-4 py-3">
+            <th scope="col" class="px-4 py-3">
               諮詢開始
             </th>
-            <th class="px-4 py-3">
+            <th scope="col" class="px-4 py-3">
               諮詢結束
             </th>
-            <th class="px-4 py-3 text-right">
+            <th scope="col" class="px-4 py-3 text-right">
               操作
             </th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-200">
-          <tr v-if="loading">
-            <td colspan="8" class="px-4 py-8 text-center text-slate-500">
-              載入中...
-            </td>
-          </tr>
-          <tr v-else-if="requests.length === 0">
-            <td colspan="8" class="px-4 py-8 text-center text-slate-500">
-              無資料
-            </td>
-          </tr>
+        <tbody v-if="!loading" class="divide-y divide-slate-200">
           <template v-for="req in requests" :key="req.id">
             <tr
               class="hover:bg-slate-50 cursor-pointer"
@@ -411,7 +403,18 @@ onMounted(async () => {
           </template>
         </tbody>
       </table>
+
+      <!-- Loading Skeleton -->
+      <TableSkeleton v-if="loading" :rows="10" :columns="9" />
     </div>
+
+    <!-- Empty State -->
+    <EmptyState
+      v-if="!loading && requests.length === 0"
+      icon="document"
+      title="尚無諮詢單"
+      description="目前沒有符合篩選條件的諮詢單。請調整搜尋條件或新增諮詢單。"
+    />
 
     <!-- Pagination -->
     <div class="flex items-center justify-between">

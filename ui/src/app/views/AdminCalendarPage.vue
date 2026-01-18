@@ -3,7 +3,7 @@ import type { Resource, ResourceAssignment, ResourceType } from '../../features/
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAuth } from '../../features/auth/store'
 import { createAssignment, deleteAssignment, getAssignmentColors, getResourceType, listAssignmentsForRange, listResources } from '../../features/resource/api'
-import { formatDateTime, formatEventTime } from '../../shared/utils/datetime'
+import { formatDateTime, formatEventTime, getWeekEnd, getWeekStart } from '../../shared/utils/datetime'
 
 // 事件顯示資訊（Google Calendar style）
 type CalendarEvent = ResourceAssignment & {
@@ -117,12 +117,26 @@ function getAssignmentColor(assignmentId: number, resourceId: number): string {
   return assignmentColors.value.get(assignmentId) || getResourceColor(resourceId)
 }
 
-const now = new Date()
-const weekStart = new Date(now)
-weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-weekStart.setHours(0, 0, 0, 0)
-const weekEnd = new Date(weekStart)
-weekEnd.setDate(weekStart.getDate() + 7)
+// Week navigation
+const currentWeekStart = ref(getWeekStart(new Date()))
+const weekStart = computed(() => currentWeekStart.value)
+const weekEnd = computed(() => getWeekEnd(currentWeekStart.value))
+
+function prevWeek() {
+  const newStart = new Date(currentWeekStart.value)
+  newStart.setDate(newStart.getDate() - 7)
+  currentWeekStart.value = newStart
+}
+
+function nextWeek() {
+  const newStart = new Date(currentWeekStart.value)
+  newStart.setDate(newStart.getDate() + 7)
+  currentWeekStart.value = newStart
+}
+
+function goToToday() {
+  currentWeekStart.value = getWeekStart(new Date())
+}
 
 // 預設時間範圍（若資源類型無設定時使用）
 const DEFAULT_HOUR_START = 9
@@ -219,8 +233,8 @@ const timeSlots = computed<TimeSlot[]>(() => {
 const allWeekDays = computed(() => {
   const days = ['一', '二', '三', '四', '五', '六', '日']
   return days.map((label, i) => {
-    const d = new Date(weekStart)
-    d.setDate(weekStart.getDate() + i)
+    const d = new Date(weekStart.value)
+    d.setDate(weekStart.value.getDate() + i)
     return { key: `d${i}`, label: `週${label}`, date: `${d.getMonth() + 1}/${d.getDate()}`, dateObj: new Date(d), dayIndex: i }
   })
 })
@@ -370,7 +384,7 @@ async function loadAll() {
   const allAssignmentIds: number[] = []
   await Promise.all(
     resources.value.map(async (r) => {
-      const list = await listAssignmentsForRange(auth.token.value!, r.id, weekStart, weekEnd)
+      const list = await listAssignmentsForRange(auth.token.value!, r.id, weekStart.value, weekEnd.value)
       map.set(r.id, list)
       allAssignmentIds.push(...list.map(a => a.id))
     }),
@@ -452,6 +466,11 @@ watch([selectedResourceId, newResourceId], () => {
   }
 })
 
+// Watch for week changes to reload data
+watch(currentWeekStart, () => {
+  reload()
+})
+
 onMounted(reload)
 </script>
 
@@ -477,6 +496,29 @@ onMounted(reload)
               {{ r.name }}
             </option>
           </select>
+          <div class="flex items-center gap-2">
+            <button
+              class="btn btn-sm btn-ghost"
+              :disabled="loading"
+              @click="prevWeek"
+            >
+              &lt; 上週
+            </button>
+            <button
+              class="btn btn-sm btn-ghost"
+              :disabled="loading"
+              @click="goToToday"
+            >
+              今天
+            </button>
+            <button
+              class="btn btn-sm btn-ghost"
+              :disabled="loading"
+              @click="nextWeek"
+            >
+              下週 &gt;
+            </button>
+          </div>
           <div class="text-xs text-slate-500">
             {{ weekStart.toLocaleDateString() }} ～ {{ weekEnd.toLocaleDateString() }}
           </div>

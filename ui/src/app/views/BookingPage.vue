@@ -26,6 +26,7 @@ import {
   parseTimeString,
 } from '../../shared/utils/datetime'
 import { getErrorMessage } from '../../shared/utils/error'
+import LoadingButton from '../../components/LoadingButton.vue'
 
 // 事件顯示資訊（Google Calendar style）
 type CalendarEvent = ResourceAssignment & {
@@ -256,9 +257,9 @@ const popoutStyle = computed(() => {
 })
 
 // 時間相關
-const now = new Date()
-const weekStart = getWeekStart(now)
-const weekEnd = getWeekEnd(weekStart)
+const currentWeekStart = ref(getWeekStart(new Date()))
+const weekStart = computed(() => currentWeekStart.value)
+const weekEnd = computed(() => getWeekEnd(currentWeekStart.value))
 
 interface WeekDay {
   key: string
@@ -357,10 +358,11 @@ const timeSlots = computed<TimeSlot[]>(() => {
 const weekDays = computed<WeekDay[]>(() => {
   const dayLabels = ['日', '一', '二', '三', '四', '五', '六']
   const days: WeekDay[] = []
+  const start = weekStart.value
 
   for (let i = 0; i < 7; i++) {
-    const d = new Date(weekStart)
-    d.setDate(weekStart.getDate() + i)
+    const d = new Date(start)
+    d.setDate(start.getDate() + i)
     const dow = d.getDay()
     days.push({
       key: `d${i}`,
@@ -683,6 +685,7 @@ function onDayGridClick(e: MouseEvent, day: WeekDay) {
     return
 
   // 檢查是否過去時間（選擇開始時間時）
+  const now = new Date()
   if (selectionMode.value !== 'end' && slotStart < now)
     return
 
@@ -854,6 +857,23 @@ function updateResourceTime(resourceId: number, field: 'from' | 'to', value: str
   error.value = null
 }
 
+// 週導航功能
+function prevWeek() {
+  const newStart = new Date(currentWeekStart.value)
+  newStart.setDate(newStart.getDate() - 7)
+  currentWeekStart.value = newStart
+}
+
+function nextWeek() {
+  const newStart = new Date(currentWeekStart.value)
+  newStart.setDate(newStart.getDate() + 7)
+  currentWeekStart.value = newStart
+}
+
+function goToToday() {
+  currentWeekStart.value = getWeekStart(new Date())
+}
+
 async function loadResources() {
   if (!auth.token.value)
     return
@@ -902,7 +922,7 @@ async function loadAllAssignments() {
   await Promise.all(
     selectedResourceIds.value.map(async (resId) => {
       try {
-        const list = await listAssignmentsForRange(auth.token.value!, resId, weekStart, weekEnd)
+        const list = await listAssignmentsForRange(auth.token.value!, resId, weekStart.value, weekEnd.value)
         map.set(resId, list)
         allAssignmentIds.push(...list.map(a => a.id))
       }
@@ -979,7 +999,7 @@ async function exportCSV() {
   error.value = null
 
   try {
-    const data = await getAllAssignmentsForExport(auth.token.value, weekStart, weekEnd)
+    const data = await getAllAssignmentsForExport(auth.token.value, weekStart.value, weekEnd.value)
 
     if (data.length === 0) {
       error.value = '本週無預約資料可匯出'
@@ -1004,7 +1024,7 @@ async function exportCSV() {
     const url = URL.createObjectURL(blob)
 
     link.setAttribute('href', url)
-    link.setAttribute('download', `預約匯出_${weekStart.toISOString().split('T')[0]}_${weekEnd.toISOString().split('T')[0]}.csv`)
+    link.setAttribute('download', `預約匯出_${weekStart.value.toISOString().split('T')[0]}_${weekEnd.value.toISOString().split('T')[0]}.csv`)
     link.style.visibility = 'hidden'
 
     document.body.appendChild(link)
@@ -1022,6 +1042,11 @@ async function exportCSV() {
 watch(selectedResourceIds, async () => {
   await reloadForSelectedResources()
 }, { deep: true })
+
+watch(currentWeekStart, async () => {
+  resetSelection()
+  await loadAllAssignments()
+})
 
 onMounted(reload)
 </script>
@@ -1152,13 +1177,35 @@ onMounted(reload)
       <!-- Google Calendar Style Grid -->
       <div v-if="selectedResources.length > 0 && commonResourceType && hasAllBusinessHours" class="mt-6">
         <div class="mb-3 flex items-center justify-between">
-          <div class="text-sm font-semibold text-slate-900">
-            本週時段
-          </div>
           <div class="flex items-center gap-3">
+            <div class="text-sm font-semibold text-slate-900">
+              本週時段
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                class="btn btn-sm btn-ghost"
+                @click="prevWeek"
+              >
+                &lt; 上週
+              </button>
+              <button
+                class="btn btn-sm btn-outline"
+                @click="goToToday"
+              >
+                今天
+              </button>
+              <button
+                class="btn btn-sm btn-ghost"
+                @click="nextWeek"
+              >
+                下週 &gt;
+              </button>
+            </div>
             <div class="text-xs text-slate-500">
               {{ weekStart.toLocaleDateString() }} ～ {{ weekEnd.toLocaleDateString() }}
             </div>
+          </div>
+          <div class="flex items-center gap-3">
             <button
               v-if="!selectionMode"
               class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
@@ -1287,6 +1334,7 @@ onMounted(reload)
             </h3>
             <button
               class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              aria-label="關閉對話框"
               @click="resetSelection"
             >
               <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1390,13 +1438,15 @@ onMounted(reload)
           </div>
 
           <div class="mt-6 flex gap-3">
-            <button
-              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-              :disabled="submitting || !bookingName.trim() || selectedResourceIds.length === 0"
+            <LoadingButton
+              class="flex-1 text-sm font-semibold"
+              :loading="submitting"
+              :disabled="!bookingName.trim() || selectedResourceIds.length === 0"
+              variant="primary"
               @click="submitBooking"
             >
-              {{ submitting ? '送出中…' : `確認預約${selectedResourceIds.length > 1 ? ` (${selectedResourceIds.length}個)` : ''}` }}
-            </button>
+              確認預約{{ selectedResourceIds.length > 1 ? ` (${selectedResourceIds.length}個)` : '' }}
+            </LoadingButton>
             <button
               class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               @click="resetSelection"
@@ -1466,6 +1516,7 @@ onMounted(reload)
             </h3>
             <button
               class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              aria-label="關閉對話框"
               @click="closeEditModal"
             >
               <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

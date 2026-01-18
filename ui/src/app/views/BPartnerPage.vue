@@ -2,6 +2,8 @@
 import type { BPartner } from '../../features/bpartner/types'
 import { computed, onMounted, ref } from 'vue'
 import DynamicForm from '../../components/DynamicForm.vue'
+import EmptyState from '../../components/EmptyState.vue'
+import TableSkeleton from '../../components/TableSkeleton.vue'
 import { useAuth } from '../../features/auth/store'
 import { createWindowRecord } from '../../features/window/api'
 import { apiFetch } from '../../shared/api/http'
@@ -250,34 +252,24 @@ onMounted(() => {
         <table class="w-full text-sm">
           <thead class="bg-slate-50 text-left text-xs font-medium uppercase text-slate-500">
             <tr>
-              <th class="px-4 py-3">
+              <th scope="col" class="px-4 py-3">
                 名稱
               </th>
-              <th class="px-4 py-3">
+              <th scope="col" class="px-4 py-3">
                 搜尋鍵
               </th>
-              <th class="px-4 py-3">
+              <th scope="col" class="px-4 py-3">
                 客戶
               </th>
-              <th class="px-4 py-3">
+              <th scope="col" class="px-4 py-3">
                 供應商
               </th>
-              <th class="px-4 py-3">
+              <th scope="col" class="px-4 py-3">
                 操作
               </th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-200">
-            <tr v-if="listLoading">
-              <td colspan="5" class="px-4 py-8 text-center text-slate-500">
-                載入中...
-              </td>
-            </tr>
-            <tr v-else-if="listRecords.length === 0">
-              <td colspan="5" class="px-4 py-8 text-center text-slate-500">
-                無資料
-              </td>
-            </tr>
+          <tbody v-if="!listLoading" class="divide-y divide-slate-200">
             <tr
               v-for="record in listRecords"
               :key="record.id"
@@ -318,7 +310,20 @@ onMounted(() => {
             </tr>
           </tbody>
         </table>
+
+        <!-- Loading Skeleton -->
+        <TableSkeleton v-if="listLoading" :rows="10" :columns="5" />
       </div>
+
+      <!-- Empty State -->
+      <EmptyState
+        v-if="!listLoading && listRecords.length === 0"
+        icon="users"
+        title="尚無業務夥伴"
+        description="目前沒有符合條件的業務夥伴。您可以新增業務夥伴或調整搜尋條件。"
+        action-text="新增業務夥伴"
+        @action="startCreate"
+      />
 
       <!-- Pagination -->
       <div class="flex items-center justify-between border-t border-slate-200 px-4 py-3">
