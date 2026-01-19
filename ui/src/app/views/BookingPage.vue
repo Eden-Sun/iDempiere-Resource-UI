@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Resource, ResourceAssignment, ResourceType } from '../../features/resource/api'
 import { computed, onMounted, ref, watch } from 'vue'
+import LoadingButton from '../../components/LoadingButton.vue'
 import { useAuth } from '../../features/auth/store'
 import { usePermission } from '../../features/permission/store'
 import {
@@ -26,7 +27,6 @@ import {
   parseTimeString,
 } from '../../shared/utils/datetime'
 import { getErrorMessage } from '../../shared/utils/error'
-import LoadingButton from '../../components/LoadingButton.vue'
 
 // 事件顯示資訊（Google Calendar style）
 type CalendarEvent = ResourceAssignment & {

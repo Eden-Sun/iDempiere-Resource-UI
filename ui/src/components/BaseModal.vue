@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 
 interface Props {
   modelValue: boolean
@@ -8,24 +8,24 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  size: 'md'
+  size: 'md',
 })
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
 }>()
 
-const close = () => {
+function close() {
   emit('update:modelValue', false)
 }
 
-const handleBackdropClick = (e: MouseEvent) => {
+function handleBackdropClick(e: MouseEvent) {
   if (e.target === e.currentTarget) {
     close()
   }
 }
 
-const handleEscape = (e: KeyboardEvent) => {
+function handleEscape(e: KeyboardEvent) {
   if (e.key === 'Escape' && props.modelValue) {
     close()
   }
@@ -43,7 +43,8 @@ onUnmounted(() => {
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     document.body.style.overflow = 'hidden'
-  } else {
+  }
+  else {
     document.body.style.overflow = ''
   }
 })
@@ -52,7 +53,7 @@ const sizeClasses = {
   sm: 'max-w-sm',
   md: 'max-w-2xl',
   lg: 'max-w-4xl',
-  xl: 'max-w-6xl'
+  xl: 'max-w-6xl',
 }
 </script>
 
@@ -89,12 +90,14 @@ const sizeClasses = {
           >
             <!-- Header -->
             <div v-if="title" class="mb-4 flex items-center justify-between">
-              <h3 id="modal-title" class="text-lg font-bold">{{ title }}</h3>
+              <h3 id="modal-title" class="text-lg font-bold">
+                {{ title }}
+              </h3>
               <button
                 type="button"
                 class="btn btn-sm btn-circle btn-ghost"
-                @click="close"
                 aria-label="Close modal"
+                @click="close"
               >
                 ✕
               </button>
@@ -103,8 +106,8 @@ const sizeClasses = {
               v-else
               type="button"
               class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-              @click="close"
               aria-label="Close modal"
+              @click="close"
             >
               ✕
             </button>

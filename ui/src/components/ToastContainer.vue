@@ -3,22 +3,22 @@ import { useToast } from '../composables/useToast'
 
 const { toasts, remove } = useToast()
 
-const getAlertClass = (type: string) => {
+function getAlertClass(type: string) {
   const classes: Record<string, string> = {
     success: 'alert-success',
     error: 'alert-error',
     info: 'alert-info',
-    warning: 'alert-warning'
+    warning: 'alert-warning',
   }
   return classes[type] || 'alert-info'
 }
 
-const getIcon = (type: string) => {
+function getIcon(type: string) {
   const icons: Record<string, string> = {
     success: '✓',
     error: '✕',
     info: 'ⓘ',
-    warning: '⚠'
+    warning: '⚠',
   }
   return icons[type] || 'ⓘ'
 }
@@ -38,17 +38,17 @@ const getIcon = (type: string) => {
       <div
         v-for="toast in toasts"
         :key="toast.id"
-        :class="['alert shadow-lg min-w-[320px] max-w-md', getAlertClass(toast.type)]"
-        class="relative backdrop-blur-sm"
+        :class="[getAlertClass(toast.type)]"
+        class="relative backdrop-blur-sm alert shadow-lg min-w-[320px] max-w-md"
       >
         <div class="flex items-center gap-3 flex-1">
           <span class="text-xl font-bold">{{ getIcon(toast.type) }}</span>
           <span class="text-sm font-medium">{{ toast.message }}</span>
         </div>
         <button
-          @click="remove(toast.id)"
           class="btn btn-sm btn-circle btn-ghost absolute -top-1 -right-1 opacity-60 hover:opacity-100"
           aria-label="Close"
+          @click="remove(toast.id)"
         >
           ✕
         </button>

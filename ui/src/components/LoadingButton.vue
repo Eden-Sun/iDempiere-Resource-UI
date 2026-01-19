@@ -1,15 +1,3 @@
-<template>
-  <button
-    :type="type"
-    :disabled="loading || disabled"
-    :class="buttonClasses"
-    @click="$emit('click', $event)"
-  >
-    <span v-if="loading" class="loading loading-spinner"></span>
-    <slot />
-  </button>
-</template>
-
 <script setup lang="ts">
 import { computed } from 'vue'
 
@@ -26,7 +14,7 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   type: 'button',
   variant: 'primary',
-  size: 'md'
+  size: 'md',
 })
 
 defineEmits<{
@@ -68,3 +56,15 @@ const buttonClasses = computed(() => {
   return classes.join(' ')
 })
 </script>
+
+<template>
+  <button
+    :type="type"
+    :disabled="loading || disabled"
+    :class="buttonClasses"
+    @click="$emit('click', $event)"
+  >
+    <span v-if="loading" class="loading loading-spinner" />
+    <slot />
+  </button>
+</template>

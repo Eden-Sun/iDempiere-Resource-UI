@@ -99,7 +99,7 @@ function shouldExcludeField(f: TabField): boolean {
     'SO_CreditUsed_Invoiced',
     'SO_CreditUsed_Unconfirmed',
     'OpenBalance',
-    'TotalOpenBalance'
+    'TotalOpenBalance',
   ]
   if (creditFields.includes(colName))
     return true

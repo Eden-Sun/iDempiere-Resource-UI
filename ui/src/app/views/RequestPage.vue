@@ -1,16 +1,11 @@
 <script setup lang="ts">
-import type { BPartner } from '../../features/bpartner/api'
-import type { RequestStatus, RequestType } from '../../features/request/api'
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
+import DynamicForm from '../../components/DynamicForm.vue'
 import { useAuth } from '../../features/auth/store'
-import { listBPartners } from '../../features/bpartner/api'
 import {
   createRequestFromDynamicForm,
-  listRequestStatuses,
-  listRequestTypes,
 
 } from '../../features/request/api'
-import DynamicForm from '../../components/DynamicForm.vue'
 import CustomerDetailView from './CustomerDetailView.vue'
 import GanttChartView from './GanttChartView.vue'
 import KanbanBoardView from './KanbanBoardView.vue'
@@ -35,9 +30,6 @@ const activeTab = ref<TabId>('list')
 
 const auth = useAuth()
 const showModal = ref(false)
-const customers = ref<BPartner[]>([])
-const requestTypes = ref<RequestType[]>([])
-const requestStatuses = ref<RequestStatus[]>([])
 const dynamicFormRef = ref<InstanceType<typeof DynamicForm>>()
 
 function openModal() {
@@ -64,7 +56,7 @@ async function submitDynamicForm(formData: Record<string, unknown>) {
   }
   catch (e: any) {
     const errorMsg = e?.detail || e?.title || e?.message || '未知錯誤'
-    
+
     // Try to extract missing mandatory fields from error
     if (dynamicFormRef.value && errorMsg.includes('mandatory')) {
       const missingFields = dynamicFormRef.value.getMissingMandatoryFields()
@@ -73,15 +65,10 @@ async function submitDynamicForm(formData: Record<string, unknown>) {
         return
       }
     }
-    
+
     alert(`建立失敗：${errorMsg}`)
   }
 }
-
-onMounted(async () => {
-  // DynamicForm handles its own data loading
-  // No need to pre-load customers, request types, and statuses here
-})
 </script>
 
 <template>

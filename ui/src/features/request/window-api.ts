@@ -1,12 +1,11 @@
+import type { FieldColumn, TabField } from '../window/api'
 import { apiFetch } from '../../shared/api/http'
-import type { TabField, FieldColumn } from '../window/api'
 import { ReferenceType } from '../window/api'
 
 const API_V1 = '/api/v1'
 
 export async function getRequestTabFields(
   token: string,
-  language?: string,
 ): Promise<TabField[]> {
   // Try to fetch AD_Table for R_Request to derive fields dynamically
   let tableId: number | null = null
@@ -20,12 +19,14 @@ export async function getRequestTabFields(
     })
     if (tableRes.records && tableRes.records.length > 0 && typeof tableRes.records[0].AD_Table_ID === 'number') {
       tableId = tableRes.records[0].AD_Table_ID
-    } else {
+    }
+    else {
       // Fallback if not found
       console.warn('R_Request AD_Table_ID not found in response, using fallback fields')
       return getBasicRequestFields()
     }
-  } catch {
+  }
+  catch {
     // Fallback on error
     console.warn('Error fetching AD_Table for R_Request, using fallback fields')
     return getBasicRequestFields()
@@ -39,13 +40,14 @@ export async function getRequestTabFields(
         searchParams: {
           $filter: `AD_Table_ID eq ${tableId} and IsActive eq true`,
           $select: 'AD_Column_ID,ColumnName,Name,Description,Help,FieldLength,IsMandatory,IsKey,IsParent,AD_Reference_ID,AD_Reference_Value_ID',
-          $orderby: 'ColumnSQL, IsIdentifier desc'
-        }
+          $orderby: 'ColumnSQL, IsIdentifier desc',
+        },
       })
       const fields: TabField[] = []
       let seq = 10
       for (const c of cols.records ?? []) {
-        if (!c?.ColumnName) continue
+        if (!c?.ColumnName)
+          continue
         fields.push({
           id: c.AD_Column_ID ?? (100000 + seq),
           uid: `field_${c.ColumnName}`,
@@ -64,13 +66,14 @@ export async function getRequestTabFields(
             isKey: c.IsKey ?? false,
             isParent: c.IsParent ?? false,
             referenceId: c.AD_Reference_ID,
-            referenceValueId: c.AD_Reference_Value_ID
-          } as FieldColumn
+            referenceValueId: c.AD_Reference_Value_ID,
+          } as FieldColumn,
         } as TabField)
         seq += 10
       }
       return fields.length ? fields : getBasicRequestFields()
-    } catch {
+    }
+    catch {
       // fallback
     }
   }
@@ -98,8 +101,8 @@ export function getBasicRequestFields(): TabField[] {
       isKey: false,
       isParent: false,
       referenceId: ReferenceType.TableDirect,
-      referenceValueId: 138
-    } as FieldColumn
+      referenceValueId: 138,
+    } as FieldColumn,
   }
 
   const f2: TabField = {
@@ -119,8 +122,8 @@ export function getBasicRequestFields(): TabField[] {
       isMandatory: true,
       isKey: false,
       isParent: false,
-      referenceId: ReferenceType.String
-    } as FieldColumn
+      referenceId: ReferenceType.String,
+    } as FieldColumn,
   }
 
   const f3: TabField = {
@@ -140,8 +143,8 @@ export function getBasicRequestFields(): TabField[] {
       isMandatory: false,
       isKey: false,
       isParent: false,
-      referenceId: ReferenceType.Text
-    } as FieldColumn
+      referenceId: ReferenceType.Text,
+    } as FieldColumn,
   }
 
   const f4: TabField = {
@@ -161,8 +164,8 @@ export function getBasicRequestFields(): TabField[] {
       isMandatory: false,
       isKey: false,
       isParent: false,
-      referenceId: ReferenceType.DateTime
-    } as FieldColumn
+      referenceId: ReferenceType.DateTime,
+    } as FieldColumn,
   }
 
   const f5: TabField = {
@@ -182,8 +185,8 @@ export function getBasicRequestFields(): TabField[] {
       isMandatory: false,
       isKey: false,
       isParent: false,
-      referenceId: ReferenceType.DateTime
-    } as FieldColumn
+      referenceId: ReferenceType.DateTime,
+    } as FieldColumn,
   }
 
   return [f1, f2, f3, f4, f5]

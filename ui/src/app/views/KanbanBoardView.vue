@@ -9,8 +9,8 @@ import {
 
   updateRequestStatus,
 } from '../../features/request/api'
-import RequestDetailModal from './RequestDetailModal.vue'
 import { formatDate } from '../../shared/utils/datetime'
+import RequestDetailModal from './RequestDetailModal.vue'
 
 const auth = useAuth()
 

@@ -1,5 +1,5 @@
-import { apiFetch } from '../../shared/api/http'
 import { useAuth } from '../../features/auth/store'
+import { apiFetch } from '../../shared/api/http'
 
 const API_V1 = '/api/v1'
 
@@ -228,13 +228,14 @@ export async function getTabFieldsWithMeta(
   language?: string,
 ): Promise<TabField[]> {
   let fields: TabField[] = []
-  
+
   // Handle custom window slugs
   if (windowSlug === 'request-consultation') {
     // Use custom request field logic
     const { getRequestTabFields } = await import('../request/window-api')
     fields = await getRequestTabFields(token, language)
-  } else {
+  }
+  else {
     // Use regular window field logic
     fields = await getTabFields(token, windowSlug, tabSlug, language)
   }
@@ -352,12 +353,12 @@ export async function getWindowRecord(
         token,
         searchParams: {
           $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created,Updated',
-          $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)'
-        }
-      }
+          $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)',
+        },
+      },
     )
   }
-  
+
   return await apiFetch<any>(
     `${API_V1}/windows/${windowSlug}/tabs/${tabSlug}/${recordId}`,
     { token },

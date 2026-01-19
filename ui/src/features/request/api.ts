@@ -630,7 +630,7 @@ export async function getUnassignedRequests(token: string): Promise<Request[]> {
     },
   )
 
-  let requests: Request[] = (allResult.records ?? []).map(r => ({
+  const requests: Request[] = (allResult.records ?? []).map(r => ({
     id: Number(r.id),
     name: r.Summary ? String(r.Summary) : undefined,
     description: r.Result ? String(r.Result) : undefined,

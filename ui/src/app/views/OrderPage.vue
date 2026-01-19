@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { BPartnerLocation } from '../../features/bpartner/api'
-import type { Order, OrderLine, Product, Warehouse } from '../../features/order/types'
+import type { Order, Product, Warehouse } from '../../features/order/types'
 import type { BPartner } from '../../features/payment/types'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
