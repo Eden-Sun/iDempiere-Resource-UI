@@ -548,15 +548,22 @@ export interface SalesRep {
 
 /**
  * 取得可用的諮詢師列表 (AD_User with IsSalesRep = true or all users with role)
+ * @param token - Auth token
+ * @param clientId - Optional client ID to filter users by client
  */
-export async function listSalesReps(token: string): Promise<SalesRep[]> {
+export async function listSalesReps(token: string, clientId?: number): Promise<SalesRep[]> {
+  const filters = ['IsActive eq true']
+  if (clientId) {
+    filters.push(`AD_Client_ID eq ${clientId}`)
+  }
+
   const res = await apiFetch<{ records: any[] }>(
     `${API_V1}/models/AD_User`,
     {
       token,
       searchParams: {
         $select: 'AD_User_ID,Name',
-        $filter: 'IsActive eq true',
+        $filter: filters.join(' and '),
         $orderby: 'Name',
       } satisfies SearchParams,
     },

@@ -49,7 +49,8 @@ async function loadSalesReps() {
   if (!auth.token.value)
     return
   try {
-    salesReps.value = await listSalesReps(auth.token.value)
+    // Pass clientId to filter users by current client
+    salesReps.value = await listSalesReps(auth.token.value, auth.clientId.value ?? undefined)
   }
   catch (e) {
     console.error('Failed to load sales reps:', e)

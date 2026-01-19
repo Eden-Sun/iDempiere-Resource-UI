@@ -694,6 +694,7 @@ function onDayGridClick(e: MouseEvent, day: WeekDay) {
     selectedStart.value = { day, slot }
     selectedEnd.value = { day, slot }
     selectionMode.value = 'end'
+    resetColor() // 初始化顏色為所選資源的預設顏色
   }
   else if (selectionMode.value === 'end') {
     if (day.key !== selectedStart.value?.day.key)

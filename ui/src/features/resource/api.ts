@@ -162,8 +162,13 @@ export async function updateAssignment(
     json.Name = input.name
   if (input.from !== undefined)
     json.AssignDateFrom = toISO(input.from)
-  if (input.to !== undefined)
-    json.AssignDateTo = toISO(input.to)
+  // Note: AssignDateTo is a calculated/read-only column in iDempiere PUT API
+  // Calculate Qty (duration in hours) if both from and to are provided
+  if (input.from !== undefined && input.to !== undefined) {
+    const durationMs = input.to.getTime() - input.from.getTime()
+    const durationHours = durationMs / (1000 * 60 * 60)
+    json.Qty = durationHours
+  }
   if (input.description !== undefined)
     json.Description = input.description
 
