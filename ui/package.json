@@ -5,11 +5,12 @@
   "private": true,
   "description": "SPA UI for iDempiere Resource scheduling (served at /emui).",
   "scripts": {
-    "dev": "bunx --bun vite --host 0.0.0.0 --port 5173",
-    "build": "bunx --bun vite build",
-    "preview": "bunx --bun vite preview --port 5173",
-    "lint": "bunx --bun eslint .",
-    "lint:fix": "bunx --bun eslint . --fix"
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --port 5173",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
     "@headlessui/vue": "^1.7.23",
@@ -28,6 +29,7 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
-    "vite": "^6.1.0"
+    "vite": "^6.1.0",
+    "vue-tsc": "^2.2.0"
   }
 }

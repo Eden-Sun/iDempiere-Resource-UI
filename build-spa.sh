@@ -17,6 +17,7 @@ set -euo pipefail
 # - Use --no-deploy / --no-restart to disable.
 DO_DEPLOY=1
 DO_RESTART=1
+FORCE_NPM=0
 
 usage() {
   cat <<'EOF'
@@ -27,9 +28,11 @@ Options:
   --no-deploy      Only build JAR, do not docker cp
   --restart        Restart idempiere-app after deploy (default)
   --no-restart     Do not restart idempiere-app after deploy
+  --use-npm        Force using npm instead of bun for UI build
 
 Notes:
   - If you're on SSH and worry about disconnects, run with: --no-restart
+  - By default, bun is preferred over npm if both are available
 EOF
 }
 
@@ -39,6 +42,7 @@ while [ "${1:-}" != "" ]; do
     --no-deploy) DO_DEPLOY=0 ;;
     --restart) DO_RESTART=1 ;;
     --no-restart) DO_RESTART=0 ;;
+    --use-npm) FORCE_NPM=1 ;;
     -h|--help) usage; exit 0 ;;
     *)
       echo "Unknown option: $1"
@@ -111,12 +115,16 @@ build_ui_if_possible() {
   # Build UI into $WEB_CONTENT_DIR when npm/bun exists.
   # This keeps the plugin packaging deterministic, and avoids needing committed build artifacts.
 
-  # Prefer bun over npm
+  # Prefer bun over npm (unless --use-npm is specified)
   local pkg_manager=""
   local install_cmd=""
   local build_cmd=""
 
-  if has_cmd bun; then
+  if [ "$FORCE_NPM" -eq 1 ] && has_cmd npm; then
+    pkg_manager="npm"
+    install_cmd="npm install"
+    build_cmd="npm run build"
+  elif has_cmd bun && [ "$FORCE_NPM" -eq 0 ]; then
     pkg_manager="bun"
     install_cmd="bun install"
     build_cmd="bun run build"
