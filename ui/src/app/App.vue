@@ -20,23 +20,13 @@ const visibleMenuItems = computed(() => permission.visibleMenuItems.value)
 const userDisplayName = computed(() => auth.userName.value || `User #${auth.userId.value}`)
 const roleDisplay = computed(() => {
   if (isSystem.value)
-    return 'System'
-  if (auth.roleName.value) {
-    return `Role: ${auth.roleName.value}`
-  }
-  else if (auth.roleId.value) {
-    return `Role: ${auth.roleId.value}`
-  }
-  return null
+    return '系統管理員'
+  const role = auth.roleName.value || auth.roleId.value
+  return role ? `角色：${role}` : null
 })
 const clientDisplay = computed(() => {
-  if (auth.clientName.value) {
-    return `Client: ${auth.clientName.value}`
-  }
-  else if (auth.clientId.value) {
-    return `Client: ${auth.clientId.value}`
-  }
-  return null
+  const client = auth.clientName.value || auth.clientId.value
+  return client ? `客戶：${client}` : null
 })
 
 function logout(): void {
