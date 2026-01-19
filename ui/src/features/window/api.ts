@@ -233,7 +233,7 @@ export async function getTabFieldsWithMeta(
   if (windowSlug === 'request-consultation') {
     // Use custom request field logic
     const { getRequestTabFields } = await import('../request/window-api')
-    fields = await getRequestTabFields(token, language)
+    fields = await getRequestTabFields(token)
   }
   else {
     // Use regular window field logic
