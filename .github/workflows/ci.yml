@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-npm:
+    name: Build with npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ui
+        run: npm ci
+
+      - name: Type check
+        working-directory: ui
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: ui
+        run: npm run lint
+
+      - name: Build
+        working-directory: ui
+        run: npm run build
+
+      - name: Verify build output
+        run: |
+          test -f web-content/index.html || (echo "ERROR: index.html not found" && exit 1)
+          test -d web-content/assets || (echo "ERROR: assets directory not found" && exit 1)
+          echo "Build verification passed!"
+          ls -la web-content/
+
+  build-bun:
+    name: Build with bun
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: ui
+        run: bun install
+
+      - name: Type check
+        working-directory: ui
+        run: bun run typecheck
+
+      - name: Lint
+        working-directory: ui
+        run: bun run lint
+
+      - name: Build
+        working-directory: ui
+        run: bun run build
+
+      - name: Verify build output
+        run: |
+          test -f web-content/index.html || (echo "ERROR: index.html not found" && exit 1)
+          test -d web-content/assets || (echo "ERROR: assets directory not found" && exit 1)
+          echo "Build verification passed!"
+          ls -la web-content/
