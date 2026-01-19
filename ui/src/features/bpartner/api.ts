@@ -46,6 +46,32 @@ export interface BPartnerLocation {
   postalCode?: string
 }
 
+/**
+ * Search customers by name with pagination (for autocomplete/search UI)
+ */
+export async function searchCustomers(
+  token: string,
+  query: string,
+  options?: { top?: number },
+): Promise<{ id: number, name: string }[]> {
+  const searchParams: SearchParams = {
+    $select: 'C_BPartner_ID,Name',
+    $filter: `IsCustomer eq true and IsActive eq true${query ? ` and contains(Name,'${query}')` : ''}`,
+    $orderby: 'Name',
+    $top: options?.top ?? 20,
+  }
+
+  const res = await apiFetch<{ records: any[] }>(
+    `${API_V1}/models/C_BPartner`,
+    { token, searchParams },
+  )
+
+  return (res.records ?? []).map(r => ({
+    id: Number(r.id),
+    name: String(r.Name ?? ''),
+  }))
+}
+
 export async function listBPartners(token: string): Promise<BPartner[]> {
   const res = await apiFetch<{ records: any[] }>(
     `${API_V1}/models/C_BPartner`,

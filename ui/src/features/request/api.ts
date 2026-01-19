@@ -541,6 +541,33 @@ export async function deleteRequest(token: string, id: number): Promise<void> {
   })
 }
 
+export interface SalesRep {
+  id: number
+  name: string
+}
+
+/**
+ * 取得可用的諮詢師列表 (AD_User with IsSalesRep = true or all users with role)
+ */
+export async function listSalesReps(token: string): Promise<SalesRep[]> {
+  const res = await apiFetch<{ records: any[] }>(
+    `${API_V1}/models/AD_User`,
+    {
+      token,
+      searchParams: {
+        $select: 'AD_User_ID,Name',
+        $filter: 'IsActive eq true',
+        $orderby: 'Name',
+      } satisfies SearchParams,
+    },
+  )
+
+  return (res.records ?? []).map(r => ({
+    id: Number(r.id),
+    name: String(r.Name ?? ''),
+  }))
+}
+
 export async function listRequestTypes(token: string): Promise<RequestType[]> {
   const res = await apiFetch<{ records: any[] }>(
     `${API_V1}/models/R_RequestType`,

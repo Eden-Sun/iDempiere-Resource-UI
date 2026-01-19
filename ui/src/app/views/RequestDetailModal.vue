@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { Request, RequestStatus, RequestType } from '../../features/request/api'
+import type { Request, RequestStatus, RequestType, SalesRep } from '../../features/request/api'
 import { ref, watch } from 'vue'
 import { useAuth } from '../../features/auth/store'
 import {
   getRequest,
   listRequestStatuses,
   listRequestTypes,
-
+  listSalesReps,
   updateRequest,
 } from '../../features/request/api'
 import { formatDateTimeLong } from '../../shared/utils/datetime'
@@ -28,17 +28,38 @@ const auth = useAuth()
 const request = ref<Request | null>(null)
 const requestTypes = ref<RequestType[]>([])
 const requestStatuses = ref<RequestStatus[]>([])
+const salesReps = ref<SalesRep[]>([])
 const loading = ref(false)
 const submitting = ref(false)
 
 const form = ref({
   name: '',
   description: '',
+  salesRepId: undefined as number | undefined,
   requestTypeId: undefined as number | undefined,
   requestStatusId: undefined as number | undefined,
   startDate: '',
   closeDate: '',
 })
+
+async function loadLookups() {
+  if (!auth.token.value)
+    return
+
+  try {
+    const [types, statuses, reps] = await Promise.all([
+      listRequestTypes(auth.token.value),
+      listRequestStatuses(auth.token.value),
+      listSalesReps(auth.token.value),
+    ])
+    requestTypes.value = types
+    requestStatuses.value = statuses
+    salesReps.value = reps
+  }
+  catch (e) {
+    console.error('Failed to load lookups:', e)
+  }
+}
 
 async function loadRequest() {
   if (!props.requestId || !auth.token.value)
@@ -50,6 +71,7 @@ async function loadRequest() {
     form.value = {
       name: request.value.name || '',
       description: request.value.description || '',
+      salesRepId: request.value.salesRepId,
       requestTypeId: request.value.requestTypeId,
       requestStatusId: request.value.requestStatusId,
       startDate: request.value.startDate ? request.value.startDate.slice(0, 16) : '',
@@ -73,6 +95,7 @@ async function submitUpdate() {
     await updateRequest(auth.token.value, props.requestId, {
       name: form.value.name || undefined,
       description: form.value.description || undefined,
+      salesRepId: form.value.salesRepId,
       requestTypeId: form.value.requestTypeId,
       requestStatusId: form.value.requestStatusId,
       startDate: form.value.startDate ? new Date(form.value.startDate) : undefined,
@@ -93,11 +116,12 @@ async function submitUpdate() {
 function closeModal() {
   emit('update:showModal', false)
   emit('close')
-  // 重置表单
+  // Reset form
   if (request.value) {
     form.value = {
       name: request.value.name || '',
       description: request.value.description || '',
+      salesRepId: request.value.salesRepId,
       requestTypeId: request.value.requestTypeId,
       requestStatusId: request.value.requestStatusId,
       startDate: request.value.startDate ? request.value.startDate.slice(0, 16) : '',
@@ -108,15 +132,7 @@ function closeModal() {
 
 watch(() => props.showModal, async (show) => {
   if (show) {
-    if (requestTypes.value.length === 0 && auth.token.value) {
-      try {
-        requestTypes.value = await listRequestTypes(auth.token.value)
-        requestStatuses.value = await listRequestStatuses(auth.token.value)
-      }
-      catch (e) {
-        console.error('Failed to load request types/statuses:', e)
-      }
-    }
+    await loadLookups()
     await loadRequest()
   }
 })
@@ -174,15 +190,20 @@ watch(() => props.showModal, async (show) => {
           </div>
           <div>
             <label class="text-sm font-medium text-slate-700">諮詢師</label>
-            <input
-              :value="request?.salesRepName"
-              type="text"
-              disabled
-              class="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+            <select
+              v-model="form.salesRepId"
+              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
             >
+              <option :value="undefined">
+                未指派
+              </option>
+              <option v-for="rep in salesReps" :key="rep.id" :value="rep.id">
+                {{ rep.name }}
+              </option>
+            </select>
           </div>
           <div>
-            <label class="text-sm font-medium text-slate-700">Request Type</label>
+            <label class="text-sm font-medium text-slate-700">諮詢類型</label>
             <select
               v-model="form.requestTypeId"
               class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
@@ -196,7 +217,7 @@ watch(() => props.showModal, async (show) => {
             </select>
           </div>
           <div>
-            <label class="text-sm font-medium text-slate-700">Status</label>
+            <label class="text-sm font-medium text-slate-700">狀態</label>
             <select
               v-model="form.requestStatusId"
               class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"

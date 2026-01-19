@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import DynamicForm from '../../components/DynamicForm.vue'
+import type { SalesRep } from '../../features/request/api'
+import { onMounted, ref } from 'vue'
+import CustomerSearchSelect from '../../components/CustomerSearchSelect.vue'
 import { useAuth } from '../../features/auth/store'
 import {
   createRequestFromDynamicForm,
-
+  listSalesReps,
 } from '../../features/request/api'
 import CustomerDetailView from './CustomerDetailView.vue'
 import GanttChartView from './GanttChartView.vue'
@@ -30,45 +31,88 @@ const activeTab = ref<TabId>('list')
 
 const auth = useAuth()
 const showModal = ref(false)
-const dynamicFormRef = ref<InstanceType<typeof DynamicForm>>()
+const submitting = ref(false)
+const error = ref<string | null>(null)
+
+// Form state
+const form = ref({
+  customerId: undefined as number | undefined,
+  salesRepId: undefined as number | undefined,
+  name: '',
+  description: '',
+})
+
+// Sales rep options
+const salesReps = ref<SalesRep[]>([])
+
+async function loadSalesReps() {
+  if (!auth.token.value)
+    return
+  try {
+    salesReps.value = await listSalesReps(auth.token.value)
+  }
+  catch (e) {
+    console.error('Failed to load sales reps:', e)
+  }
+}
 
 function openModal() {
+  // Reset form with current user as default sales rep
+  form.value = {
+    customerId: undefined,
+    salesRepId: auth.userId.value ?? undefined,
+    name: '',
+    description: '',
+  }
+  error.value = null
   showModal.value = true
 }
 
 function closeModal() {
   showModal.value = false
+  error.value = null
 }
 
-async function submitDynamicForm(formData: Record<string, unknown>) {
+async function submitForm() {
   if (!auth.token.value || !auth.userId.value) {
-    alert('無法取得使用者資訊，請重新登入')
+    error.value = '無法取得使用者資訊，請重新登入'
     return
   }
 
-  // Set the sales representative to current user
-  formData.SalesRep_ID = auth.userId.value
+  if (!form.value.customerId) {
+    error.value = '請選擇客戶'
+    return
+  }
+
+  if (!form.value.salesRepId) {
+    error.value = '請選擇諮詢師'
+    return
+  }
+
+  submitting.value = true
+  error.value = null
 
   try {
-    await createRequestFromDynamicForm(auth.token.value, formData)
+    await createRequestFromDynamicForm(auth.token.value, {
+      C_BPartner_ID: form.value.customerId,
+      SalesRep_ID: form.value.salesRepId,
+      Summary: form.value.name || undefined,
+      Result: form.value.description || undefined,
+    })
     closeModal()
     window.location.reload()
   }
   catch (e: any) {
-    const errorMsg = e?.detail || e?.title || e?.message || '未知錯誤'
-
-    // Try to extract missing mandatory fields from error
-    if (dynamicFormRef.value && errorMsg.includes('mandatory')) {
-      const missingFields = dynamicFormRef.value.getMissingMandatoryFields()
-      if (missingFields.length > 0) {
-        alert(`建立失敗：缺少必填欄位\n\n${missingFields.join('\n')}\n\n錯誤詳情：${errorMsg}`)
-        return
-      }
-    }
-
-    alert(`建立失敗：${errorMsg}`)
+    error.value = e?.detail || e?.title || e?.message || '建立失敗'
+  }
+  finally {
+    submitting.value = false
   }
 }
+
+onMounted(() => {
+  loadSalesReps()
+})
 </script>
 
 <template>
@@ -149,7 +193,7 @@ async function submitDynamicForm(formData: Record<string, unknown>) {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
         @click.self="closeModal"
       >
-        <div class="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
           <div class="flex items-center justify-between">
             <h3 class="text-lg font-semibold text-slate-900">
               新增諮詢單
@@ -164,19 +208,88 @@ async function submitDynamicForm(formData: Record<string, unknown>) {
             </button>
           </div>
 
-          <div class="mt-4">
-            <DynamicForm
-              ref="dynamicFormRef"
-              window-slug="request-consultation"
-              tab-slug="request"
-              :default-values="{ SalesRep_ID: auth.userId }"
-              :exclude-fields="[]"
-              submit-label="建立"
-              :show-cancel="true"
-              :show-help="true"
-              @submit="submitDynamicForm"
-              @cancel="closeModal"
-            />
+          <!-- Error Message -->
+          <div
+            v-if="error"
+            class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+          >
+            {{ error }}
+          </div>
+
+          <div class="mt-4 space-y-4">
+            <!-- Customer Search -->
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">
+                客戶 <span class="text-rose-500">*</span>
+              </label>
+              <CustomerSearchSelect
+                v-model="form.customerId"
+                placeholder="搜尋客戶名稱..."
+              />
+            </div>
+
+            <!-- Sales Rep Selector -->
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">
+                諮詢師 <span class="text-rose-500">*</span>
+              </label>
+              <select
+                v-model="form.salesRepId"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+              >
+                <option :value="undefined" disabled>
+                  選擇諮詢師
+                </option>
+                <option v-for="rep in salesReps" :key="rep.id" :value="rep.id">
+                  {{ rep.name }}
+                </option>
+              </select>
+              <p class="mt-1 text-xs text-slate-500">
+                預設為當前登入帳號，可選擇其他諮詢師代開
+              </p>
+            </div>
+
+            <!-- Request Name -->
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">
+                諮詢單名稱
+              </label>
+              <input
+                v-model="form.name"
+                type="text"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                placeholder="例：初次諮詢、療程規劃..."
+              >
+            </div>
+
+            <!-- Description -->
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700">
+                說明
+              </label>
+              <textarea
+                v-model="form.description"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                rows="3"
+                placeholder="客戶需求說明..."
+              />
+            </div>
+          </div>
+
+          <div class="mt-6 flex gap-3">
+            <button
+              class="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              :disabled="submitting"
+              @click="submitForm"
+            >
+              {{ submitting ? '建立中...' : '建立' }}
+            </button>
+            <button
+              class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              @click="closeModal"
+            >
+              取消
+            </button>
           </div>
         </div>
       </div>
