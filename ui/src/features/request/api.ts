@@ -547,14 +547,76 @@ export interface SalesRep {
 }
 
 /**
- * 取得可用的諮詢師列表 (AD_User with IsSalesRep = true or all users with role)
+ * 取得可用的諮詢師列表 (從 C_BPartner 取得標記為業務代表的業務夥伴，再找對應的 AD_User)
+ * 流程：
+ * 1. 查詢 C_BPartner 取得 IsSalesRep=true 的業務夥伴 ID 列表
+ * 2. 查詢 AD_User 找 C_BPartner_ID 在該列表中的使用者
  * @param token - Auth token
- * @param clientId - Optional client ID to filter users by client
+ * @param clientId - Optional client ID to filter by client
  */
 export async function listSalesReps(token: string, clientId?: number): Promise<SalesRep[]> {
-  const filters = ['IsActive eq true']
+  const bpFilters = ['IsActive eq true']
   if (clientId) {
-    filters.push(`AD_Client_ID eq ${clientId}`)
+    bpFilters.push(`AD_Client_ID eq ${clientId}`)
+  }
+
+  try {
+    // Step 1: Get C_BPartner records (full record to access IsSalesRep)
+    const bpRes = await apiFetch<{ records: any[] }>(
+      `${API_V1}/models/C_BPartner`,
+      {
+        token,
+        searchParams: {
+          $filter: bpFilters.join(' and '),
+          $orderby: 'Name',
+        } satisfies SearchParams,
+      },
+    )
+
+    // Filter for sales reps (IsSalesRep = true or 'Y')
+    const salesRepBPartners = (bpRes.records ?? [])
+      .filter(r => r.IsSalesRep === true || r.IsSalesRep === 'Y')
+
+    if (salesRepBPartners.length > 0) {
+      // Step 2: Get AD_User records linked to these C_BPartner IDs
+      const bpIds = salesRepBPartners.map(r => r.id)
+      const bpFilter = bpIds.map(id => `C_BPartner_ID eq ${id}`).join(' or ')
+
+      const userFilters = ['IsActive eq true', `(${bpFilter})`]
+      if (clientId) {
+        userFilters.push(`AD_Client_ID eq ${clientId}`)
+      }
+
+      const userRes = await apiFetch<{ records: any[] }>(
+        `${API_V1}/models/AD_User`,
+        {
+          token,
+          searchParams: {
+            $select: 'AD_User_ID,Name,C_BPartner_ID',
+            $filter: userFilters.join(' and '),
+            $orderby: 'Name',
+          } satisfies SearchParams,
+        },
+      )
+
+      const salesReps = (userRes.records ?? []).map(r => ({
+        id: Number(r.id),
+        name: String(r.Name ?? ''),
+      }))
+
+      if (salesReps.length > 0) {
+        return salesReps
+      }
+    }
+  }
+  catch (e) {
+    console.warn('Failed to load sales reps from C_BPartner/AD_User:', e)
+  }
+
+  // Fallback: get all active users for the client
+  const fallbackFilters = ['IsActive eq true']
+  if (clientId) {
+    fallbackFilters.push(`AD_Client_ID eq ${clientId}`)
   }
 
   const res = await apiFetch<{ records: any[] }>(
@@ -563,7 +625,7 @@ export async function listSalesReps(token: string, clientId?: number): Promise<S
       token,
       searchParams: {
         $select: 'AD_User_ID,Name',
-        $filter: filters.join(' and '),
+        $filter: fallbackFilters.join(' and '),
         $orderby: 'Name',
       } satisfies SearchParams,
     },
