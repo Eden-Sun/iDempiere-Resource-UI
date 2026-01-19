@@ -50,39 +50,82 @@ bun run build
 
 ---
 
+## 功能特色
+
+### 登入系統
+- 兩步驟登入流程（帳密 → 選擇 Client/Role/Organization）
+- **記住我** - 保存用戶選擇的客戶、角色、組織，下次自動填入
+- Token 持久化 localStorage
+
+### 預約行事曆
+- 週行事曆（Google Calendar 風格）
+- **週導航** - 可切換上週/下週/今天
+- 多資源疊加顯示
+- 直接點日曆新增預約
+- Hover 顯示時長預覽
+- 過去時段 disabled
+
+### 響應式設計
+- **Desktop**: 左側固定 Sidebar
+- **Mobile**: 頂部 Header + 漢堡選單
+
+---
+
 ## Source 架構
 
 ```
 src/
-  main.ts                  # 入口：建立 Router / 掛載 App
-  app/                     # App shell + routes + pages
-    App.vue
+  main.ts                    # 入口：建立 Router / 掛載 App
+  app/                       # App shell + routes + pages
+    App.vue                  # 主版型（Sidebar + Header）
     routes.ts
     styles.css
     views/
-      LoginPage.vue
-      BookingPage.vue
-      AdminCalendarPage.vue
-      OrderPage.vue
-      RequestListView.vue
-  features/                # 依功能域分組
+      LoginPage.vue          # 登入頁
+      BookingPage.vue        # 用戶預約頁
+      AdminCalendarPage.vue  # 管理員行事曆
+      BPartnerPage.vue       # 業務夥伴
+      RequestPage.vue        # 諮詢單
+      OrderPage.vue          # 銷售/採購訂單
+      ProductionPage.vue     # 療程單
+      PaymentPage.vue        # 付款單
+      InOutPage.vue          # 收貨單
+      ReportPage.vue         # 報表
+  features/                  # 依功能域分組
     auth/
-      api.ts
-      store.ts
+      api.ts                 # 登入 API
+      store.ts               # useAuth() + Remember Me
+      types.ts
     resource/
-      api.ts
+      api.ts                 # 預約 CRUD
+    request/
+      api.ts                 # 諮詢單 API
     order/
       api.ts
-    request/
-      api.ts
-  shared/                  # 跨 feature 共用基礎
+    permission/
+      store.ts               # 權限管理
+  components/                # 共用 UI 元件
+    BaseModal.vue
+    EmptyState.vue           # 空狀態顯示
+    LoadingButton.vue        # 載入中按鈕
+    TableSkeleton.vue        # 表格骨架屏
+    ToastContainer.vue       # Toast 通知容器
+    ErrorMessage.vue
+    SuccessMessage.vue
+  composables/               # 共用 Composables
+    useToast.ts              # Toast 通知 API
+  shared/                    # 跨 feature 共用基礎
     api/
-      http.ts
+      http.ts                # apiFetch 封裝
+    utils/
+      datetime.ts            # 日期時間工具函數
 ```
 
 分層原則：
 - **app/**: 路由、頁面、版型、全域樣式
 - **features/**: 業務功能（auth、resource、order、request）
+- **components/**: 可重用 UI 元件
+- **composables/**: 可重用邏輯
 - **shared/**: 共用基礎設施（HTTP client、utils）
 
 ---
@@ -99,7 +142,6 @@ src/
 ### Router 設定
 
 - **Vue Router**: `createWebHistory('/emui/')`
-- **React Router**: `<BrowserRouter basename="/emui">`
 
 ---
 
@@ -137,8 +179,3 @@ services:
 ```
 
 將產物打包進 JAR 部署到 iDempiere。
-
-### Router（如果有）
-
-- **Vue Router**：`createWebHistory('/emui/')`
-- **React Router**：`<BrowserRouter basename="/emui">`
