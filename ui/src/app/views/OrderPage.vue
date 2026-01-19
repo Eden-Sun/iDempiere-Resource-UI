@@ -52,8 +52,19 @@ const formData = ref({
   dateOrdered: new Date().toISOString().split('T')[0],
 })
 
-const orderLines = ref<Array<{ productId: number, qtyEntered: number, priceEntered: number, taxId?: number }>>([])
+const orderLines = ref<Array<{ productId: number, qtyEntered: number, priceEntered: number, taxId?: number, productSearch?: string }>>([])
 const orderLinesLoading = ref(false)
+
+function getFilteredProducts(searchTerm: string) {
+  if (!searchTerm || searchTerm.trim().length < 1) {
+    return products.value
+  }
+  const term = searchTerm.trim().toLowerCase()
+  return products.value.filter(p =>
+    p.name.toLowerCase().includes(term)
+    || (p.value && p.value.toLowerCase().includes(term)),
+  )
+}
 
 const totalAmount = computed(() => {
   return orderLines.value.reduce((sum, line) => sum + (line.qtyEntered * line.priceEntered), 0)
@@ -246,6 +257,7 @@ function addLine() {
     productId: 0,
     qtyEntered: 1,
     priceEntered: 0,
+    productSearch: '',
   })
 }
 
@@ -628,19 +640,28 @@ onMounted(() => {
             <div class="grid grid-cols-12 gap-3 items-center">
               <div class="col-span-4">
                 <label class="block text-xs font-medium text-slate-700 mb-1">商品</label>
-                <select
-                  v-model="line.productId"
-                  class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                  :disabled="!!editingId"
-                  @change="updateLineTotal(index)"
-                >
-                  <option value="">
-                    請選擇...
-                  </option>
-                  <option v-for="p in products" :key="p.id" :value="p.id">
-                    {{ p.name }}
-                  </option>
-                </select>
+                <div class="relative">
+                  <input
+                    v-model="line.productSearch"
+                    type="text"
+                    class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 mb-1"
+                    placeholder="搜尋商品名稱..."
+                    :disabled="!!editingId"
+                  >
+                  <select
+                    v-model="line.productId"
+                    class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                    :disabled="!!editingId"
+                    @change="updateLineTotal(index)"
+                  >
+                    <option value="">
+                      請選擇...
+                    </option>
+                    <option v-for="p in getFilteredProducts(line.productSearch || '')" :key="p.id" :value="p.id">
+                      {{ p.name }}
+                    </option>
+                  </select>
+                </div>
               </div>
               <div class="col-span-2">
                 <label class="block text-xs font-medium text-slate-700 mb-1">數量</label>

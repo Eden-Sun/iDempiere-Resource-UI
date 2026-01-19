@@ -40,7 +40,16 @@ const form = ref({
   requestStatusId: undefined as number | undefined,
   startDate: '',
   closeDate: '',
+  priority: '' as string,
+  dateNextAction: '',
 })
+
+// iDempiere Priority reference list values
+const priorityOptions = [
+  { value: '3', label: '高 (High)' },
+  { value: '5', label: '中 (Medium)' },
+  { value: '7', label: '低 (Low)' },
+]
 
 async function loadLookups() {
   if (!auth.token.value)
@@ -76,6 +85,8 @@ async function loadRequest() {
       requestStatusId: request.value.requestStatusId,
       startDate: request.value.startDate ? request.value.startDate.slice(0, 16) : '',
       closeDate: request.value.closeDate ? request.value.closeDate.slice(0, 16) : '',
+      priority: request.value.priority || '',
+      dateNextAction: request.value.dateNextAction ? request.value.dateNextAction.slice(0, 16) : '',
     }
   }
   catch (e) {
@@ -100,6 +111,8 @@ async function submitUpdate() {
       requestStatusId: form.value.requestStatusId,
       startDate: form.value.startDate ? new Date(form.value.startDate) : undefined,
       closeDate: form.value.closeDate ? new Date(form.value.closeDate) : undefined,
+      priority: form.value.priority || undefined,
+      dateNextAction: form.value.dateNextAction ? new Date(form.value.dateNextAction) : undefined,
     })
     await loadRequest()
     emit('updated')
@@ -126,6 +139,8 @@ function closeModal() {
       requestStatusId: request.value.requestStatusId,
       startDate: request.value.startDate ? request.value.startDate.slice(0, 16) : '',
       closeDate: request.value.closeDate ? request.value.closeDate.slice(0, 16) : '',
+      priority: request.value.priority || '',
+      dateNextAction: request.value.dateNextAction ? request.value.dateNextAction.slice(0, 16) : '',
     }
   }
 }
@@ -229,6 +244,28 @@ watch(() => props.showModal, async (show) => {
                 {{ status.name }}
               </option>
             </select>
+          </div>
+          <div>
+            <label class="text-sm font-medium text-slate-700">優先順序</label>
+            <select
+              v-model="form.priority"
+              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="">
+                未選擇
+              </option>
+              <option v-for="opt in priorityOptions" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm font-medium text-slate-700">下次行動日期</label>
+            <input
+              v-model="form.dateNextAction"
+              type="datetime-local"
+              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            >
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>

@@ -346,7 +346,7 @@ onMounted(async () => {
               </td>
               <td class="px-4 py-3">
                 <span class="text-slate-600" title="最後聯絡客戶的日期">
-                  —
+                  {{ formatDateTimeLong(req.dateLastAction) }}
                 </span>
               </td>
               <td class="px-4 py-3 text-slate-600">

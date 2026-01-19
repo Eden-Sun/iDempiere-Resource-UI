@@ -19,6 +19,9 @@ export interface Request {
   startDate?: string
   closeDate?: string
   created: string
+  priority?: string
+  dateNextAction?: string
+  dateLastAction?: string
 }
 
 export interface RequestType {
@@ -47,7 +50,7 @@ export async function listRequests(
   pagination?: { top?: number, skip?: number },
 ): Promise<{ records: Request[], totalCount?: number }> {
   const searchParams: SearchParams = {
-    $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created',
+    $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created,Priority,DateNextAction,DateLastAction',
     $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)',
     $orderby: 'Created desc',
   }
@@ -111,6 +114,9 @@ export async function listRequests(
     startDate: r.StartDate ? String(r.StartDate) : undefined,
     closeDate: r.CloseDate ? String(r.CloseDate) : undefined,
     created: String(r.Created),
+    priority: r.Priority ? String(r.Priority) : undefined,
+    dateNextAction: r.DateNextAction ? String(r.DateNextAction) : undefined,
+    dateLastAction: r.DateLastAction ? String(r.DateLastAction) : undefined,
   }))
 
   // Client-side filtering for 'ne null' cases (API doesn't support 'ne' operator)
@@ -279,7 +285,7 @@ export async function getRequest(token: string, id: number): Promise<Request> {
   const r = await apiFetch<any>(`${API_V1}/models/R_Request/${id}`, {
     token,
     searchParams: {
-      $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created',
+      $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created,Priority,DateNextAction,DateLastAction',
       $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)',
     },
   })
@@ -299,6 +305,9 @@ export async function getRequest(token: string, id: number): Promise<Request> {
     startDate: r.StartDate ? String(r.StartDate) : undefined,
     closeDate: r.CloseDate ? String(r.CloseDate) : undefined,
     created: String(r.Created),
+    priority: r.Priority ? String(r.Priority) : undefined,
+    dateNextAction: r.DateNextAction ? String(r.DateNextAction) : undefined,
+    dateLastAction: r.DateLastAction ? String(r.DateLastAction) : undefined,
   }
 
   // 查询客户名称（使用 Name 字段替换 identifier）
@@ -503,6 +512,8 @@ export async function updateRequest(
     requestStatusId?: number
     startDate?: Date
     closeDate?: Date
+    priority?: string
+    dateNextAction?: Date
   },
 ): Promise<any> {
   const toISO = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z')
@@ -522,6 +533,10 @@ export async function updateRequest(
     json.StartDate = input.startDate ? toISO(input.startDate) : null
   if (input.closeDate !== undefined)
     json.CloseDate = input.closeDate ? toISO(input.closeDate) : null
+  if (input.priority !== undefined)
+    json.Priority = input.priority || null
+  if (input.dateNextAction !== undefined)
+    json.DateNextAction = input.dateNextAction ? toISO(input.dateNextAction) : null
 
   return await apiFetch<any>(`${API_V1}/models/R_Request/${id}`, {
     method: 'PUT',
