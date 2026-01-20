@@ -55,15 +55,52 @@ const formData = ref({
 const orderLines = ref<Array<{ productId: number, qtyEntered: number, priceEntered: number, taxId?: number, productSearch?: string }>>([])
 const orderLinesLoading = ref(false)
 
-function getFilteredProducts(searchTerm: string) {
+// Debounced product filtering
+const filteredProductsCache = ref<Map<number, Product[]>>(new Map())
+const debounceTimers = ref<Map<number, ReturnType<typeof setTimeout>>>(new Map())
+
+function getFilteredProducts(searchTerm: string, lineIndex: number) {
+  // Return cached results if available
+  if (filteredProductsCache.value.has(lineIndex)) {
+    return filteredProductsCache.value.get(lineIndex)!
+  }
+
+  // Otherwise return all products (will be filtered on next tick)
   if (!searchTerm || searchTerm.trim().length < 1) {
     return products.value
   }
+
   const term = searchTerm.trim().toLowerCase()
   return products.value.filter(p =>
     p.name.toLowerCase().includes(term)
     || (p.value && p.value.toLowerCase().includes(term)),
   )
+}
+
+function onProductSearchInput(lineIndex: number, searchTerm: string) {
+  // Clear existing timer for this line
+  const existingTimer = debounceTimers.value.get(lineIndex)
+  if (existingTimer) {
+    clearTimeout(existingTimer)
+  }
+
+  // Set new debounced filter
+  const timer = setTimeout(() => {
+    if (!searchTerm || searchTerm.trim().length < 1) {
+      filteredProductsCache.value.set(lineIndex, products.value)
+    }
+    else {
+      const term = searchTerm.trim().toLowerCase()
+      const filtered = products.value.filter(p =>
+        p.name.toLowerCase().includes(term)
+        || (p.value && p.value.toLowerCase().includes(term)),
+      )
+      filteredProductsCache.value.set(lineIndex, filtered)
+    }
+    debounceTimers.value.delete(lineIndex)
+  }, 300)
+
+  debounceTimers.value.set(lineIndex, timer)
 }
 
 const totalAmount = computed(() => {
@@ -263,6 +300,8 @@ function addLine() {
 
 function removeLine(index: number) {
   orderLines.value.splice(index, 1)
+  // Clear cached filters (indices shift after removal)
+  filteredProductsCache.value.clear()
 }
 
 function updateLineTotal(_index: number) {
@@ -647,6 +686,7 @@ onMounted(() => {
                     class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 mb-1"
                     placeholder="搜尋商品名稱..."
                     :disabled="!!editingId"
+                    @input="onProductSearchInput(index, line.productSearch || '')"
                   >
                   <select
                     v-model="line.productId"
@@ -657,7 +697,7 @@ onMounted(() => {
                     <option value="">
                       請選擇...
                     </option>
-                    <option v-for="p in getFilteredProducts(line.productSearch || '')" :key="p.id" :value="p.id">
+                    <option v-for="p in getFilteredProducts(line.productSearch || '', index)" :key="p.id" :value="p.id">
                       {{ p.name }}
                     </option>
                   </select>

@@ -42,6 +42,7 @@ const form = ref({
   closeDate: '',
   priority: '' as string,
   dateNextAction: '',
+  confidentialType: '' as string,
 })
 
 // iDempiere Priority reference list values
@@ -49,6 +50,14 @@ const priorityOptions = [
   { value: '3', label: '高 (High)' },
   { value: '5', label: '中 (Medium)' },
   { value: '7', label: '低 (Low)' },
+]
+
+// iDempiere ConfidentialType reference list values
+const confidentialTypeOptions = [
+  { value: 'A', label: '公開 (Public)' },
+  { value: 'C', label: '僅限客戶 (Customer Only)' },
+  { value: 'I', label: '內部 (Internal)' },
+  { value: 'P', label: '私人 (Private)' },
 ]
 
 async function loadLookups() {
@@ -87,6 +96,7 @@ async function loadRequest() {
       closeDate: request.value.closeDate ? request.value.closeDate.slice(0, 16) : '',
       priority: request.value.priority || '',
       dateNextAction: request.value.dateNextAction ? request.value.dateNextAction.slice(0, 16) : '',
+      confidentialType: request.value.confidentialType || '',
     }
   }
   catch (e) {
@@ -113,6 +123,7 @@ async function submitUpdate() {
       closeDate: form.value.closeDate ? new Date(form.value.closeDate) : undefined,
       priority: form.value.priority || undefined,
       dateNextAction: form.value.dateNextAction ? new Date(form.value.dateNextAction) : undefined,
+      confidentialType: form.value.confidentialType || undefined,
     })
     await loadRequest()
     emit('updated')
@@ -141,6 +152,7 @@ function closeModal() {
       closeDate: request.value.closeDate ? request.value.closeDate.slice(0, 16) : '',
       priority: request.value.priority || '',
       dateNextAction: request.value.dateNextAction ? request.value.dateNextAction.slice(0, 16) : '',
+      confidentialType: request.value.confidentialType || '',
     }
   }
 }
@@ -266,6 +278,20 @@ watch(() => props.showModal, async (show) => {
               type="datetime-local"
               class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
             >
+          </div>
+          <div>
+            <label class="text-sm font-medium text-slate-700">保密類型</label>
+            <select
+              v-model="form.confidentialType"
+              class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            >
+              <option value="">
+                未選擇
+              </option>
+              <option v-for="opt in confidentialTypeOptions" :key="opt.value" :value="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>

@@ -22,6 +22,7 @@ export interface Request {
   priority?: string
   dateNextAction?: string
   dateLastAction?: string
+  confidentialType?: string
 }
 
 export interface RequestType {
@@ -50,7 +51,7 @@ export async function listRequests(
   pagination?: { top?: number, skip?: number },
 ): Promise<{ records: Request[], totalCount?: number }> {
   const searchParams: SearchParams = {
-    $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created,Priority,DateNextAction,DateLastAction',
+    $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created,Priority,DateNextAction,DateLastAction,ConfidentialType',
     $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)',
     $orderby: 'Created desc',
   }
@@ -117,6 +118,7 @@ export async function listRequests(
     priority: r.Priority ? String(r.Priority) : undefined,
     dateNextAction: r.DateNextAction ? String(r.DateNextAction) : undefined,
     dateLastAction: r.DateLastAction ? String(r.DateLastAction) : undefined,
+    confidentialType: r.ConfidentialType ? String(r.ConfidentialType) : undefined,
   }))
 
   // Client-side filtering for 'ne null' cases (API doesn't support 'ne' operator)
@@ -285,7 +287,7 @@ export async function getRequest(token: string, id: number): Promise<Request> {
   const r = await apiFetch<any>(`${API_V1}/models/R_Request/${id}`, {
     token,
     searchParams: {
-      $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created,Priority,DateNextAction,DateLastAction',
+      $select: 'R_Request_ID,Summary,Result,C_BPartner_ID,SalesRep_ID,R_RequestType_ID,R_Status_ID,StartDate,CloseDate,Created,Priority,DateNextAction,DateLastAction,ConfidentialType',
       $expand: 'C_BPartner_ID($select=C_BPartner_ID,Name),SalesRep_ID($select=AD_User_ID,Name),R_RequestType_ID($select=R_RequestType_ID,Name),R_Status_ID($select=R_Status_ID,Name)',
     },
   })
@@ -308,6 +310,7 @@ export async function getRequest(token: string, id: number): Promise<Request> {
     priority: r.Priority ? String(r.Priority) : undefined,
     dateNextAction: r.DateNextAction ? String(r.DateNextAction) : undefined,
     dateLastAction: r.DateLastAction ? String(r.DateLastAction) : undefined,
+    confidentialType: r.ConfidentialType ? String(r.ConfidentialType) : undefined,
   }
 
   // 查询客户名称（使用 Name 字段替换 identifier）
@@ -514,6 +517,7 @@ export async function updateRequest(
     closeDate?: Date
     priority?: string
     dateNextAction?: Date
+    confidentialType?: string
   },
 ): Promise<any> {
   const toISO = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z')
@@ -537,6 +541,8 @@ export async function updateRequest(
     json.Priority = input.priority || null
   if (input.dateNextAction !== undefined)
     json.DateNextAction = input.dateNextAction ? toISO(input.dateNextAction) : null
+  if (input.confidentialType !== undefined)
+    json.ConfidentialType = input.confidentialType || null
 
   return await apiFetch<any>(`${API_V1}/models/R_Request/${id}`, {
     method: 'PUT',
